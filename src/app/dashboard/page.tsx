@@ -29,6 +29,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function fetchStats() {
+      if (!supabase) {
+        setLoading(false)
+        return
+      }
+
       try {
         const promises = []
 
