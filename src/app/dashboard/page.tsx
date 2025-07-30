@@ -46,27 +46,22 @@ export default function DashboardPage() {
             .select('id', { count: 'exact', head: true })
         )
 
-        // Fetch screens count and status
+        // Fetch screens count 
         promises.push(
           supabase
             .from('screens')
-            .select('device_status', { count: 'exact' })
+            .select('id', { count: 'exact', head: true })
         )
 
         const [districtsResult, locationsResult, screensResult] = await Promise.all(promises)
-
-        const screenStatusCounts = screensResult.data?.reduce((acc, screen) => {
-          acc[screen.device_status] = (acc[screen.device_status] || 0) + 1
-          return acc
-        }, {} as Record<string, number>) || {}
 
         setStats({
           totalOrganizations: 1, // For now, assuming single org
           totalDistricts: districtsResult.count || 0,
           totalLocations: locationsResult.count || 0,
           totalScreens: screensResult.count || 0,
-          onlineScreens: screenStatusCounts.online || 0,
-          offlineScreens: (screenStatusCounts.offline || 0) + (screenStatusCounts.error || 0),
+          onlineScreens: 0, // Will be populated when screens exist
+          offlineScreens: 0, // Will be populated when screens exist
         })
       } catch (error) {
         console.error('Error fetching stats:', error)

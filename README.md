@@ -1,36 +1,106 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Digital Signage Platform
 
-## Getting Started
+Enterprise digital signage management system for restaurant chains. Built with Next.js, Supabase, and designed for Vercel deployment.
 
-First, run the development server:
+## 🚀 Quick Deploy
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/digital-signage-platform)
+
+## 📋 Setup Instructions
+
+### 1. Create Supabase Project
+1. Go to [Supabase](https://supabase.com) and create a new project
+2. Wait for the project to be ready (2-3 minutes)
+
+### 2. Set up Database
+1. Go to your Supabase project dashboard
+2. Navigate to **SQL Editor**
+3. Run the contents of `supabase/schema.sql` first
+4. Then run the contents of `supabase/rls_policies.sql`
+
+### 3. Configure Environment Variables
+1. In Supabase, go to **Settings** > **API**
+2. Copy your **Project URL** and **anon public key**
+3. Set these as environment variables in Vercel:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+### 4. Deploy to Vercel
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Login to Vercel
+vercel login
+
+# Deploy
+vercel
+
+# Or deploy directly from GitHub
+# Push to GitHub and connect in Vercel dashboard
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🏗️ Architecture
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Hierarchical Structure:**
+- Organizations → Districts → Locations → Screens
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**User Roles:**
+- `super_admin` - Full organization access
+- `district_manager` - Manages 50+ locations
+- `location_manager` - Single location access
 
-## Learn More
+**Tech Stack:**
+- **Frontend**: Next.js 15 + TypeScript + Tailwind CSS
+- **Database**: Supabase (PostgreSQL + Row Level Security)  
+- **Auth**: Supabase Auth with role-based permissions
+- **Deployment**: Vercel
 
-To learn more about Next.js, take a look at the following resources:
+## 🎯 Features
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- ✅ Multi-tenant architecture with data isolation
+- ✅ Role-based authentication and permissions
+- ✅ Responsive dashboard interface
+- ✅ Real-time data synchronization
+- 🚧 Media management system
+- 🚧 Scheduling system
+- ⏳ Raspberry Pi device integration
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🛠️ Development
 
-## Deploy on Vercel
+```bash
+# Install dependencies
+npm install
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# Start development server
+npm run dev
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Build for production
+npm run build
+
+# Type checking
+npm run type-check
+
+# Linting
+npm run lint
+```
+
+## 📚 Documentation
+
+See [CLAUDE.md](./CLAUDE.md) for detailed development guidance and architecture information.
+
+## 🔐 Security
+
+- Row Level Security (RLS) policies enforce data isolation
+- JWT-based authentication via Supabase
+- Role-based access control throughout the application
+- Secure API routes with middleware protection
+
+## 📱 Device Integration
+
+Designed for Raspberry Pi devices that will:
+- Authenticate via Supabase API
+- Receive real-time content updates
+- Report device status and logs
+- Play scheduled media content
+
+---
+
+Built with ❤️ using modern web technologies for enterprise-scale digital signage management.
