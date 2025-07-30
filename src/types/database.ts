@@ -1,0 +1,405 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type UserRole = 'super_admin' | 'district_manager' | 'location_manager'
+export type ScreenType = 'ad_device' | 'menu_board' | 'employee_board'
+export type DeviceStatus = 'online' | 'offline' | 'error' | 'maintenance'
+export type LogLevel = 'info' | 'warning' | 'error' | 'debug'
+
+export interface Database {
+  public: {
+    Tables: {
+      organizations: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          logo_url: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          logo_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          logo_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      districts: {
+        Row: {
+          id: string
+          organization_id: string
+          name: string
+          description: string | null
+          manager_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          name: string
+          description?: string | null
+          manager_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          name?: string
+          description?: string | null
+          manager_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      locations: {
+        Row: {
+          id: string
+          district_id: string
+          name: string
+          address: string | null
+          phone: string | null
+          manager_id: string | null
+          timezone: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          district_id: string
+          name: string
+          address?: string | null
+          phone?: string | null
+          manager_id?: string | null
+          timezone?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          district_id?: string
+          name?: string
+          address?: string | null
+          phone?: string | null
+          manager_id?: string | null
+          timezone?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      user_profiles: {
+        Row: {
+          id: string
+          email: string
+          full_name: string | null
+          role: UserRole
+          organization_id: string | null
+          district_id: string | null
+          location_id: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          email: string
+          full_name?: string | null
+          role?: UserRole
+          organization_id?: string | null
+          district_id?: string | null
+          location_id?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string
+          full_name?: string | null
+          role?: UserRole
+          organization_id?: string | null
+          district_id?: string | null
+          location_id?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      screens: {
+        Row: {
+          id: string
+          location_id: string
+          name: string
+          screen_type: ScreenType
+          device_id: string | null
+          resolution: string
+          orientation: string
+          is_active: boolean
+          last_seen: string | null
+          device_status: DeviceStatus
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          location_id: string
+          name: string
+          screen_type: ScreenType
+          device_id?: string | null
+          resolution?: string
+          orientation?: string
+          is_active?: boolean
+          last_seen?: string | null
+          device_status?: DeviceStatus
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          location_id?: string
+          name?: string
+          screen_type?: ScreenType
+          device_id?: string | null
+          resolution?: string
+          orientation?: string
+          is_active?: boolean
+          last_seen?: string | null
+          device_status?: DeviceStatus
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      media_assets: {
+        Row: {
+          id: string
+          organization_id: string
+          name: string
+          file_name: string
+          file_url: string
+          file_size: number | null
+          mime_type: string
+          duration: number | null
+          width: number | null
+          height: number | null
+          tags: string[] | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          name: string
+          file_name: string
+          file_url: string
+          file_size?: number | null
+          mime_type: string
+          duration?: number | null
+          width?: number | null
+          height?: number | null
+          tags?: string[] | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          name?: string
+          file_name?: string
+          file_url?: string
+          file_size?: number | null
+          mime_type?: string
+          duration?: number | null
+          width?: number | null
+          height?: number | null
+          tags?: string[] | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      playlists: {
+        Row: {
+          id: string
+          organization_id: string
+          name: string
+          description: string | null
+          is_default: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          name: string
+          description?: string | null
+          is_default?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          name?: string
+          description?: string | null
+          is_default?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      playlist_items: {
+        Row: {
+          id: string
+          playlist_id: string
+          media_asset_id: string
+          display_order: number
+          display_duration: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          playlist_id: string
+          media_asset_id: string
+          display_order: number
+          display_duration?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          playlist_id?: string
+          media_asset_id?: string
+          display_order?: number
+          display_duration?: number
+          created_at?: string
+        }
+      }
+      schedules: {
+        Row: {
+          id: string
+          screen_id: string
+          playlist_id: string
+          name: string
+          start_date: string
+          end_date: string | null
+          start_time: string
+          end_time: string
+          days_of_week: number[]
+          priority: number
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          screen_id: string
+          playlist_id: string
+          name: string
+          start_date: string
+          end_date?: string | null
+          start_time: string
+          end_time: string
+          days_of_week?: number[]
+          priority?: number
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          screen_id?: string
+          playlist_id?: string
+          name?: string
+          start_date?: string
+          end_date?: string | null
+          start_time?: string
+          end_time?: string
+          days_of_week?: number[]
+          priority?: number
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      device_logs: {
+        Row: {
+          id: string
+          screen_id: string
+          log_level: LogLevel
+          message: string
+          metadata: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          screen_id: string
+          log_level: LogLevel
+          message: string
+          metadata?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          screen_id?: string
+          log_level?: LogLevel
+          message?: string
+          metadata?: Json | null
+          created_at?: string
+        }
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      get_user_organization_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: UserRole
+      }
+      can_access_district: {
+        Args: {
+          district_uuid: string
+        }
+        Returns: boolean
+      }
+      can_access_location: {
+        Args: {
+          location_uuid: string
+        }
+        Returns: boolean
+      }
+    }
+    Enums: {
+      user_role: UserRole
+      screen_type: ScreenType
+      device_status: DeviceStatus
+    }
+  }
+}
