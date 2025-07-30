@@ -152,13 +152,22 @@ export default function EditDistrictPage({
     
     try {
       const resolvedParams = await params
+      console.log('Attempting to delete district:', resolvedParams.id)
+      
+      // Add a timeout to the fetch request
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      
       const response = await fetch(`/api/districts/${resolvedParams.id}`, {
         method: 'DELETE',
+        signal: controller.signal,
       })
-
-      const result = await response.json()
+      
+      clearTimeout(timeoutId)
+      console.log('Delete response status:', response.status)
 
       if (!response.ok) {
+        const result = await response.json()
         console.error('Error deleting district:', result)
         setErrors({ 
           name: result.error || 'Failed to delete district. Please try again.' 
@@ -166,12 +175,19 @@ export default function EditDistrictPage({
         return
       }
 
+      const result = await response.json()
+      console.log('Delete successful:', result)
+
       // Success - redirect to districts list
       router.push('/dashboard/districts')
       
     } catch (error) {
-      console.error('Unexpected error:', error)
-      setErrors({ name: 'An unexpected error occurred. Please try again.' })
+      console.error('Unexpected error during delete:', error)
+      if (error instanceof Error && error.name === 'AbortError') {
+        setErrors({ name: 'Request timed out. Please try again.' })
+      } else {
+        setErrors({ name: 'An unexpected error occurred. Please try again.' })
+      }
     } finally {
       setLoading(false)
       setShowDeleteConfirm(false)

@@ -205,6 +205,8 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   const params = await context.params
+  console.log('DELETE request for district:', params.id)
+  
   try {
     const supabase = await createClient()
     
@@ -239,6 +241,7 @@ export async function DELETE(
     }
 
     // Check if district has locations (prevent deletion if it has locations)
+    console.log('Checking for locations in district:', params.id)
     const { data: locations, error: locationsError } = await supabase
       .from('locations')
       .select('id')
@@ -250,13 +253,17 @@ export async function DELETE(
       return NextResponse.json({ error: 'Failed to verify district status' }, { status: 500 })
     }
 
+    console.log('Found locations:', locations?.length || 0)
+
     if (locations && locations.length > 0) {
+      console.log('Cannot delete - district has locations')
       return NextResponse.json({ 
         error: 'Cannot delete district with existing locations. Please move or delete all locations first.' 
       }, { status: 409 })
     }
 
     // Delete the district
+    console.log('Attempting to delete district from database')
     const { error: deleteError } = await supabase
       .from('districts')
       .delete()
@@ -275,6 +282,7 @@ export async function DELETE(
       }, { status: 500 })
     }
 
+    console.log('District deleted successfully')
     return NextResponse.json({ 
       message: 'District deleted successfully'
     })
