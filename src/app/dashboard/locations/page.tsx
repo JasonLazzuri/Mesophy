@@ -1,30 +1,33 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase'
-import { MapPin, Search, Plus, Edit, Building2, Monitor } from 'lucide-react'
+import { MapPin, Search, Plus, Edit, Building2, Clock, Phone, Map } from 'lucide-react'
 import Link from 'next/link'
 
 interface Location {
   id: string
+  district_id: string
   name: string
-  address: string | null
+  address: string
   phone: string | null
   timezone: string
-  district_id: string
-  manager_id: string | null
+  is_active: boolean
   created_at: string
   updated_at: string
   // Joined data
   district?: {
+    id: string
     name: string
   } | null
-  manager?: {
-    full_name: string | null
-    email: string
-  } | null
-  _count?: {
-    screens: number
+}
+
+interface LocationsByDistrict {
+  [districtName: string]: {
+    district: {
+      id: string
+      name: string
+    }
+    locations: Location[]
   }
 }
 
@@ -33,55 +36,21 @@ export default function LocationsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [error, setError] = useState('')
-  const supabase = createClient()
 
   useEffect(() => {
     fetchLocations()
   }, [])
 
   const fetchLocations = async () => {
-    if (!supabase) {
-      setError('Database connection unavailable')
-      setLoading(false)
-      return
-    }
-
     try {
-      // First, get locations with district and manager info
-      const { data: locationsData, error: locationsError } = await supabase
-        .from('locations')
-        .select(`
-          *,
-          districts (
-            name
-          ),
-          user_profiles!locations_manager_id_fkey (
-            full_name,
-            email
-          )
-        `)
-        .order('name')
+      const response = await fetch('/api/locations')
+      const result = await response.json()
 
-      if (locationsError) throw locationsError
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch locations')
+      }
 
-      // Then get screen counts for each location
-      const locationsWithCounts = await Promise.all(
-        (locationsData || []).map(async (location) => {
-          const { count } = await supabase
-            .from('screens')
-            .select('*', { count: 'exact', head: true })
-            .eq('location_id', location.id)
-
-          return {
-            ...location,
-            district: location.districts,
-            manager: location.user_profiles,
-            _count: { screens: count || 0 }
-          }
-        })
-      )
-
-      setLocations(locationsWithCounts)
+      setLocations(result.locations || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch locations')
       console.error('Error fetching locations:', err)
@@ -90,11 +59,30 @@ export default function LocationsPage() {
     }
   }
 
+  // Filter locations based on search term
   const filteredLocations = locations.filter(location =>
     location.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    location.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    location.district?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+    location.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    location.district?.name.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  // Group locations by district
+  const locationsByDistrict: LocationsByDistrict = filteredLocations.reduce((acc, location) => {
+    const districtName = location.district?.name || 'Unknown District'
+    
+    if (!acc[districtName]) {
+      acc[districtName] = {
+        district: location.district || { id: '', name: districtName },
+        locations: []
+      }
+    }
+    
+    acc[districtName].locations.push(location)
+    return acc
+  }, {} as LocationsByDistrict)
+
+  // Sort districts alphabetically
+  const sortedDistricts = Object.keys(locationsByDistrict).sort()
 
   if (loading) {
     return (
@@ -110,13 +98,16 @@ export default function LocationsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Locations</h1>
           <p className="text-gray-600">
-            Manage your store locations and their digital signage setups
+            Manage your restaurant locations and their settings
           </p>
         </div>
-        <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+        <Link
+          href="/dashboard/locations/add"
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+        >
           <Plus className="h-4 w-4 mr-2" />
           Add Location
-        </button>
+        </Link>
       </div>
 
       {error && (
@@ -135,7 +126,7 @@ export default function LocationsPage() {
             <input
               type="text"
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="Search locations..."
+              placeholder="Search locations by name, address, or district..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -144,7 +135,7 @@ export default function LocationsPage() {
 
         {/* Locations List */}
         <div className="divide-y divide-gray-200">
-          {filteredLocations.length === 0 ? (
+          {sortedDistricts.length === 0 ? (
             <div className="p-6 text-center">
               <MapPin className="mx-auto h-12 w-12 text-gray-300" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">
@@ -157,71 +148,95 @@ export default function LocationsPage() {
               </p>
             </div>
           ) : (
-            filteredLocations.map((location) => (
-              <div key={location.id} className="p-6 hover:bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
-                          <MapPin className="h-6 w-6 text-green-600" />
-                        </div>
-                      </div>
-                      <div className="ml-4 flex-1">
-                        <div className="flex items-center">
-                          <h3 className="text-lg font-medium text-gray-900">
-                            {location.name}
-                          </h3>
-                          <div className="ml-2 flex items-center space-x-4 text-sm text-gray-500">
-                            <div className="flex items-center">
-                              <Monitor className="h-4 w-4 mr-1" />
-                              {location._count?.screens || 0} screens
-                            </div>
-                          </div>
-                        </div>
-                        {location.address && (
-                          <p className="text-sm text-gray-600 mt-1">
-                            {location.address}
-                          </p>
-                        )}
-                        <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                          <div className="flex items-center">
-                            <Building2 className="h-4 w-4 mr-1" />
-                            <span>
-                              District: {location.district?.name || 'Unassigned'}
-                            </span>
-                          </div>
-                          <div className="flex items-center">
-                            <span>
-                              Manager: {location.manager
-                                ? `${location.manager.full_name || location.manager.email}`
-                                : 'No manager assigned'}
-                            </span>
-                          </div>
-                        </div>
-                        {location.phone && (
-                          <p className="text-sm text-gray-500 mt-1">
-                            Phone: {location.phone}
-                          </p>
-                        )}
+            sortedDistricts.map((districtName) => {
+              const districtData = locationsByDistrict[districtName]
+              return (
+                <div key={districtName} className="p-6">
+                  {/* District Header */}
+                  <div className="flex items-center mb-4">
+                    <div className="flex-shrink-0">
+                      <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
+                        <Building2 className="h-5 w-5 text-blue-600" />
                       </div>
                     </div>
+                    <div className="ml-3">
+                      <h3 className="text-lg font-medium text-gray-900">
+                        {districtName}
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        {districtData.locations.length} location{districtData.locations.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Link
-                      href={`/dashboard/locations/${location.id}`}
-                      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                    >
-                      View Details
-                    </Link>
-                    <button className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                      <Edit className="h-4 w-4 mr-1" />
-                      Edit
-                    </button>
+
+                  {/* Locations in this district */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 ml-11">
+                    {districtData.locations.map((location) => (
+                      <div
+                        key={location.id}
+                        className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0">
+                                <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+                                  <MapPin className="h-4 w-4 text-green-600" />
+                                </div>
+                              </div>
+                              <div className="ml-3 flex-1 min-w-0">
+                                <h4 className="text-sm font-medium text-gray-900 truncate">
+                                  {location.name}
+                                </h4>
+                                <div className="flex items-center mt-1">
+                                  <span
+                                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      location.is_active
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-red-100 text-red-800'
+                                    }`}
+                                  >
+                                    {location.is_active ? 'Active' : 'Inactive'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 space-y-2">
+                              <div className="flex items-center text-sm text-gray-600">
+                                <Map className="h-4 w-4 mr-2 flex-shrink-0" />
+                                <span className="truncate">{location.address}</span>
+                              </div>
+                              
+                              {location.phone && (
+                                <div className="flex items-center text-sm text-gray-600">
+                                  <Phone className="h-4 w-4 mr-2 flex-shrink-0" />
+                                  <span>{location.phone}</span>
+                                </div>
+                              )}
+                              
+                              <div className="flex items-center text-sm text-gray-600">
+                                <Clock className="h-4 w-4 mr-2 flex-shrink-0" />
+                                <span>{location.timezone.replace('_', ' ')}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-2 ml-2">
+                            <Link
+                              href={`/dashboard/locations/${location.id}/edit`}
+                              className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs leading-4 font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-colors"
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
       </div>
@@ -230,7 +245,16 @@ export default function LocationsPage() {
       {filteredLocations.length > 0 && (
         <div className="bg-white shadow rounded-lg p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Location Summary</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="flex items-center">
+                <Building2 className="h-6 w-6 text-blue-600" />
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-blue-600">Total Districts</p>
+                  <p className="text-2xl font-bold text-blue-900">{sortedDistricts.length}</p>
+                </div>
+              </div>
+            </div>
             <div className="bg-green-50 p-4 rounded-lg">
               <div className="flex items-center">
                 <MapPin className="h-6 w-6 text-green-600" />
@@ -240,24 +264,28 @@ export default function LocationsPage() {
                 </div>
               </div>
             </div>
-            <div className="bg-blue-50 p-4 rounded-lg">
+            <div className="bg-emerald-50 p-4 rounded-lg">
               <div className="flex items-center">
-                <Monitor className="h-6 w-6 text-blue-600" />
+                <div className="h-6 w-6 rounded-full bg-emerald-600 flex items-center justify-center">
+                  <div className="h-2 w-2 rounded-full bg-white"></div>
+                </div>
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-blue-600">Total Screens</p>
-                  <p className="text-2xl font-bold text-blue-900">
-                    {filteredLocations.reduce((sum, l) => sum + (l._count?.screens || 0), 0)}
+                  <p className="text-sm font-medium text-emerald-600">Active Locations</p>
+                  <p className="text-2xl font-bold text-emerald-900">
+                    {filteredLocations.filter(l => l.is_active).length}
                   </p>
                 </div>
               </div>
             </div>
-            <div className="bg-purple-50 p-4 rounded-lg">
+            <div className="bg-red-50 p-4 rounded-lg">
               <div className="flex items-center">
-                <Building2 className="h-6 w-6 text-purple-600" />
+                <div className="h-6 w-6 rounded-full bg-red-600 flex items-center justify-center">
+                  <div className="h-2 w-2 rounded-full bg-white"></div>
+                </div>
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-purple-600">Districts Covered</p>
-                  <p className="text-2xl font-bold text-purple-900">
-                    {new Set(filteredLocations.map(l => l.district?.name).filter(Boolean)).size}
+                  <p className="text-sm font-medium text-red-600">Inactive Locations</p>
+                  <p className="text-2xl font-bold text-red-900">
+                    {filteredLocations.filter(l => !l.is_active).length}
                   </p>
                 </div>
               </div>
