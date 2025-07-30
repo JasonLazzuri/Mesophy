@@ -63,7 +63,7 @@ export default function DashboardLayout({
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
+      <div className="h-screen flex bg-gray-50 overflow-hidden">
         {/* Mobile sidebar backdrop */}
         {sidebarOpen && (
           <div
@@ -72,13 +72,14 @@ export default function DashboardLayout({
           />
         )}
 
-        {/* Enhanced Sidebar */}
+        {/* Enhanced Sidebar - Fixed Full Height */}
         <div
-          className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
+          className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 flex flex-col ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
-          <div className="flex items-center justify-between h-16 px-6 bg-gradient-to-r from-indigo-600 to-purple-700">
+          {/* Header Section - Fixed Height */}
+          <div className="flex items-center justify-between h-16 px-6 bg-gradient-to-r from-indigo-600 to-purple-700 flex-shrink-0">
             <h1 className="text-xl font-bold text-white tracking-tight">Digital Signage</h1>
             <button
               className="lg:hidden text-white hover:bg-white/10 p-1 rounded-md transition-colors"
@@ -88,7 +89,8 @@ export default function DashboardLayout({
             </button>
           </div>
 
-          <nav className="mt-6">
+          {/* Navigation Section - Flexible Height */}
+          <nav className="flex-1 overflow-y-auto py-6">
             <div className="px-3 space-y-1">
               {loading ? (
                 <div className="flex items-center justify-center py-8">
@@ -121,7 +123,8 @@ export default function DashboardLayout({
             </div>
           </nav>
 
-          <div className="absolute bottom-0 w-full p-4">
+          {/* Footer Section - Fixed Height */}
+          <div className="flex-shrink-0 p-4 border-t border-gray-200">
             {/* Debug info in development */}
             {process.env.NODE_ENV === 'development' && (
               <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs">
@@ -164,10 +167,10 @@ export default function DashboardLayout({
           </div>
         </div>
 
-        {/* Main content */}
-        <div className="lg:ml-64">
+        {/* Main content area - Flex grow to fill remaining space */}
+        <div className="flex-1 flex flex-col overflow-hidden">
           {/* Enhanced Top bar */}
-          <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm shadow-sm border-b border-gray-200">
+          <div className="flex-shrink-0 bg-white/95 backdrop-blur-sm shadow-sm border-b border-gray-200">
             <div className="flex items-center justify-between h-16 px-6">
               <button
                 className="lg:hidden text-gray-600 hover:text-gray-900 hover:bg-gray-100 p-2 rounded-lg transition-colors"
@@ -189,8 +192,8 @@ export default function DashboardLayout({
             </div>
           </div>
 
-          {/* Enhanced Page content */}
-          <main className="p-6 bg-gray-50 min-h-screen">
+          {/* Enhanced Page content - Flex grow with scrolling */}
+          <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
             {children}
           </main>
         </div>
