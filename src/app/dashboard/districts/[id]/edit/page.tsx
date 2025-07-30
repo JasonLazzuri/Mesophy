@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { ArrowLeft, Building2, Save, User, MapPin } from 'lucide-react'
+import { ArrowLeft, Building2, Save, User, MapPin, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 
 interface FormData {
@@ -18,17 +18,65 @@ interface FormErrors {
   manager_id?: string
 }
 
-export default function AddDistrictPage() {
-  const { profile } = useAuth()
+interface District {
+  id: string
+  name: string
+  description: string | null
+  manager_id: string | null
+  created_at: string
+  updated_at: string
+  organization_id: string
+}
+
+export default function EditDistrictPage({ 
+  params 
+}: { 
+  params: Promise<{ id: string }> 
+}) {
+  const { } = useAuth()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [loadingDistrict, setLoadingDistrict] = useState(true)
   const [errors, setErrors] = useState<FormErrors>({})
+  const [district, setDistrict] = useState<District | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   
   const [formData, setFormData] = useState<FormData>({
     name: '',
     description: '',
     manager_id: null,
   })
+
+  // Fetch district data
+  useEffect(() => {
+    const fetchDistrict = async () => {
+      try {
+        const resolvedParams = await params
+        const response = await fetch(`/api/districts/${resolvedParams.id}`)
+        const result = await response.json()
+        
+        if (!response.ok) {
+          router.push('/dashboard/districts')
+          return
+        }
+        
+        const districtData = result.district
+        setDistrict(districtData)
+        setFormData({
+          name: districtData.name,
+          description: districtData.description || '',
+          manager_id: districtData.manager_id,
+        })
+      } catch (error) {
+        console.error('Error fetching district:', error)
+        router.push('/dashboard/districts')
+      } finally {
+        setLoadingDistrict(false)
+      }
+    }
+
+    fetchDistrict()
+  }, [params, router])
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {}
@@ -62,17 +110,12 @@ export default function AddDistrictPage() {
       return
     }
 
-    if (!profile?.organization_id) {
-      setErrors({ name: 'Organization not found. Please refresh and try again.' })
-      return
-    }
-
     setLoading(true)
     
     try {
-      // Submit to API route instead of direct Supabase
-      const response = await fetch('/api/districts', {
-        method: 'POST',
+      const resolvedParams = await params
+      const response = await fetch(`/api/districts/${resolvedParams.id}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -86,9 +129,9 @@ export default function AddDistrictPage() {
       const result = await response.json()
 
       if (!response.ok) {
-        console.error('Error creating district:', result)
+        console.error('Error updating district:', result)
         setErrors({ 
-          name: result.error || 'Failed to create district. Please try again.' 
+          name: result.error || 'Failed to update district. Please try again.' 
         })
         return
       }
@@ -104,6 +147,37 @@ export default function AddDistrictPage() {
     }
   }
 
+  const handleDelete = async () => {
+    setLoading(true)
+    
+    try {
+      const resolvedParams = await params
+      const response = await fetch(`/api/districts/${resolvedParams.id}`, {
+        method: 'DELETE',
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('Error deleting district:', result)
+        setErrors({ 
+          name: result.error || 'Failed to delete district. Please try again.' 
+        })
+        return
+      }
+
+      // Success - redirect to districts list
+      router.push('/dashboard/districts')
+      
+    } catch (error) {
+      console.error('Unexpected error:', error)
+      setErrors({ name: 'An unexpected error occurred. Please try again.' })
+    } finally {
+      setLoading(false)
+      setShowDeleteConfirm(false)
+    }
+  }
+
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     
@@ -111,6 +185,26 @@ export default function AddDistrictPage() {
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }))
     }
+  }
+
+  if (loadingDistrict) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!district) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <p className="text-gray-500">District not found</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -126,15 +220,23 @@ export default function AddDistrictPage() {
             Back to Districts
           </Link>
         </div>
+        
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          className="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-lg text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+        >
+          <Trash2 className="h-4 w-4 mr-2" />
+          Delete District
+        </button>
       </div>
 
       <div>
         <h1 className="text-3xl font-bold text-gray-900 tracking-tight flex items-center">
           <Building2 className="h-8 w-8 mr-3 text-indigo-600" />
-          Add New District
+          Edit District
         </h1>
         <p className="text-gray-600 mt-2">
-          Create a new district to organize restaurant locations by geographic region
+          Update the district information and settings
         </p>
       </div>
 
@@ -142,7 +244,7 @@ export default function AddDistrictPage() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">District Information</h2>
-          <p className="text-sm text-gray-600 mt-1">Fill in the details for the new district</p>
+          <p className="text-sm text-gray-600 mt-1">Update the details for this district</p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -219,7 +321,7 @@ export default function AddDistrictPage() {
               </select>
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              District managers can be assigned later in the Users section
+              District managers can be assigned in the Users section
             </p>
           </div>
 
@@ -240,12 +342,12 @@ export default function AddDistrictPage() {
               {loading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Creating...
+                  Updating...
                 </>
               ) : (
                 <>
                   <Save className="h-4 w-4 mr-2" />
-                  Create District
+                  Update District
                 </>
               )}
             </button>
@@ -253,16 +355,39 @@ export default function AddDistrictPage() {
         </form>
       </div>
 
-      {/* Help Text */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-blue-800 mb-2">💡 District Setup Tips</h3>
-        <ul className="text-sm text-blue-700 space-y-1">
-          <li>• Choose names that clearly identify the geographic area (e.g., &quot;North District&quot;, &quot;Downtown Region&quot;)</li>
-          <li>• Descriptions should help managers understand the scope and characteristics of the district</li>
-          <li>• District managers can be assigned later once user accounts are created</li>
-          <li>• You can add restaurant locations to this district after creation</li>
-        </ul>
-      </div>
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3 text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                <Trash2 className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mt-2">Delete District</h3>
+              <div className="mt-2 px-7 py-3">
+                <p className="text-sm text-gray-500">
+                  Are you sure you want to delete &quot;{district.name}&quot;? This action cannot be undone and will affect all locations in this district.
+                </p>
+              </div>
+              <div className="items-center px-4 py-3">
+                <button
+                  onClick={handleDelete}
+                  disabled={loading}
+                  className="px-4 py-2 bg-red-500 text-white text-base font-medium rounded-md w-24 mr-2 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50"
+                >
+                  {loading ? '...' : 'Delete'}
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-24 hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
