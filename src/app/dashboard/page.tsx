@@ -4,7 +4,10 @@ import { useAuth } from '@/hooks/useAuth'
 import { Building2, Monitor, Users, Activity } from 'lucide-react'
 
 export default function DashboardPage() {
-  const { profile } = useAuth()
+  const { profile, loading } = useAuth()
+
+  // Debug log current user profile
+  console.log('Dashboard page - User profile:', profile)
 
   // Simple static stats for testing
   const stats = {
@@ -54,6 +57,23 @@ export default function DashboardPage() {
           Role: {profile?.role?.replace('_', ' ')?.toUpperCase() || 'Loading...'}
         </p>
       </div>
+
+      {/* Debug section in development */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-yellow-800 mb-2">Debug Information</h3>
+          <div className="text-sm text-yellow-700 space-y-1">
+            <div><strong>Loading:</strong> {loading.toString()}</div>
+            <div><strong>Profile:</strong> {profile ? 'Loaded' : 'Not loaded'}</div>
+            <div><strong>User ID:</strong> {profile?.id || 'None'}</div>
+            <div><strong>Email:</strong> {profile?.email || 'None'}</div>
+            <div><strong>Role:</strong> {profile?.role || 'None'}</div>
+            <div><strong>Organization ID:</strong> {profile?.organization_id || 'None'}</div>
+            <div><strong>Full Name:</strong> {profile?.full_name || 'None'}</div>
+            <div><strong>Is Active:</strong> {profile?.is_active?.toString() || 'None'}</div>
+          </div>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

@@ -30,11 +30,17 @@ export function useAuth() {
         setUser(user)
 
         if (user) {
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from('user_profiles')
             .select('*')
             .eq('id', user.id)
             .single()
+          
+          if (profileError) {
+            console.error('Error fetching user profile:', profileError)
+          } else {
+            console.log('Successfully fetched user profile:', profile)
+          }
           
           if (mounted) {
             setProfile(profile)
@@ -59,11 +65,17 @@ export function useAuth() {
         
         if (session?.user) {
           try {
-            const { data: profile } = await supabase
+            const { data: profile, error: profileError } = await supabase
               .from('user_profiles')
               .select('*')
               .eq('id', session.user.id)
               .single()
+            
+            if (profileError) {
+              console.error('Error fetching user profile in auth change:', profileError)
+            } else {
+              console.log('Successfully fetched user profile in auth change:', profile)
+            }
             
             if (mounted) {
               setProfile(profile)

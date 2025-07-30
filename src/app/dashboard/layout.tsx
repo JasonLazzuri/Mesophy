@@ -5,16 +5,29 @@ import { useAuth } from '@/hooks/useAuth'
 import { Building2, Monitor, Users, LogOut, Menu, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const { profile, signOut } = useAuth()
+  const { profile, signOut, loading } = useAuth()
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Debug logging to help troubleshoot navigation issues
+  useEffect(() => {
+    if (!loading) {
+      console.log('Dashboard Layout Debug Info:', {
+        profile,
+        profileRole: profile?.role,
+        profileId: profile?.id,
+        profileEmail: profile?.email,
+        loading
+      })
+    }
+  }, [profile, loading])
 
   const navigation = [
     { name: 'Overview', href: '/dashboard', icon: Monitor },
@@ -31,6 +44,22 @@ export default function DashboardLayout({
       ? [{ name: 'Users', href: '/dashboard/users', icon: Users }]
       : []),
   ]
+
+  // Debug navigation rendering
+  useEffect(() => {
+    if (!loading) {
+      console.log('Navigation items being rendered:', navigation.map(item => ({
+        name: item.name,
+        href: item.href
+      })))
+      console.log('Role check results:', {
+        isSuperAdmin: profile?.role === 'super_admin',
+        isDistrictManager: profile?.role === 'district_manager',
+        shouldShowDistricts: profile?.role === 'super_admin' || profile?.role === 'district_manager',
+        shouldShowUsers: profile?.role === 'super_admin'
+      })
+    }
+  }, [navigation, profile, loading])
 
   return (
     <ProtectedRoute>
@@ -61,27 +90,46 @@ export default function DashboardLayout({
 
           <nav className="mt-8">
             <div className="px-4 space-y-2">
-              {navigation.map((item) => {
-                const isActive = pathname === item.href
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={`flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                      isActive
-                        ? 'bg-indigo-100 text-indigo-700'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
-                  >
-                    <item.icon className="mr-3 h-5 w-5" />
-                    {item.name}
-                  </Link>
-                )
-              })}
+              {loading ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+                </div>
+              ) : (
+                navigation.map((item) => {
+                  const isActive = pathname === item.href
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className={`flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        isActive
+                          ? 'bg-indigo-100 text-indigo-700'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      }`}
+                    >
+                      <item.icon className="mr-3 h-5 w-5" />
+                      {item.name}
+                    </Link>
+                  )
+                })
+              )}
             </div>
           </nav>
 
           <div className="absolute bottom-0 w-full p-4">
+            {/* Debug info in development */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+                <div className="font-semibold text-yellow-800 mb-1">Debug Info:</div>
+                <div className="text-yellow-700 space-y-1">
+                  <div>Role: {profile?.role || 'none'}</div>
+                  <div>Loading: {loading.toString()}</div>
+                  <div>Profile ID: {profile?.id || 'none'}</div>
+                  <div>Nav Items: {navigation.length}</div>
+                </div>
+              </div>
+            )}
+            
             <div className="flex items-center px-4 py-2 text-sm text-gray-600">
               <Users className="mr-3 h-5 w-5" />
               <div>
