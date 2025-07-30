@@ -36,7 +36,7 @@ export async function GET() {
       .select(`
         *,
         locations(count),
-        user_profiles!districts_manager_id_fkey(
+        manager:user_profiles(
           id,
           full_name,
           email
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
       })
       .select(`
         *,
-        user_profiles!districts_manager_id_fkey(
+        manager:user_profiles(
           id,
           full_name,
           email

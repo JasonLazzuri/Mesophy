@@ -39,7 +39,7 @@ export async function GET(
       .from('districts')
       .select(`
         *,
-        user_profiles!districts_manager_id_fkey(
+        manager:user_profiles(
           id,
           full_name,
           email
@@ -162,7 +162,7 @@ export async function PUT(
       .eq('organization_id', profile.organization_id)
       .select(`
         *,
-        user_profiles!districts_manager_id_fkey(
+        manager:user_profiles(
           id,
           full_name,
           email
