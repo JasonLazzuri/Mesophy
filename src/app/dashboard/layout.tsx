@@ -72,27 +72,27 @@ export default function DashboardLayout({
           />
         )}
 
-        {/* Sidebar */}
+        {/* Enhanced Sidebar */}
         <div
-          className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
+          className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
-          <div className="flex items-center justify-between h-16 px-6 bg-indigo-600">
-            <h1 className="text-xl font-semibold text-white">Digital Signage</h1>
+          <div className="flex items-center justify-between h-16 px-6 bg-gradient-to-r from-indigo-600 to-purple-700">
+            <h1 className="text-xl font-bold text-white tracking-tight">Digital Signage</h1>
             <button
-              className="lg:hidden text-white"
+              className="lg:hidden text-white hover:bg-white/10 p-1 rounded-md transition-colors"
               onClick={() => setSidebarOpen(false)}
             >
               <X className="h-6 w-6" />
             </button>
           </div>
 
-          <nav className="mt-8">
-            <div className="px-4 space-y-2">
+          <nav className="mt-6">
+            <div className="px-3 space-y-1">
               {loading ? (
-                <div className="flex items-center justify-center py-4">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                 </div>
               ) : (
                 navigation.map((item) => {
@@ -101,14 +101,19 @@ export default function DashboardLayout({
                     <Link
                       key={item.name}
                       href={item.href}
-                      className={`flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                      className={`group flex items-center px-3 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
                         isActive
-                          ? 'bg-indigo-100 text-indigo-700'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                          ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg'
+                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                       }`}
                     >
-                      <item.icon className="mr-3 h-5 w-5" />
+                      <item.icon className={`mr-3 h-5 w-5 transition-colors ${
+                        isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'
+                      }`} />
                       {item.name}
+                      {isActive && (
+                        <div className="ml-auto h-2 w-2 bg-white/30 rounded-full"></div>
+                      )}
                     </Link>
                   )
                 })
@@ -119,31 +124,41 @@ export default function DashboardLayout({
           <div className="absolute bottom-0 w-full p-4">
             {/* Debug info in development */}
             {process.env.NODE_ENV === 'development' && (
-              <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
-                <div className="font-semibold text-yellow-800 mb-1">Debug Info:</div>
-                <div className="text-yellow-700 space-y-1">
-                  <div>Role: {profile?.role || 'none'}</div>
-                  <div>Loading: {loading.toString()}</div>
-                  <div>Profile ID: {profile?.id || 'none'}</div>
-                  <div>Nav Items: {navigation.length}</div>
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs">
+                <div className="font-semibold text-amber-800 mb-2 flex items-center">
+                  <div className="h-2 w-2 bg-amber-500 rounded-full mr-2"></div>
+                  Debug Info
+                </div>
+                <div className="text-amber-700 space-y-1">
+                  <div><span className="font-medium">Role:</span> {profile?.role || 'none'}</div>
+                  <div><span className="font-medium">Loading:</span> {loading.toString()}</div>
+                  <div><span className="font-medium">Profile ID:</span> {profile?.id?.slice(0, 8) || 'none'}...</div>
+                  <div><span className="font-medium">Nav Items:</span> {navigation.length}</div>
                 </div>
               </div>
             )}
             
-            <div className="flex items-center px-4 py-2 text-sm text-gray-600">
-              <Users className="mr-3 h-5 w-5" />
-              <div>
-                <p className="font-medium">{profile?.full_name || profile?.email}</p>
-                <p className="text-xs text-gray-500 capitalize">
-                  {profile?.role?.replace('_', ' ')}
-                </p>
+            <div className="bg-gray-50 rounded-xl p-4 mb-3">
+              <div className="flex items-center space-x-3">
+                <div className="h-10 w-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full flex items-center justify-center">
+                  <Users className="h-5 w-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 truncate">
+                    {profile?.full_name || profile?.email}
+                  </p>
+                  <p className="text-xs text-gray-600 capitalize">
+                    {profile?.role?.replace('_', ' ')}
+                  </p>
+                </div>
               </div>
             </div>
+            
             <button
               onClick={signOut}
-              className="w-full flex items-center px-4 py-2 mt-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900 transition-colors"
+              className="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-700 rounded-xl hover:bg-red-50 hover:text-red-700 transition-all duration-200 group"
             >
-              <LogOut className="mr-3 h-5 w-5" />
+              <LogOut className="mr-3 h-5 w-5 text-gray-400 group-hover:text-red-500 transition-colors" />
               Sign out
             </button>
           </div>
@@ -151,26 +166,31 @@ export default function DashboardLayout({
 
         {/* Main content */}
         <div className="lg:ml-64">
-          {/* Top bar */}
-          <div className="sticky top-0 z-10 bg-white shadow-sm border-b border-gray-200">
+          {/* Enhanced Top bar */}
+          <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm shadow-sm border-b border-gray-200">
             <div className="flex items-center justify-between h-16 px-6">
               <button
-                className="lg:hidden text-gray-600"
+                className="lg:hidden text-gray-600 hover:text-gray-900 hover:bg-gray-100 p-2 rounded-lg transition-colors"
                 onClick={() => setSidebarOpen(true)}
               >
                 <Menu className="h-6 w-6" />
               </button>
               <div className="lg:hidden">
-                <h1 className="text-xl font-semibold text-gray-900">Digital Signage</h1>
+                <h1 className="text-xl font-bold text-gray-900 tracking-tight">Digital Signage</h1>
               </div>
               <div className="flex items-center space-x-4">
-                {/* Notification or other top bar items can go here */}
+                {/* Status indicator */}
+                <div className="hidden md:flex items-center space-x-2 text-sm text-gray-600">
+                  <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                  <span>All systems operational</span>
+                </div>
+                {/* Future: Notification bell, user menu, etc. */}
               </div>
             </div>
           </div>
 
-          {/* Page content */}
-          <main className="p-6">
+          {/* Enhanced Page content */}
+          <main className="p-6 bg-gray-50 min-h-screen">
             {children}
           </main>
         </div>

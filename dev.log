@@ -1,0 +1,18 @@
+
+> digital-signage-platform@0.1.0 dev
+> next dev --turbopack
+
+ ⚠ Warning: Found multiple lockfiles. Selecting /Users/ttadmin/package-lock.json.
+   Consider removing the lockfiles at:
+   * /Users/ttadmin/Mesophy/digital-signage-platform/package-lock.json
+
+ ⚠ Port 3000 is in use by process 53961, using available port 3001 instead.
+   ▲ Next.js 15.4.5 (Turbopack)
+   - Local:        http://localhost:3001
+   - Network:      http://192.168.254.188:3001
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Compiled middleware in 111ms
+ ✓ Ready in 899ms
+[?25h
