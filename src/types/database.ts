@@ -12,6 +12,8 @@ export type DeviceStatus = 'online' | 'offline' | 'error' | 'maintenance'
 export type Orientation = 'landscape' | 'portrait'
 export type LogLevel = 'info' | 'warning' | 'error' | 'debug'
 export type MediaType = 'image' | 'video'
+export type LoopMode = 'loop' | 'once' | 'shuffle'
+export type TransitionType = 'fade' | 'slide' | 'cut' | 'dissolve'
 
 export interface Database {
   public: {
@@ -297,8 +299,10 @@ export interface Database {
           organization_id: string
           name: string
           description: string | null
-          is_default: boolean
+          total_duration: number
+          loop_mode: LoopMode
           created_by: string | null
+          is_active: boolean
           created_at: string
           updated_at: string
         }
@@ -307,8 +311,10 @@ export interface Database {
           organization_id: string
           name: string
           description?: string | null
-          is_default?: boolean
+          total_duration?: number
+          loop_mode?: LoopMode
           created_by?: string | null
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -317,8 +323,10 @@ export interface Database {
           organization_id?: string
           name?: string
           description?: string | null
-          is_default?: boolean
+          total_duration?: number
+          loop_mode?: LoopMode
           created_by?: string | null
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -328,38 +336,43 @@ export interface Database {
           id: string
           playlist_id: string
           media_asset_id: string
-          display_order: number
-          display_duration: number
+          order_index: number
+          duration_override: number | null
+          transition_type: TransitionType
           created_at: string
         }
         Insert: {
           id?: string
           playlist_id: string
           media_asset_id: string
-          display_order: number
-          display_duration?: number
+          order_index: number
+          duration_override?: number | null
+          transition_type?: TransitionType
           created_at?: string
         }
         Update: {
           id?: string
           playlist_id?: string
           media_asset_id?: string
-          display_order?: number
-          display_duration?: number
+          order_index?: number
+          duration_override?: number | null
+          transition_type?: TransitionType
           created_at?: string
         }
       }
       schedules: {
         Row: {
           id: string
-          screen_id: string
-          playlist_id: string
+          organization_id: string
           name: string
+          playlist_id: string
+          screen_id: string | null
           start_date: string
           end_date: string | null
           start_time: string
           end_time: string
           days_of_week: number[]
+          timezone: string
           priority: number
           is_active: boolean
           created_by: string | null
@@ -368,14 +381,16 @@ export interface Database {
         }
         Insert: {
           id?: string
-          screen_id: string
-          playlist_id: string
+          organization_id: string
           name: string
+          playlist_id: string
+          screen_id?: string | null
           start_date: string
           end_date?: string | null
           start_time: string
           end_time: string
           days_of_week?: number[]
+          timezone?: string
           priority?: number
           is_active?: boolean
           created_by?: string | null
@@ -384,19 +399,41 @@ export interface Database {
         }
         Update: {
           id?: string
-          screen_id?: string
-          playlist_id?: string
+          organization_id?: string
           name?: string
+          playlist_id?: string
+          screen_id?: string | null
           start_date?: string
           end_date?: string | null
           start_time?: string
           end_time?: string
           days_of_week?: number[]
+          timezone?: string
           priority?: number
           is_active?: boolean
           created_by?: string | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      screen_schedules: {
+        Row: {
+          id: string
+          schedule_id: string
+          screen_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          schedule_id: string
+          screen_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          schedule_id?: string
+          screen_id?: string
+          created_at?: string
         }
       }
       device_logs: {
@@ -457,6 +494,8 @@ export interface Database {
       device_status: DeviceStatus
       orientation: Orientation
       media_type: MediaType
+      loop_mode: LoopMode
+      transition_type: TransitionType
     }
   }
 }
