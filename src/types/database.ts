@@ -7,8 +7,9 @@ export type Json =
   | Json[]
 
 export type UserRole = 'super_admin' | 'district_manager' | 'location_manager'
-export type ScreenType = 'ad_device' | 'menu_board' | 'employee_board'
+export type ScreenType = 'menu_board' | 'promotional' | 'queue_display' | 'outdoor_sign'
 export type DeviceStatus = 'online' | 'offline' | 'error' | 'maintenance'
+export type Orientation = 'landscape' | 'portrait'
 export type LogLevel = 'info' | 'warning' | 'error' | 'debug'
 
 export interface Database {
@@ -149,11 +150,13 @@ export interface Database {
           name: string
           screen_type: ScreenType
           device_id: string | null
-          resolution: string
-          orientation: string
-          is_active: boolean
-          last_seen: string | null
           device_status: DeviceStatus
+          resolution: string
+          orientation: Orientation
+          is_active: boolean
+          last_heartbeat: string | null
+          ip_address: string | null
+          firmware_version: string | null
           created_at: string
           updated_at: string
         }
@@ -163,11 +166,13 @@ export interface Database {
           name: string
           screen_type: ScreenType
           device_id?: string | null
-          resolution?: string
-          orientation?: string
-          is_active?: boolean
-          last_seen?: string | null
           device_status?: DeviceStatus
+          resolution?: string
+          orientation?: Orientation
+          is_active?: boolean
+          last_heartbeat?: string | null
+          ip_address?: string | null
+          firmware_version?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -177,11 +182,13 @@ export interface Database {
           name?: string
           screen_type?: ScreenType
           device_id?: string | null
-          resolution?: string
-          orientation?: string
-          is_active?: boolean
-          last_seen?: string | null
           device_status?: DeviceStatus
+          resolution?: string
+          orientation?: Orientation
+          is_active?: boolean
+          last_heartbeat?: string | null
+          ip_address?: string | null
+          firmware_version?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -400,6 +407,7 @@ export interface Database {
       user_role: UserRole
       screen_type: ScreenType
       device_status: DeviceStatus
+      orientation: Orientation
     }
   }
 }

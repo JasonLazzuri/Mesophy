@@ -2,7 +2,7 @@
 
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/hooks/useAuth'
-import { Building2, Monitor, Users, LogOut, Menu, X } from 'lucide-react'
+import { Building2, Monitor, Users, LogOut, Menu, X, Tv, Image, Calendar } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
@@ -37,9 +37,9 @@ export default function DashboardLayout({
           { name: 'Locations', href: '/dashboard/locations', icon: Building2 },
         ]
       : []),
-    { name: 'Screens', href: '/dashboard/screens', icon: Monitor },
-    { name: 'Media', href: '/dashboard/media', icon: Monitor },
-    { name: 'Schedules', href: '/dashboard/schedules', icon: Monitor },
+    { name: 'Screens', href: '/dashboard/screens', icon: Tv },
+    { name: 'Media', href: '/dashboard/media', icon: Image },
+    { name: 'Schedules', href: '/dashboard/schedules', icon: Calendar },
     ...(profile?.role === 'super_admin'
       ? [{ name: 'Users', href: '/dashboard/users', icon: Users }]
       : []),
@@ -98,7 +98,8 @@ export default function DashboardLayout({
                 </div>
               ) : (
                 navigation.map((item) => {
-                  const isActive = pathname === item.href
+                  const isActive = pathname === item.href || 
+                    (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
                   return (
                     <Link
                       key={item.name}

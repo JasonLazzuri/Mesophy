@@ -21,6 +21,7 @@ interface FormErrors {
   address?: string
   phone?: string
   timezone?: string
+  general?: string // For general API errors
 }
 
 interface Location {
@@ -178,6 +179,9 @@ export default function EditLocationPage({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    // Clear any existing errors
+    setErrors({})
+    
     if (!validateForm()) {
       return
     }
@@ -186,37 +190,74 @@ export default function EditLocationPage({
     
     try {
       const resolvedParams = await params
+      
+      // Prepare the request data
+      const requestData = {
+        district_id: formData.district_id,
+        name: formData.name.trim(),
+        address: formData.address.trim(),
+        phone: formData.phone.trim() || null,
+        timezone: formData.timezone,
+        is_active: formData.is_active,
+      }
+      
+      console.log('Submitting location update:', requestData)
+      
       const response = await fetch(`/api/locations/${resolvedParams.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          district_id: formData.district_id,
-          name: formData.name.trim(),
-          address: formData.address.trim(),
-          phone: formData.phone.trim() || null,
-          timezone: formData.timezone,
-          is_active: formData.is_active,
-        }),
+        body: JSON.stringify(requestData),
       })
 
       const result = await response.json()
+      console.log('API response:', { status: response.status, result })
 
       if (!response.ok) {
         console.error('Error updating location:', result)
-        setErrors({ 
-          name: result.error || 'Failed to update location. Please try again.' 
-        })
+        
+        // Handle specific error types
+        if (response.status === 400) {
+          // Validation errors
+          if (result.error?.includes('name')) {
+            setErrors({ name: result.error })
+          } else if (result.error?.includes('address')) {
+            setErrors({ address: result.error })
+          } else if (result.error?.includes('phone')) {
+            setErrors({ phone: result.error })
+          } else if (result.error?.includes('district')) {
+            setErrors({ district_id: result.error })
+          } else if (result.error?.includes('timezone')) {
+            setErrors({ timezone: result.error })
+          } else {
+            setErrors({ general: result.error || 'Invalid input data' })
+          }
+        } else if (response.status === 403) {
+          setErrors({ general: 'You do not have permission to update this location' })
+        } else if (response.status === 404) {
+          setErrors({ general: 'Location not found' })
+        } else if (response.status === 409) {
+          setErrors({ name: result.error || 'A location with this name already exists' })
+        } else if (response.status === 500) {
+          setErrors({ general: result.error || 'Server error. Please try again later.' })
+        } else {
+          setErrors({ general: result.error || 'Failed to update location. Please try again.' })
+        }
         return
       }
 
       // Success - redirect to locations list
+      console.log('Location updated successfully')
       router.push('/dashboard/locations')
       
     } catch (error) {
       console.error('Unexpected error:', error)
-      setErrors({ name: 'An unexpected error occurred. Please try again.' })
+      setErrors({ 
+        general: error instanceof Error 
+          ? `Network error: ${error.message}` 
+          : 'An unexpected error occurred. Please try again.'
+      })
     } finally {
       setLoading(false)
     }
@@ -271,9 +312,14 @@ export default function EditLocationPage({
   const handleInputChange = (field: keyof FormData, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     
-    // Clear errors when user starts typing
+    // Clear field-specific errors when user starts typing
     if (typeof value === 'string' && errors[field as keyof FormErrors]) {
       setErrors(prev => ({ ...prev, [field]: undefined }))
+    }
+    
+    // Clear general errors when user makes changes
+    if (errors.general) {
+      setErrors(prev => ({ ...prev, general: undefined }))
     }
   }
 
@@ -508,6 +554,27 @@ export default function EditLocationPage({
               Inactive locations will not display content on their screens
             </p>
           </div>
+
+          {/* General Error Message */}
+          {errors.general && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">
+                    Error updating location
+                  </h3>
+                  <div className="mt-2 text-sm text-red-700">
+                    <p>{errors.general}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Form Actions */}
           <div className="flex items-center justify-between pt-6 border-t border-gray-200">
