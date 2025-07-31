@@ -17,15 +17,15 @@ interface Screen {
   id: string
   name: string
   location_id: string
-  locations: {
+  location: {
     id: string
     name: string
     district_id: string
-    districts: {
+    district: {
       id: string
       name: string
     }
-  }
+  } | null
 }
 
 interface Schedule {
@@ -707,7 +707,7 @@ export default function EditSchedulePage({ params }: RouteParams) {
                     <option value="">Choose a screen</option>
                     {screens.map((screen) => (
                       <option key={screen.id} value={screen.id}>
-                        {screen.name} - {screen.locations.name}
+                        {screen.name} - {screen.location?.name || 'Unknown Location'}
                       </option>
                     ))}
                   </select>
@@ -733,7 +733,7 @@ export default function EditSchedulePage({ params }: RouteParams) {
                             {screen.name}
                           </div>
                           <div className="text-xs text-gray-500">
-                            {screen.locations.name} • {screen.locations.districts.name}
+                            {screen.location?.name || 'Unknown Location'} • {screen.location?.district?.name || 'Unknown District'}
                           </div>
                         </div>
                       </label>
