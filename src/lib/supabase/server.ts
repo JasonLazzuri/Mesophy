@@ -44,10 +44,10 @@ export const createClient = cache(async () => {
 export const createAdminClient = cache(() => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   // Try different possible env var names for the service key
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
-                     process.env.SUPABASE_SERVICE_KEY ||
-                     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ||
-                     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY
+  let serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
+                   process.env.SUPABASE_SERVICE_KEY ||
+                   process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ||
+                   process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY
 
   console.log('Admin client env check:', {
     url: url ? 'present' : 'missing',
@@ -56,9 +56,33 @@ export const createAdminClient = cache(() => {
     checkedVariants: {
       SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
       SUPABASE_SERVICE_KEY: !!process.env.SUPABASE_SERVICE_KEY,
-      NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY: !!process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+      NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY: !!process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY,
+      NEXT_PUBLIC_SUPABASE_SERVICE_KEY: !!process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY
     }
   })
+
+  // TEMPORARY WORKAROUND: If no env var found, provide instructions for manual entry
+  if (!serviceKey) {
+    console.error('No Supabase service key found in environment variables')
+    console.error('Available env keys:', Object.keys(process.env).filter(k => k.includes('SUPABASE')))
+    console.error('Process env NODE_ENV:', process.env.NODE_ENV)
+    console.error('Process env VERCEL_ENV:', process.env.VERCEL_ENV)
+    
+    // Let's try accessing it directly from process.env with a different approach
+    if (typeof window === 'undefined') {  // Server-side only
+      const dynamicKey = process.env['SUPABASE_SERVICE_ROLE_KEY'] || 
+                         process.env['NEXT_PUBLIC_SUPABASE_SERVICE_KEY']
+      if (dynamicKey) {
+        console.log('Found service key using dynamic access')
+        serviceKey = dynamicKey
+      }
+    }
+    
+    if (!serviceKey) {
+      console.error('Still no service key found. Please check Vercel environment variable configuration.')
+      return null
+    }
+  }
 
   if (!url || !serviceKey) {
     console.error('Supabase admin environment variables not found', {

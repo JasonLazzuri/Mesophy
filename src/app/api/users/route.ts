@@ -1,5 +1,6 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getServiceKey, debugEnvironment } from './runtime-config'
 
 export async function GET(request: NextRequest) {
   try {
@@ -99,6 +100,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     console.log('POST /api/users - Starting user creation request')
+    console.log('POST /api/users - Environment debug:', debugEnvironment())
     
     const supabase = await createClient()
     
@@ -191,7 +193,24 @@ export async function POST(request: NextRequest) {
 
     // Check if email already exists using admin client
     console.log('POST /api/users - Checking if email exists:', email)
-    const adminClient = createAdminClient()
+    let adminClient = createAdminClient()
+    
+    // If admin client creation failed, try manual creation
+    if (!adminClient) {
+      console.log('POST /api/users - Standard admin client failed, trying manual creation')
+      const serviceKey = getServiceKey()
+      if (serviceKey && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+        try {
+          const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+          adminClient = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL, serviceKey, {
+            auth: { autoRefreshToken: false, persistSession: false }
+          })
+          console.log('POST /api/users - Manual admin client created successfully')
+        } catch (error) {
+          console.error('POST /api/users - Manual admin client creation failed:', error)
+        }
+      }
+    }
     
     if (!adminClient) {
       console.error('POST /api/users - Admin client not available')
