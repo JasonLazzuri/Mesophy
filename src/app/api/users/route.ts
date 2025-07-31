@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
@@ -98,19 +98,28 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('POST /api/users - Starting user creation request')
+    
     const supabase = await createClient()
     
     if (!supabase) {
+      console.error('POST /api/users - Supabase client not available')
       return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
     }
+    
+    console.log('POST /api/users - Supabase client created successfully')
 
     // Get current user
+    console.log('POST /api/users - Getting current user')
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
+      console.error('POST /api/users - Auth error:', authError)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    console.log('POST /api/users - Current user authenticated:', user.id)
 
     // Get user profile to check permissions
+    console.log('POST /api/users - Getting user profile')
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('*')
@@ -118,15 +127,20 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (profileError || !profile) {
+      console.error('POST /api/users - Profile error:', profileError)
       return NextResponse.json({ error: 'User profile not found' }, { status: 404 })
     }
+    console.log('POST /api/users - Profile found:', { role: profile.role, org_id: profile.organization_id })
 
     if (!profile.organization_id) {
+      console.error('POST /api/users - No organization ID in profile')
       return NextResponse.json({ error: 'No organization associated with user' }, { status: 403 })
     }
 
     // Parse request body
+    console.log('POST /api/users - Parsing request body')
     const body = await request.json()
+    console.log('POST /api/users - Request body:', body)
     const { email, full_name, role, district_id, location_id, send_invitation = true } = body
 
     // Validate required fields
@@ -175,13 +189,22 @@ export async function POST(request: NextRequest) {
     }
     // Super admins can create any role
 
-    // Check if email already exists
-    const { data: existingUser, error: existingUserError } = await supabase.auth.admin.getUserByEmail(email)
+    // Check if email already exists using admin client
+    console.log('POST /api/users - Checking if email exists:', email)
+    const adminClient = createAdminClient()
+    
+    if (!adminClient) {
+      console.error('POST /api/users - Admin client not available')
+      return NextResponse.json({ error: 'Admin operations unavailable' }, { status: 503 })
+    }
+    
+    const { data: existingUser, error: existingUserError } = await adminClient.auth.admin.getUserByEmail(email)
     
     if (existingUserError && existingUserError.message !== 'User not found') {
-      console.error('Error checking existing user:', existingUserError)
+      console.error('POST /api/users - Error checking existing user:', existingUserError)
       return NextResponse.json({ error: 'Failed to validate email' }, { status: 500 })
     }
+    console.log('POST /api/users - Existing user check complete')
 
     if (existingUser.user) {
       return NextResponse.json({ 
@@ -226,8 +249,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create user in Supabase Auth
-    const { data: newUser, error: createUserError } = await supabase.auth.admin.createUser({
+    // Create user in Supabase Auth using admin client
+    console.log('POST /api/users - Creating user in Supabase Auth')
+    const { data: newUser, error: createUserError } = await adminClient.auth.admin.createUser({
       email,
       email_confirm: !send_invitation, // If not sending invitation, auto-confirm email
       user_metadata: {
@@ -274,7 +298,7 @@ export async function POST(request: NextRequest) {
       console.error('Error creating user profile:', profileCreateError)
       
       // Clean up the auth user if profile creation failed
-      await supabase.auth.admin.deleteUser(newUser.user.id)
+      await adminClient.auth.admin.deleteUser(newUser.user.id)
       
       return NextResponse.json({ 
         error: 'Failed to create user profile' 
@@ -283,7 +307,8 @@ export async function POST(request: NextRequest) {
 
     // Send invitation email if requested
     if (send_invitation) {
-      const { error: inviteError } = await supabase.auth.admin.inviteUserByEmail(email, {
+      console.log('POST /api/users - Sending invitation email')
+      const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
         redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
       })
 

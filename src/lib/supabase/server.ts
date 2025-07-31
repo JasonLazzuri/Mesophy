@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
 
@@ -37,4 +38,22 @@ export const createClient = cache(async () => {
     console.error('Failed to create server Supabase client:', error)
     return null
   }
+})
+
+// Admin client for server-side admin operations
+export const createAdminClient = cache(() => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!url || !serviceKey) {
+    console.error('Supabase admin environment variables not found')
+    return null
+  }
+
+  return createSupabaseClient(url, serviceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  })
 })
