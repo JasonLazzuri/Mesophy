@@ -81,22 +81,32 @@ export default function UsersPage() {
 
   const fetchUsers = async () => {
     try {
+      console.log('Fetching users...', { profile, authLoading })
       const params = new URLSearchParams()
       if (searchTerm) params.append('search', searchTerm)
       if (roleFilter) params.append('role', roleFilter)
       if (statusFilter) params.append('status', statusFilter)
 
-      const response = await fetch(`/api/users?${params.toString()}`)
+      const url = `/api/users?${params.toString()}`
+      console.log('Fetching from URL:', url)
+      
+      const response = await fetch(url)
+      console.log('Response status:', response.status)
+      
       const data = await response.json()
+      console.log('Users API response:', data)
 
       if (!response.ok) {
+        console.error('API Error:', data)
         throw new Error(data.error || 'Failed to fetch users')
       }
 
+      console.log('Setting users:', data.users?.length || 0, 'users')
       setUsers(data.users || [])
+      setError('') // Clear any previous errors
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch users')
       console.error('Error fetching users:', err)
+      setError(err instanceof Error ? err.message : 'Failed to fetch users')
     } finally {
       setLoading(false)
     }
