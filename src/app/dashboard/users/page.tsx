@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { useRouter } from 'next/navigation'
 import { 
   Users, 
   UserPlus, 
@@ -65,6 +66,7 @@ const roleConfig = {
 
 export default function UsersPage() {
   const { profile, loading: authLoading } = useAuth()
+  const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -213,13 +215,40 @@ export default function UsersPage() {
           </p>
         </div>
         {canCreateUsers && (
-          <Link
-            href="/dashboard/users/add"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-          >
-            <UserPlus className="h-4 w-4 mr-2" />
-            Add User
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href="/dashboard/users/add"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+              onClick={(e) => {
+                console.log('Add User Link clicked')
+                console.log('Profile:', profile)
+                console.log('Can create users:', canCreateUsers)
+              }}
+            >
+              <UserPlus className="h-4 w-4 mr-2" />
+              Add User (Link)
+            </Link>
+            
+            <button
+              onClick={() => {
+                console.log('Add User Button clicked - using router.push')
+                console.log('Profile:', profile)
+                console.log('Can create users:', canCreateUsers)
+                router.push('/dashboard/users/add')
+              }}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+            >
+              <UserPlus className="h-4 w-4 mr-2" />
+              Add User (Button)
+            </button>
+          </div>
+        )}
+        
+        {/* Debug info - remove in production */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="text-xs text-gray-500 mt-2">
+            Debug: canCreateUsers = {canCreateUsers ? 'true' : 'false'}, role = {profile?.role || 'none'}
+          </div>
         )}
       </div>
 
