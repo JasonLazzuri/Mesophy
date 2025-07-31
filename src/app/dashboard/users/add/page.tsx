@@ -68,7 +68,7 @@ const roleConfig = {
 }
 
 export default function AddUserPage() {
-  const { profile } = useAuth()
+  const { profile, loading: authLoading } = useAuth()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
@@ -90,12 +90,39 @@ export default function AddUserPage() {
   const canCreateUsers = profile?.role === 'super_admin' || profile?.role === 'district_manager'
   
   useEffect(() => {
-    if (!canCreateUsers) {
+    console.log('Add User Page - useEffect triggered', { 
+      authLoading, 
+      profile, 
+      canCreateUsers,
+      profileRole: profile?.role 
+    })
+    
+    // Don't check permissions until auth is loaded
+    if (authLoading) {
+      console.log('Add User Page - Auth still loading, waiting...')
+      return
+    }
+    
+    // If auth is loaded but no profile, redirect to login
+    if (!profile) {
+      console.log('Add User Page - No profile found, redirecting to users')
       router.push('/dashboard/users')
       return
     }
+    
+    // Check permissions only after auth is loaded
+    if (!canCreateUsers) {
+      console.log('Add User Page - No permission to create users, redirecting', { 
+        profileRole: profile?.role,
+        canCreateUsers 
+      })
+      router.push('/dashboard/users')
+      return
+    }
+    
+    console.log('Add User Page - Permission granted, fetching districts')
     fetchDistricts()
-  }, [canCreateUsers, router])
+  }, [authLoading, profile, canCreateUsers, router])
 
   const fetchDistricts = async () => {
     try {
@@ -277,6 +304,31 @@ export default function AddUserPage() {
     }
   }
 
+  // Show loading while auth is loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading user permissions...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show loading if no profile yet
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading profile...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render if user doesn't have permission
   if (!canCreateUsers) {
     return null // Component will redirect
   }
