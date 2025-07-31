@@ -17,15 +17,15 @@ interface Screen {
   id: string
   name: string
   location_id: string
-  locations: {
+  location: {
     id: string
     name: string
     district_id: string
-    districts: {
+    district: {
       id: string
       name: string
     }
-  }
+  } | null
 }
 
 interface Conflict {
@@ -121,9 +121,14 @@ export default function AddSchedulePage() {
         screensResponse.json()
       ])
 
+      console.log('Playlists data:', playlistsData)
+      console.log('Screens data:', screensData)
+      console.log('First screen structure:', screensData.screens?.[0])
+
       setPlaylists(playlistsData.playlists || [])
       setScreens(screensData.screens || [])
     } catch (err) {
+      console.error('Error fetching schedule data:', err)
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setFetchingData(false)
@@ -553,7 +558,7 @@ export default function AddSchedulePage() {
                       <option value="">Choose a screen</option>
                       {screens.map((screen) => (
                         <option key={screen.id} value={screen.id}>
-                          {screen.name} - {screen.locations.name}
+                          {screen.name} - {screen.location?.name || 'Unknown Location'}
                         </option>
                       ))}
                     </select>
@@ -579,7 +584,7 @@ export default function AddSchedulePage() {
                               {screen.name}
                             </div>
                             <div className="text-xs text-gray-500">
-                              {screen.locations.name} • {screen.locations.districts.name}
+                              {screen.location?.name || 'Unknown Location'} • {screen.location?.district?.name || 'Unknown District'}
                             </div>
                           </div>
                         </label>
