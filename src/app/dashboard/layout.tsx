@@ -40,7 +40,7 @@ export default function DashboardLayout({
     { name: 'Screens', href: '/dashboard/screens', icon: Tv },
     { name: 'Media', href: '/dashboard/media', icon: Image },
     { name: 'Schedules', href: '/dashboard/schedules', icon: Calendar },
-    ...(profile?.role === 'super_admin'
+    ...(profile?.role === 'super_admin' || profile?.role === 'district_manager'
       ? [{ name: 'Users', href: '/dashboard/users', icon: Users }]
       : []),
   ]
