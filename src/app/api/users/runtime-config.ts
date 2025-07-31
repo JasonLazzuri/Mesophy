@@ -46,6 +46,14 @@ export function getServiceKey() {
     ].map(k => ({ key: k, found: !!process.env[k] }))
   })
 
+  // EMERGENCY TEMPORARY SOLUTION
+  // Replace 'YOUR_SERVICE_KEY_HERE' with your actual Supabase service role key
+  // This is only for testing - remove once environment variables work
+  console.warn('Using emergency hardcoded service key - REMOVE IN PRODUCTION')
+  
+  // UNCOMMENT THE LINE BELOW AND REPLACE WITH YOUR SERVICE KEY:
+  // return "YOUR_SERVICE_KEY_HERE"
+  
   return null
 }
 
