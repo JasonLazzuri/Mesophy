@@ -10,8 +10,13 @@ interface MediaAsset {
   id: string
   name: string
   file_url: string
+  file_path: string | null
   mime_type: string
+  media_type: string | null
   duration: number | null
+  width: number | null
+  height: number | null
+  resolution: string | null
 }
 
 interface PlaylistItem {
@@ -43,13 +48,23 @@ export default function AddPlaylistPage() {
   const fetchMediaAssets = async () => {
     try {
       setFetchingMedia(true)
+      console.log('Fetching media assets...')
       const response = await fetch('/api/media')
+      console.log('Response status:', response.status)
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch media assets')
+        const errorData = await response.json()
+        console.error('API Error:', errorData)
+        throw new Error(errorData.error || 'Failed to fetch media assets')
       }
+      
       const data = await response.json()
-      setMediaAssets(data.media || [])
+      console.log('Media data received:', data)
+      console.log('Number of media assets:', data.mediaAssets?.length || 0)
+      
+      setMediaAssets(data.mediaAssets || [])
     } catch (err) {
+      console.error('Error fetching media:', err)
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setFetchingMedia(false)
@@ -306,6 +321,13 @@ export default function AddPlaylistPage() {
               {fetchingMedia ? (
                 <div className="flex justify-center items-center h-32">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                </div>
+              ) : filteredMedia.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-32 text-gray-500">
+                  <p className="text-sm">No media assets found</p>
+                  <p className="text-xs mt-1">
+                    {searchTerm ? 'Try adjusting your search term' : 'Upload some media files first'}
+                  </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-96 overflow-y-auto">
