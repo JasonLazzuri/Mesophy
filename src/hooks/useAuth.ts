@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
 import { Database } from '@/types/database'
@@ -11,107 +11,138 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [initialized, setInitialized] = useState(false)
+  const mountedRef = useRef(true)
+
+  const fetchProfile = useCallback(async (userId: string, supabase: any) => {
+    if (!mountedRef.current) return null
+    
+    try {
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError)
+        return null
+      }
+      
+      return profile
+    } catch (error) {
+      console.error('Profile fetch error:', error)
+      return null
+    }
+  }, [])
 
   useEffect(() => {
-    let mounted = true
-    const supabase = createClient()
+    mountedRef.current = true
+    let subscription: any = null
     
-    if (!supabase) {
-      setLoading(false)
-      return
-    }
-
-    const getUser = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        
-        if (!mounted) return
-        
-        setUser(user)
-
-        if (user) {
-          const { data: profile, error: profileError } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single()
-          
-          if (profileError) {
-            console.error('Error fetching user profile:', profileError)
-          } else {
-            console.log('Successfully fetched user profile:', profile)
-          }
-          
-          if (mounted) {
-            setProfile(profile)
-          }
-        }
-      } catch (error) {
-        console.error('Auth error:', error)
-      } finally {
-        if (mounted) {
+    const initializeAuth = async () => {
+      const supabase = createClient()
+      
+      if (!supabase) {
+        console.warn('Supabase client not available')
+        if (mountedRef.current) {
           setLoading(false)
+          setInitialized(true)
         }
+        return
       }
-    }
 
-    getUser()
+      try {
+        // Get initial session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError)
+        }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return
-        
-        setUser(session?.user ?? null)
-        
-        if (session?.user) {
-          try {
-            const { data: profile, error: profileError } = await supabase
-              .from('user_profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single()
-            
-            if (profileError) {
-              console.error('Error fetching user profile in auth change:', profileError)
-            } else {
-              console.log('Successfully fetched user profile in auth change:', profile)
-            }
-            
-            if (mounted) {
-              setProfile(profile)
-            }
-          } catch (error) {
-            console.error('Profile fetch error:', error)
+        if (!mountedRef.current) return
+
+        const currentUser = session?.user ?? null
+        setUser(currentUser)
+
+        // Fetch profile if user exists
+        if (currentUser) {
+          const profile = await fetchProfile(currentUser.id, supabase)
+          if (mountedRef.current) {
+            setProfile(profile)
           }
         } else {
           setProfile(null)
         }
-        
-        if (mounted) {
+
+        // Set up auth state listener
+        const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            if (!mountedRef.current) return
+            
+            console.log('Auth state changed:', event, !!session?.user)
+            
+            const newUser = session?.user ?? null
+            setUser(newUser)
+            
+            if (newUser) {
+              const profile = await fetchProfile(newUser.id, supabase)
+              if (mountedRef.current) {
+                setProfile(profile)
+              }
+            } else {
+              if (mountedRef.current) {
+                setProfile(null)
+              }
+            }
+          }
+        )
+
+        subscription = authSubscription
+
+      } catch (error) {
+        console.error('Auth initialization error:', error)
+      } finally {
+        if (mountedRef.current) {
           setLoading(false)
+          setInitialized(true)
         }
       }
-    )
+    }
+
+    initializeAuth()
 
     return () => {
-      mounted = false
-      subscription.unsubscribe()
+      mountedRef.current = false
+      if (subscription) {
+        subscription.unsubscribe()
+      }
     }
-  }, []) // Empty dependency array - only run once
+  }, [fetchProfile])
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     const supabase = createClient()
     if (supabase) {
-      await supabase.auth.signOut()
+      try {
+        await supabase.auth.signOut()
+        // State will be updated by the auth state change listener
+      } catch (error) {
+        console.error('Sign out error:', error)
+        // Force local state update on error
+        setUser(null)
+        setProfile(null)
+      }
+    } else {
+      // Force local state update if no client
+      setUser(null)
+      setProfile(null)
     }
-    setUser(null)
-    setProfile(null)
-  }
+  }, [])
 
   return {
     user,
     profile,
-    loading,
+    loading: loading || !initialized,
     signOut,
     isAuthenticated: !!user,
     isSuperAdmin: profile?.role === 'super_admin',

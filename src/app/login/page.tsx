@@ -16,28 +16,35 @@ export default function LoginPage() {
 
   // Check if user is already authenticated
   useEffect(() => {
+    let mounted = true
+    
     const checkAuth = async () => {
       if (!supabase) {
-        setChecking(false)
+        if (mounted) setChecking(false)
         return
       }
 
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user) {
+        if (session?.user && mounted) {
           // User is already logged in, redirect to dashboard
-          window.location.href = '/dashboard'
+          console.log('User already authenticated, redirecting to dashboard')
+          router.replace('/dashboard')
           return
         }
       } catch (error) {
         console.log('Auth check error:', error)
       }
       
-      setChecking(false)
+      if (mounted) setChecking(false)
     }
 
     checkAuth()
-  }, [supabase])
+    
+    return () => {
+      mounted = false
+    }
+  }, [supabase, router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,8 +85,8 @@ export default function LoginPage() {
         }
       } else if (data.user) {
         console.log('Login successful, redirecting...')
-        // Use window.location.href for a hard redirect to avoid middleware issues
-        window.location.href = '/dashboard'
+        // Use Next.js router for proper navigation
+        router.replace('/dashboard')
       } else {
         setError('Login failed: No user data received')
       }
