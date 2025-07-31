@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -10,8 +10,34 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [checking, setChecking] = useState(true)
   const router = useRouter()
   const supabase = createClient()
+
+  // Check if user is already authenticated
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (!supabase) {
+        setChecking(false)
+        return
+      }
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          // User is already logged in, redirect to dashboard
+          window.location.href = '/dashboard'
+          return
+        }
+      } catch (error) {
+        console.log('Auth check error:', error)
+      }
+      
+      setChecking(false)
+    }
+
+    checkAuth()
+  }, [supabase])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,6 +53,12 @@ export default function LoginPage() {
     try {
       console.log('Attempting login with:', { email, passwordLength: password.length })
       
+      // Clear any existing session first
+      await supabase.auth.signOut()
+      
+      // Small delay to ensure session is cleared
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -36,18 +68,39 @@ export default function LoginPage() {
 
       if (error) {
         console.error('Login error details:', error)
-        setError(`Login failed: ${error.message}`)
-      } else {
+        // Provide more specific error messages
+        if (error.message.includes('Invalid login credentials')) {
+          setError('Invalid email or password. Please check your credentials and try again.')
+        } else if (error.message.includes('Too many requests')) {
+          setError('Too many login attempts. Please wait a moment before trying again.')
+        } else {
+          setError(`Login failed: ${error.message}`)
+        }
+      } else if (data.user) {
         console.log('Login successful, redirecting...')
-        router.push('/dashboard')
-        router.refresh()
+        // Use window.location.href for a hard redirect to avoid middleware issues
+        window.location.href = '/dashboard'
+      } else {
+        setError('Login failed: No user data received')
       }
     } catch (err) {
       console.error('Unexpected login error:', err)
-      setError('An unexpected error occurred')
+      setError('An unexpected error occurred. Please try again.')
     } finally {
       setLoading(false)
     }
+  }
+
+  // Show loading while checking authentication
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

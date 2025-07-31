@@ -14,11 +14,12 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse
   }
 
-  // Skip auth check for static files and API routes
+  // Skip auth check for static files, API routes, and public assets
   if (
     request.nextUrl.pathname.startsWith('/_next') ||
     request.nextUrl.pathname.startsWith('/api') ||
-    request.nextUrl.pathname.includes('.')
+    request.nextUrl.pathname.startsWith('/favicon') ||
+    request.nextUrl.pathname.match(/\.(ico|png|jpg|jpeg|gif|webp|svg|css|js|woff|woff2|ttf|eot)$/)
   ) {
     return supabaseResponse
   }
@@ -41,15 +42,28 @@ export async function updateSession(request: NextRequest) {
       },
     })
 
+    // Attempt to refresh the session first
     const {
-      data: { user },
-      error
-    } = await supabase.auth.getUser()
+      data: { session },
+      error: sessionError
+    } = await supabase.auth.getSession()
 
-    // If auth service is unavailable, allow access to prevent infinite loops
-    if (error) {
-      console.error('Auth error in middleware:', error)
-      return supabaseResponse
+    let user = session?.user || null
+
+    // If no session, try to get user directly
+    if (!session) {
+      const {
+        data: { user: directUser },
+        error: userError
+      } = await supabase.auth.getUser()
+      
+      user = directUser
+      
+      // If both session and direct user fetch fail, log and continue
+      if (userError && sessionError) {
+        console.error('Auth errors in middleware:', { sessionError, userError })
+        return supabaseResponse
+      }
     }
 
     // Redirect to login if not authenticated and not already on auth pages
