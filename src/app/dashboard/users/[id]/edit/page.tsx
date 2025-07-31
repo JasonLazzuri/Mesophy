@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { 
@@ -525,9 +525,7 @@ export default function EditUserPage({
             <p className="text-gray-600">{user.email}</p>
             <div className="flex items-center mt-2 space-x-4">
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${roleConfig[user.role].color}`}>
-                {roleConfig[user.role].icon && (
-                  <roleConfig[user.role].icon className="h-3 w-3 mr-1" />
-                )}
+                {React.createElement(roleConfig[user.role].icon, { className: "h-3 w-3 mr-1" })}
                 {roleConfig[user.role].label}
               </span>
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${

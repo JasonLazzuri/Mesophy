@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { 
   Users, 
@@ -167,9 +167,7 @@ export default function UsersPage() {
               <p className="text-gray-600">{currentUser.email}</p>
               <div className="flex items-center mt-2 space-x-4">
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${roleConfig[currentUser.role].color}`}>
-                  {roleConfig[currentUser.role].icon && (
-                    <roleConfig[currentUser.role].icon className="h-3 w-3 mr-1" />
-                  )}
+                  {React.createElement(roleConfig[currentUser.role].icon, { className: "h-3 w-3 mr-1" })}
                   {roleConfig[currentUser.role].label}
                 </span>
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -296,9 +294,7 @@ export default function UsersPage() {
             Object.entries(groupedUsers).map(([role, roleUsers]) => (
               <div key={role} className="p-6">
                 <div className="flex items-center mb-4">
-                  {roleConfig[role as keyof typeof roleConfig].icon && (
-                    <roleConfig[role as keyof typeof roleConfig].icon className="h-5 w-5 mr-2 text-gray-600" />
-                  )}
+                  {React.createElement(roleConfig[role as keyof typeof roleConfig].icon, { className: "h-5 w-5 mr-2 text-gray-600" })}
                   <h3 className="text-lg font-medium text-gray-900">
                     {roleConfig[role as keyof typeof roleConfig].label}
                   </h3>
