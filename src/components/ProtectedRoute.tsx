@@ -17,16 +17,18 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
   useEffect(() => {
     if (!loading) {
       if (!user) {
-        router.push('/login')
+        // Use hard redirect to avoid middleware issues
+        window.location.href = '/login'
         return
       }
 
       if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
-        router.push('/unauthorized')
+        // Use hard redirect to avoid middleware issues
+        window.location.href = '/unauthorized'
         return
       }
     }
-  }, [user, profile, loading, router, allowedRoles])
+  }, [user, profile, loading, allowedRoles])
 
   if (loading) {
     return (
