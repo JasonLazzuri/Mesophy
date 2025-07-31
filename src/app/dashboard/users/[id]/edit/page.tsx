@@ -292,7 +292,7 @@ export default function EditUserPage({
     setLoading(true)
     
     try {
-      const requestData: any = {
+      const requestData: Record<string, unknown> = {
         full_name: formData.full_name.trim(),
         is_active: formData.is_active,
       }
@@ -814,7 +814,7 @@ export default function EditUserPage({
               <h3 className="text-lg font-medium text-gray-900 mt-2">Delete User</h3>
               <div className="mt-2 px-7 py-3">
                 <p className="text-sm text-gray-500">
-                  Are you sure you want to delete "{user.full_name || user.email}"? This action cannot be undone.
+                  Are you sure you want to delete &quot;{user.full_name || user.email}&quot;? This action cannot be undone.
                 </p>
               </div>
               <div className="items-center px-4 py-3">

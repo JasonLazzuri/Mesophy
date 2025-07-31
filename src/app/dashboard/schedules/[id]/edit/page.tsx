@@ -433,7 +433,7 @@ export default function EditSchedulePage({ params }: RouteParams) {
 
       {hasChanges && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md">
-          You have unsaved changes. Click "Save Changes" to save them.
+          You have unsaved changes. Click &quot;Save Changes&quot; to save them.
         </div>
       )}
 
