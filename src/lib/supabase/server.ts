@@ -43,17 +43,41 @@ export const createClient = cache(async () => {
 // Admin client for server-side admin operations
 export const createAdminClient = cache(() => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  // Try different possible env var names for the service key
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
+                     process.env.SUPABASE_SERVICE_KEY ||
+                     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+
+  console.log('Admin client env check:', {
+    url: url ? 'present' : 'missing',
+    serviceKey: serviceKey ? `present (${serviceKey.substring(0, 10)}...)` : 'missing',
+    allEnvKeys: Object.keys(process.env).filter(key => key.includes('SUPABASE')),
+    checkedVariants: {
+      SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      SUPABASE_SERVICE_KEY: !!process.env.SUPABASE_SERVICE_KEY,
+      NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY: !!process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+    }
+  })
 
   if (!url || !serviceKey) {
-    console.error('Supabase admin environment variables not found')
+    console.error('Supabase admin environment variables not found', {
+      url: !!url,
+      serviceKey: !!serviceKey
+    })
     return null
   }
 
-  return createSupabaseClient(url, serviceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  })
+  try {
+    const client = createSupabaseClient(url, serviceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
+    console.log('Admin client created successfully')
+    return client
+  } catch (error) {
+    console.error('Failed to create admin client:', error)
+    return null
+  }
 })
