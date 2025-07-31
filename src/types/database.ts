@@ -11,6 +11,7 @@ export type ScreenType = 'menu_board' | 'promotional' | 'queue_display' | 'outdo
 export type DeviceStatus = 'online' | 'offline' | 'error' | 'maintenance'
 export type Orientation = 'landscape' | 'portrait'
 export type LogLevel = 'info' | 'warning' | 'error' | 'debug'
+export type MediaType = 'image' | 'video'
 
 export interface Database {
   public: {
@@ -198,14 +199,20 @@ export interface Database {
           id: string
           organization_id: string
           name: string
+          description: string | null
           file_name: string
+          file_path: string | null
           file_url: string
           file_size: number | null
           mime_type: string
+          media_type: MediaType | null
           duration: number | null
           width: number | null
           height: number | null
+          resolution: string | null
           tags: string[] | null
+          folder_id: string | null
+          is_active: boolean
           created_by: string | null
           created_at: string
           updated_at: string
@@ -214,14 +221,20 @@ export interface Database {
           id?: string
           organization_id: string
           name: string
+          description?: string | null
           file_name: string
+          file_path?: string | null
           file_url: string
           file_size?: number | null
           mime_type: string
+          media_type?: MediaType | null
           duration?: number | null
           width?: number | null
           height?: number | null
+          resolution?: string | null
           tags?: string[] | null
+          folder_id?: string | null
+          is_active?: boolean
           created_by?: string | null
           created_at?: string
           updated_at?: string
@@ -230,14 +243,49 @@ export interface Database {
           id?: string
           organization_id?: string
           name?: string
+          description?: string | null
           file_name?: string
+          file_path?: string | null
           file_url?: string
           file_size?: number | null
           mime_type?: string
+          media_type?: MediaType | null
           duration?: number | null
           width?: number | null
           height?: number | null
+          resolution?: string | null
           tags?: string[] | null
+          folder_id?: string | null
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      media_folders: {
+        Row: {
+          id: string
+          organization_id: string
+          name: string
+          parent_folder_id: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          name: string
+          parent_folder_id?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          name?: string
+          parent_folder_id?: string | null
           created_by?: string | null
           created_at?: string
           updated_at?: string
@@ -408,6 +456,7 @@ export interface Database {
       screen_type: ScreenType
       device_status: DeviceStatus
       orientation: Orientation
+      media_type: MediaType
     }
   }
 }
