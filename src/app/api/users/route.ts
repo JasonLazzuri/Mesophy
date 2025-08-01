@@ -118,12 +118,21 @@ function createAdminClient() {
   }
 
   try {
-    return createSupabaseClient(url, serviceKey, {
+    const client = createSupabaseClient(url, serviceKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false
       }
     })
+    
+    // Verify the client has admin methods
+    if (!client.auth.admin) {
+      console.error('Admin client created but missing admin methods')
+      return null
+    }
+    
+    console.log('Admin client created successfully with admin methods')
+    return client
   } catch (error) {
     console.error('Failed to create admin client:', error)
     return null
