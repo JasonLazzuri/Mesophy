@@ -135,12 +135,14 @@ export default function MediaEditModal({
                 src={asset.file_url}
                 alt={asset.name}
                 className="max-w-full max-h-48 object-contain rounded"
+                crossOrigin="anonymous"
               />
             ) : (
               <video
                 src={asset.file_url}
                 className="max-w-full max-h-48 object-contain rounded"
                 controls
+                crossOrigin="anonymous"
               />
             )}
           </div>

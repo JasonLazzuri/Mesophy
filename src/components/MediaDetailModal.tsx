@@ -144,6 +144,7 @@ export default function MediaDetailModal({
                   src={asset.file_url}
                   alt={asset.name}
                   className="max-w-full max-h-full object-contain"
+                  crossOrigin="anonymous"
                 />
               ) : (
                 <div className="relative w-full h-full flex items-center justify-center">
@@ -151,6 +152,7 @@ export default function MediaDetailModal({
                     src={asset.file_url}
                     controls
                     className="max-w-full max-h-full"
+                    crossOrigin="anonymous"
                     onPlay={() => setIsPlaying(true)}
                     onPause={() => setIsPlaying(false)}
                   />

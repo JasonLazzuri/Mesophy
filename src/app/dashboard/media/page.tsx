@@ -499,13 +499,24 @@ export default function MediaPage() {
                           />
                         </div>
                         {/* Media Preview */}
-                        <div className="aspect-square bg-gray-100 flex items-center justify-center">
+                        <div className="aspect-square bg-gray-100 flex items-center justify-center relative">
                           {asset.media_type === 'image' ? (
-                            <img
-                              src={asset.file_url}
-                              alt={asset.name}
-                              className="w-full h-full object-cover"
-                            />
+                            <>
+                              <img
+                                src={asset.file_url}
+                                alt={asset.name}
+                                className="w-full h-full object-cover"
+                                crossOrigin="anonymous"
+                                onError={(e) => {
+                                  // Fallback to a placeholder if image fails to load
+                                  e.currentTarget.style.display = 'none'
+                                  e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                                }}
+                              />
+                              <div className="hidden absolute inset-0 flex items-center justify-center">
+                                <Image className="h-12 w-12 text-gray-400" />
+                              </div>
+                            </>
                           ) : (
                             <div className="text-center">
                               <Video className="h-12 w-12 text-gray-400 mx-auto mb-2" />
