@@ -23,7 +23,11 @@ interface SimpleAuthResult {
  */
 export async function simpleAuth(request: NextRequest): Promise<SimpleAuthResult> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  // Use the same service key access pattern that works for users API
+  const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || 
+                     process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                     process.env.SUPABASE_SERVICE_KEY ||
+                     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
   
   if (!url || !serviceKey) {
     return {
