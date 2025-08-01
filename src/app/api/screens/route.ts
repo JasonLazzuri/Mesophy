@@ -133,13 +133,47 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch screens' }, { status: 500 })
     }
 
-    // Apply search filter if provided (simplified without relationship data)
-    let filteredScreens = screens || []
+    // Enrich screens with location and district information
+    const enrichedScreens = []
+    for (const screen of screens || []) {
+      // Get location info
+      const { data: location } = await supabase
+        .from('locations')
+        .select('id, name, district_id')
+        .eq('id', screen.location_id)
+        .single()
+
+      let district = null
+      if (location) {
+        // Get district info
+        const { data: districtData } = await supabase
+          .from('districts')
+          .select('id, name')
+          .eq('id', location.district_id)
+          .single()
+        
+        district = districtData
+      }
+
+      enrichedScreens.push({
+        ...screen,
+        location: location ? {
+          id: location.id,
+          name: location.name,
+          district: district
+        } : null
+      })
+    }
+
+    // Apply search filter if provided (now includes location data)
+    let filteredScreens = enrichedScreens
     if (search) {
       const searchLower = search.toLowerCase()
       filteredScreens = filteredScreens.filter(screen => 
         screen.name.toLowerCase().includes(searchLower) ||
-        screen.device_id?.toLowerCase().includes(searchLower)
+        screen.device_id?.toLowerCase().includes(searchLower) ||
+        screen.location?.name.toLowerCase().includes(searchLower) ||
+        screen.location?.district?.name.toLowerCase().includes(searchLower)
       )
     }
 

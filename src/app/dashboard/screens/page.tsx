@@ -15,9 +15,7 @@ interface Screen {
   resolution: string
   orientation: Orientation
   is_active: boolean
-  last_heartbeat: string | null
-  ip_address: string | null
-  firmware_version: string | null
+  last_seen: string | null
   created_at: string
   updated_at: string
   location?: {
@@ -114,9 +112,9 @@ export default function ScreensPage() {
     return a.localeCompare(b)
   })
 
-  const getStatusIcon = (status: DeviceStatus, lastHeartbeat: string | null) => {
-    const isStale = lastHeartbeat ? 
-      (new Date().getTime() - new Date(lastHeartbeat).getTime()) > 300000 : true // 5 minutes
+  const getStatusIcon = (status: DeviceStatus, lastSeen: string | null) => {
+    const isStale = lastSeen ? 
+      (new Date().getTime() - new Date(lastSeen).getTime()) > 300000 : true // 5 minutes
     
     switch (status) {
       case 'online':
@@ -134,9 +132,9 @@ export default function ScreensPage() {
     }
   }
 
-  const getStatusBadge = (status: DeviceStatus, lastHeartbeat: string | null) => {
-    const isStale = lastHeartbeat ? 
-      (new Date().getTime() - new Date(lastHeartbeat).getTime()) > 300000 : true
+  const getStatusBadge = (status: DeviceStatus, lastSeen: string | null) => {
+    const isStale = lastSeen ? 
+      (new Date().getTime() - new Date(lastSeen).getTime()) > 300000 : true
     
     let colorClass = ''
     let displayText = status
@@ -174,23 +172,21 @@ export default function ScreensPage() {
     switch (type) {
       case 'menu_board':
         return '🍽️'
-      case 'promotional':
+      case 'ad_device':
         return '📢'
-      case 'queue_display':
+      case 'employee_board':
         return '👥'
-      case 'outdoor_sign':
-        return '🏪'
       default:
         return '📺'
     }
   }
 
-  const formatLastSeen = (lastHeartbeat: string | null) => {
-    if (!lastHeartbeat) return 'Never'
+  const formatLastSeen = (lastSeen: string | null) => {
+    if (!lastSeen) return 'Never'
     
     const now = new Date()
-    const lastSeen = new Date(lastHeartbeat)
-    const diffMs = now.getTime() - lastSeen.getTime()
+    const lastSeenDate = new Date(lastSeen)
+    const diffMs = now.getTime() - lastSeenDate.getTime()
     const diffMinutes = Math.floor(diffMs / 60000)
     
     if (diffMinutes < 1) return 'Just now'
@@ -278,9 +274,8 @@ export default function ScreensPage() {
               >
                 <option value="all">All Types</option>
                 <option value="menu_board">Menu Board</option>
-                <option value="promotional">Promotional</option>
-                <option value="queue_display">Queue Display</option>
-                <option value="outdoor_sign">Outdoor Sign</option>
+                <option value="ad_device">Advertisement Display</option>
+                <option value="employee_board">Employee Board</option>
               </select>
             </div>
 
@@ -359,7 +354,7 @@ export default function ScreensPage() {
                                   {screen.name}
                                 </h4>
                                 <div className="flex items-center mt-1 space-x-2">
-                                  {getStatusBadge(screen.device_status, screen.last_heartbeat)}
+                                  {getStatusBadge(screen.device_status, screen.last_seen)}
                                   {!screen.is_active && (
                                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                                       Inactive
@@ -371,7 +366,7 @@ export default function ScreensPage() {
 
                             <div className="mt-3 space-y-2">
                               <div className="flex items-center text-xs text-gray-600">
-                                {getStatusIcon(screen.device_status, screen.last_heartbeat)}
+                                {getStatusIcon(screen.device_status, screen.last_seen)}
                                 <span className="ml-2 capitalize">{screen.screen_type.replace('_', ' ')}</span>
                                 <span className="mx-1">•</span>
                                 <span>{screen.resolution}</span>
@@ -388,15 +383,8 @@ export default function ScreensPage() {
                               
                               <div className="flex items-center text-xs text-gray-600">
                                 <Clock className="h-3 w-3 mr-2 flex-shrink-0" />
-                                <span>Last seen: {formatLastSeen(screen.last_heartbeat)}</span>
+                                <span>Last seen: {formatLastSeen(screen.last_seen)}</span>
                               </div>
-
-                              {screen.ip_address && (
-                                <div className="flex items-center text-xs text-gray-600">
-                                  <Activity className="h-3 w-3 mr-2 flex-shrink-0" />
-                                  <span>{screen.ip_address}</span>
-                                </div>
-                              )}
                             </div>
                           </div>
 
