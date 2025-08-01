@@ -39,9 +39,7 @@ export default function AddScreenPage() {
     screen_type: 'menu_board' as ScreenType,
     device_id: '',
     resolution: '1920x1080',
-    orientation: 'landscape' as Orientation,
-    ip_address: '',
-    firmware_version: ''
+    orientation: 'landscape' as Orientation
   })
 
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
@@ -115,14 +113,6 @@ export default function AddScreenPage() {
       errors.device_id = 'Device ID must be at least 3 characters if provided'
     }
 
-    // Validate IP address format if provided
-    if (formData.ip_address) {
-      const ipPattern = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
-      if (!ipPattern.test(formData.ip_address)) {
-        errors.ip_address = 'Please enter a valid IP address'
-      }
-    }
-
     setValidationErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -142,9 +132,7 @@ export default function AddScreenPage() {
       const submitData = {
         ...formData,
         name: formData.name.trim(),
-        device_id: formData.device_id.trim() || null,
-        ip_address: formData.ip_address.trim() || null,
-        firmware_version: formData.firmware_version.trim() || null
+        device_id: formData.device_id.trim() || null
       }
 
       const response = await fetch('/api/screens', {
@@ -316,9 +304,8 @@ export default function AddScreenPage() {
               required
             >
               <option value="menu_board">🍽️ Menu Board</option>
-              <option value="promotional">📢 Promotional Display</option>
-              <option value="queue_display">👥 Queue Display</option>
-              <option value="outdoor_sign">🏪 Outdoor Sign</option>
+              <option value="ad_device">📢 Advertisement Display</option>
+              <option value="employee_board">👥 Employee Board</option>
             </select>
             {validationErrors.screen_type && (
               <p className="mt-1 text-sm text-red-600">{validationErrors.screen_type}</p>
@@ -401,51 +388,6 @@ export default function AddScreenPage() {
                 </p>
               </div>
 
-              {/* Network Information Row */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* IP Address */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    IP Address
-                  </label>
-                  <input
-                    type="text"
-                    id="ip_address"
-                    name="ip_address"
-                    value={formData.ip_address}
-                    onChange={handleInputChange}
-                    placeholder="e.g., 192.168.1.100"
-                    className={`block w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 ${
-                      validationErrors.ip_address ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                    }`}
-                  />
-                  {validationErrors.ip_address && (
-                    <p className="mt-1 text-sm text-red-600">{validationErrors.ip_address}</p>
-                  )}
-                  <p className="mt-1 text-sm text-gray-500">
-                    Network IP address of the device (if known)
-                  </p>
-                </div>
-
-                {/* Firmware Version */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Firmware Version
-                  </label>
-                  <input
-                    type="text"
-                    id="firmware_version"
-                    name="firmware_version"
-                    value={formData.firmware_version}
-                    onChange={handleInputChange}
-                    placeholder="e.g., v1.2.3, 2024.01"
-                    className="block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                  <p className="mt-1 text-sm text-gray-500">
-                    Current firmware version of the device (if known)
-                  </p>
-                </div>
-              </div>
             </div>
           </div>
         </div>

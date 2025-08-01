@@ -215,9 +215,7 @@ export async function POST(request: NextRequest) {
       screen_type, 
       device_id, 
       resolution, 
-      orientation, 
-      ip_address, 
-      firmware_version 
+      orientation
     } = body
 
     // Validate required fields
@@ -240,9 +238,9 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Validate screen type
+    // Validate screen type (match database enum)
     console.log('POST /api/screens - Validating screen type')
-    const validScreenTypes: ScreenType[] = ['menu_board', 'promotional', 'queue_display', 'outdoor_sign']
+    const validScreenTypes: ScreenType[] = ['ad_device', 'menu_board', 'employee_board']
     if (!validScreenTypes.includes(screen_type)) {
       console.error('POST /api/screens - Invalid screen type:', screen_type)
       return NextResponse.json({ 
@@ -405,7 +403,7 @@ export async function POST(request: NextRequest) {
       }, { status: 403 })
     }
 
-    // Create the screen using REST API
+    // Create the screen using REST API (match database schema)
     const screenData = {
       location_id,
       name: name.trim(),
@@ -415,9 +413,8 @@ export async function POST(request: NextRequest) {
       resolution: screenResolution,
       orientation: screenOrientation,
       is_active: true,
-      ip_address: ip_address?.trim() || null,
-      firmware_version: firmware_version?.trim() || null,
-      last_heartbeat: null
+      last_seen: null // Using last_seen instead of last_heartbeat
+      // Removed ip_address and firmware_version as they don't exist in current schema
     }
     
     console.log('POST /api/screens - Creating screen with data:', screenData)
