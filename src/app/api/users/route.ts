@@ -201,8 +201,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Admin operations unavailable' }, { status: 503 })
     }
 
-    // Check if email already exists
-    console.log('POST /api/users - Checking if email exists:', email)
+    // Check if email already exists  
+    console.log('POST /api/users - Checking if email already exists:', email)
+    
+    // First verify the admin client has the required methods
+    if (!adminClient.auth.admin.getUserByEmail) {
+      console.error('Admin client missing getUserByEmail method. Available methods:', Object.keys(adminClient.auth.admin))
+      return NextResponse.json({ 
+        error: 'Invalid service key - missing admin user management privileges',
+        availableMethods: Object.keys(adminClient.auth.admin)
+      }, { status: 503 })
+    }
+    
     const { data: existingUser, error: existingUserError } = await adminClient.auth.admin.getUserByEmail(email)
     
     if (existingUserError && existingUserError.message !== 'User not found') {
