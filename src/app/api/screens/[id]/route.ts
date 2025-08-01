@@ -34,23 +34,10 @@ export async function GET(
       return NextResponse.json({ error: 'No organization associated with user' }, { status: 403 })
     }
 
-    // Get the screen with location and district information
+    // Get the screen (simple query without relationships)
     const { data: screen, error: screenError } = await supabase
       .from('screens')
-      .select(`
-        *,
-        location:locations(
-          id,
-          name,
-          manager_id,
-          district:districts(
-            id,
-            name,
-            organization_id,
-            manager_id
-          )
-        )
-      `)
+      .select('*')
       .eq('id', params.id)
       .single()
 
@@ -58,18 +45,40 @@ export async function GET(
       return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
     }
 
+    // Get location info separately
+    const { data: location, error: locationError } = await supabase
+      .from('locations')
+      .select('id, name, manager_id, district_id')
+      .eq('id', screen.location_id)
+      .single()
+
+    if (locationError || !location) {
+      return NextResponse.json({ error: 'Screen location not found' }, { status: 404 })
+    }
+
+    // Get district info separately
+    const { data: district, error: districtError } = await supabase
+      .from('districts')
+      .select('id, name, organization_id, manager_id')
+      .eq('id', location.district_id)
+      .single()
+
+    if (districtError || !district) {
+      return NextResponse.json({ error: 'Screen district not found' }, { status: 404 })
+    }
+
     // Check organization permission
-    if (screen.location?.district?.organization_id !== profile.organization_id) {
+    if (district.organization_id !== profile.organization_id) {
       return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
     }
 
     // Check role-based access
     if (profile.role === 'district_manager') {
-      if (screen.location?.district?.manager_id !== user.id) {
+      if (district.manager_id !== user.id) {
         return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
       }
     } else if (profile.role === 'location_manager') {
-      if (screen.location?.manager_id !== user.id) {
+      if (location.manager_id !== user.id) {
         return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
       }
     } else if (profile.role !== 'super_admin') {
@@ -127,23 +136,10 @@ export async function PUT(
       return NextResponse.json({ error: 'No organization associated with user' }, { status: 403 })
     }
 
-    // Get the existing screen to check permissions
+    // Get the existing screen to check permissions (simple query without relationships)
     const { data: existingScreen, error: existingError } = await supabase
       .from('screens')
-      .select(`
-        *,
-        location:locations(
-          id,
-          name,
-          manager_id,
-          district:districts(
-            id,
-            name,
-            organization_id,
-            manager_id
-          )
-        )
-      `)
+      .select('*')
       .eq('id', params.id)
       .single()
 
@@ -151,18 +147,40 @@ export async function PUT(
       return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
     }
 
+    // Get location info separately
+    const { data: location, error: locationError } = await supabase
+      .from('locations')
+      .select('id, name, manager_id, district_id')
+      .eq('id', existingScreen.location_id)
+      .single()
+
+    if (locationError || !location) {
+      return NextResponse.json({ error: 'Screen location not found' }, { status: 404 })
+    }
+
+    // Get district info separately
+    const { data: district, error: districtError } = await supabase
+      .from('districts')
+      .select('id, name, organization_id, manager_id')
+      .eq('id', location.district_id)
+      .single()
+
+    if (districtError || !district) {
+      return NextResponse.json({ error: 'Screen district not found' }, { status: 404 })
+    }
+
     // Check organization permission
-    if (existingScreen.location?.district?.organization_id !== profile.organization_id) {
+    if (district.organization_id !== profile.organization_id) {
       return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
     }
 
     // Check role-based access
     if (profile.role === 'district_manager') {
-      if (existingScreen.location?.district?.manager_id !== user.id) {
+      if (district.manager_id !== user.id) {
         return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
       }
     } else if (profile.role === 'location_manager') {
-      if (existingScreen.location?.manager_id !== user.id) {
+      if (location.manager_id !== user.id) {
         return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
       }
     } else if (profile.role !== 'super_admin') {
@@ -178,9 +196,7 @@ export async function PUT(
       device_status, 
       resolution, 
       orientation, 
-      is_active, 
-      ip_address, 
-      firmware_version 
+      is_active
     } = body
 
     // Build update object with only provided fields
@@ -199,7 +215,7 @@ export async function PUT(
     }
 
     if (screen_type !== undefined) {
-      const validScreenTypes: ScreenType[] = ['menu_board', 'promotional', 'queue_display', 'outdoor_sign']
+      const validScreenTypes: ScreenType[] = ['ad_device', 'menu_board', 'employee_board']
       if (!validScreenTypes.includes(screen_type)) {
         return NextResponse.json({ 
           error: 'Invalid screen type' 
@@ -266,30 +282,12 @@ export async function PUT(
       updateData.is_active = Boolean(is_active)
     }
 
-    if (ip_address !== undefined) {
-      updateData.ip_address = ip_address?.trim() || null
-    }
-
-    if (firmware_version !== undefined) {
-      updateData.firmware_version = firmware_version?.trim() || null
-    }
-
-    // Update the screen
+    // Update the screen (simple query without relationships)
     const { data: screen, error: updateError } = await supabase
       .from('screens')
       .update(updateData)
       .eq('id', params.id)
-      .select(`
-        *,
-        location:locations(
-          id,
-          name,
-          district:districts(
-            id,
-            name
-          )
-        )
-      `)
+      .select('*')
       .single()
 
     if (updateError) {
@@ -355,23 +353,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'No organization associated with user' }, { status: 403 })
     }
 
-    // Get the screen to check permissions and dependencies
+    // Get the screen to check permissions and dependencies (simple query without relationships)
     const { data: screen, error: screenError } = await supabase
       .from('screens')
-      .select(`
-        *,
-        location:locations(
-          id,
-          name,
-          manager_id,
-          district:districts(
-            id,
-            name,
-            organization_id,
-            manager_id
-          )
-        )
-      `)
+      .select('*')
       .eq('id', params.id)
       .single()
 
@@ -379,14 +364,36 @@ export async function DELETE(
       return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
     }
 
+    // Get location info separately
+    const { data: location, error: locationError } = await supabase
+      .from('locations')
+      .select('id, name, manager_id, district_id')
+      .eq('id', screen.location_id)
+      .single()
+
+    if (locationError || !location) {
+      return NextResponse.json({ error: 'Screen location not found' }, { status: 404 })
+    }
+
+    // Get district info separately
+    const { data: district, error: districtError } = await supabase
+      .from('districts')
+      .select('id, name, organization_id, manager_id')
+      .eq('id', location.district_id)
+      .single()
+
+    if (districtError || !district) {
+      return NextResponse.json({ error: 'Screen district not found' }, { status: 404 })
+    }
+
     // Check organization permission
-    if (screen.location?.district?.organization_id !== profile.organization_id) {
+    if (district.organization_id !== profile.organization_id) {
       return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
     }
 
     // Check role-based access
     if (profile.role === 'district_manager') {
-      if (screen.location?.district?.manager_id !== user.id) {
+      if (district.manager_id !== user.id) {
         return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
       }
     }
