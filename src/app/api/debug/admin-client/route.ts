@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { getServiceKey } from '../../users/runtime-config'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+
+// Helper function to get service key
+function getServiceKey() {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY || 
+         process.env.SUPABASE_SERVICE_KEY ||
+         process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ||
+         process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY
+}
 
 export async function GET() {
   try {

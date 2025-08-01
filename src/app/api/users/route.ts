@@ -1,6 +1,6 @@
-import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { getServiceKey, debugEnvironment } from './runtime-config'
 
 export async function GET(request: NextRequest) {
   try {
@@ -97,15 +97,42 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Helper function to create admin client with proper error handling
+function createAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  
+  // Try different possible env var names for the service key
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
+                     process.env.SUPABASE_SERVICE_KEY ||
+                     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ||
+                     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY
+
+  console.log('Admin client creation attempt:', {
+    url: url ? 'present' : 'missing',
+    serviceKey: serviceKey ? `present (${serviceKey.substring(0, 10)}...)` : 'missing'
+  })
+
+  if (!url || !serviceKey) {
+    console.error('Missing required environment variables for admin client')
+    return null
+  }
+
+  try {
+    return createSupabaseClient(url, serviceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
+  } catch (error) {
+    console.error('Failed to create admin client:', error)
+    return null
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('POST /api/users - Starting user creation request')
-    console.log('POST /api/users - Environment debug:', debugEnvironment())
-    
-    // Test service key function immediately
-    console.log('POST /api/users - Testing getServiceKey function...')
-    const testServiceKey = getServiceKey()
-    console.log('POST /api/users - Service key test result:', testServiceKey ? 'SUCCESS' : 'FAILED')
     
     const supabase = await createClient()
     
@@ -113,20 +140,15 @@ export async function POST(request: NextRequest) {
       console.error('POST /api/users - Supabase client not available')
       return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
     }
-    
-    console.log('POST /api/users - Supabase client created successfully')
 
     // Get current user
-    console.log('POST /api/users - Getting current user')
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
       console.error('POST /api/users - Auth error:', authError)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    console.log('POST /api/users - Current user authenticated:', user.id)
 
     // Get user profile to check permissions
-    console.log('POST /api/users - Getting user profile')
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('*')
@@ -137,17 +159,13 @@ export async function POST(request: NextRequest) {
       console.error('POST /api/users - Profile error:', profileError)
       return NextResponse.json({ error: 'User profile not found' }, { status: 404 })
     }
-    console.log('POST /api/users - Profile found:', { role: profile.role, org_id: profile.organization_id })
 
     if (!profile.organization_id) {
-      console.error('POST /api/users - No organization ID in profile')
       return NextResponse.json({ error: 'No organization associated with user' }, { status: 403 })
     }
 
     // Parse request body
-    console.log('POST /api/users - Parsing request body')
     const body = await request.json()
-    console.log('POST /api/users - Request body:', body)
     const { email, full_name, role, district_id, location_id, send_invitation = true } = body
 
     // Validate required fields
@@ -175,76 +193,40 @@ export async function POST(request: NextRequest) {
 
     // Role-based permission checks
     if (profile.role === 'district_manager') {
-      // District managers can only create location managers
       if (role !== 'location_manager') {
         return NextResponse.json({ 
           error: 'District managers can only create location managers' 
         }, { status: 403 })
       }
       
-      // Must assign to their district
       if (district_id !== profile.district_id) {
         return NextResponse.json({ 
           error: 'Can only assign users to your own district' 
         }, { status: 403 })
       }
     } else if (profile.role === 'location_manager') {
-      // Location managers cannot create users
       return NextResponse.json({ 
         error: 'Insufficient permissions to create users' 
       }, { status: 403 })
     }
-    // Super admins can create any role
 
-    // Check if email already exists using admin client
-    console.log('POST /api/users - Checking if email exists:', email)
-    console.log('POST /api/users - Service key debug:', getServiceKey() ? 'present' : 'missing')
-    
-    let adminClient = createAdminClient()
-    console.log('POST /api/users - Standard admin client result:', adminClient ? 'success' : 'failed')
-    
-    // If admin client creation failed, try manual creation
-    if (!adminClient) {
-      console.log('POST /api/users - Standard admin client failed, trying manual creation')
-      const serviceKey = getServiceKey()
-      console.log('POST /api/users - Service key for manual creation:', serviceKey ? `present (${serviceKey.substring(0, 10)}...)` : 'missing')
-      
-      if (serviceKey && process.env.NEXT_PUBLIC_SUPABASE_URL) {
-        try {
-          const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
-          adminClient = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL, serviceKey, {
-            auth: { autoRefreshToken: false, persistSession: false }
-          })
-          console.log('POST /api/users - Manual admin client created successfully')
-        } catch (error) {
-          console.error('POST /api/users - Manual admin client creation failed:', error)
-          return NextResponse.json({ 
-            error: 'Failed to create admin client', 
-            details: error.message 
-          }, { status: 500 })
-        }
-      } else {
-        console.error('POST /api/users - Missing requirements for manual admin client:', {
-          hasServiceKey: !!serviceKey,
-          hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL
-        })
-      }
-    }
+    // Create admin client
+    console.log('POST /api/users - Creating admin client')
+    const adminClient = createAdminClient()
     
     if (!adminClient) {
-      console.error('POST /api/users - Admin client not available after all attempts')
+      console.error('POST /api/users - Failed to create admin client')
       return NextResponse.json({ error: 'Admin operations unavailable' }, { status: 503 })
     }
-    
-    console.log('POST /api/users - Admin client ready, proceeding with user existence check')
-    
+
+    // Check if email already exists
+    console.log('POST /api/users - Checking if email exists:', email)
     const { data: existingUser, error: existingUserError } = await adminClient.auth.admin.getUserByEmail(email)
     
     if (existingUserError && existingUserError.message !== 'User not found') {
       console.error('POST /api/users - Error checking existing user:', existingUserError)
       return NextResponse.json({ error: 'Failed to validate email' }, { status: 500 })
     }
-    console.log('POST /api/users - Existing user check complete')
 
     if (existingUser.user) {
       return NextResponse.json({ 
@@ -281,7 +263,6 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
       }
 
-      // Ensure location belongs to the specified district
       if (district_id && location.district_id !== district_id) {
         return NextResponse.json({ 
           error: 'Location does not belong to the specified district' 
@@ -289,11 +270,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create user in Supabase Auth using admin client
+    // Create user in Supabase Auth
     console.log('POST /api/users - Creating user in Supabase Auth')
     const { data: newUser, error: createUserError } = await adminClient.auth.admin.createUser({
       email,
-      email_confirm: !send_invitation, // If not sending invitation, auto-confirm email
+      email_confirm: !send_invitation,
       user_metadata: {
         full_name,
         role,
@@ -304,7 +285,8 @@ export async function POST(request: NextRequest) {
     if (createUserError) {
       console.error('Error creating user:', createUserError)
       return NextResponse.json({ 
-        error: 'Failed to create user account' 
+        error: 'Failed to create user account',
+        details: createUserError.message
       }, { status: 500 })
     }
 
@@ -315,6 +297,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create user profile
+    console.log('POST /api/users - Creating user profile')
     const { data: userProfile, error: profileCreateError } = await supabase
       .from('user_profiles')
       .insert({
@@ -341,7 +324,8 @@ export async function POST(request: NextRequest) {
       await adminClient.auth.admin.deleteUser(newUser.user.id)
       
       return NextResponse.json({ 
-        error: 'Failed to create user profile' 
+        error: 'Failed to create user profile',
+        details: profileCreateError.message
       }, { status: 500 })
     }
 
@@ -358,6 +342,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    console.log('POST /api/users - User created successfully')
     return NextResponse.json({ 
       message: 'User created successfully',
       user: userProfile,
@@ -366,15 +351,11 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Unexpected error in users POST API:', error)
-    console.error('Error stack:', error.stack)
-    console.error('Error name:', error.name)
-    console.error('Error message:', error.message)
     
     return NextResponse.json({ 
       error: 'Internal server error',
       message: error.message,
-      name: error.name,
-      details: process.env.NODE_ENV === 'development' ? error.stack : 'Hidden in production'
+      type: error.name
     }, { status: 500 })
   }
 }
