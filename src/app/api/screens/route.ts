@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { ScreenType, DeviceStatus, Orientation } from '@/types/database'
+import { validateUserAuth, hasRequiredRole, hasOrganizationAccess } from '@/lib/auth-helper'
 
 export async function GET(request: NextRequest) {
   try {
@@ -152,61 +153,28 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('POST /api/screens - Starting request')
-    const supabase = await createClient()
+    console.log('POST /api/screens - Starting request with REST API authentication')
     
-    if (!supabase) {
-      console.error('POST /api/screens - Supabase client not available')
-      return NextResponse.json({ 
-        error: 'Database unavailable',
-        details: 'Supabase client initialization failed'
-      }, { status: 503 })
-    }
-
-    // Get current user
-    console.log('POST /api/screens - Getting user authentication')
-    console.log('POST /api/screens - Supabase client auth methods:', Object.keys(supabase.auth))
+    // Use REST API authentication instead of Supabase JavaScript client
+    const { user, profile, error: authError } = await validateUserAuth(request)
     
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    console.log('POST /api/screens - Auth response:', { 
-      user: user ? { id: user.id, email: user.email } : null, 
-      error: authError 
-    })
-    
-    if (authError || !user) {
-      console.error('POST /api/screens - Auth error details:', {
-        error: authError,
-        message: authError?.message,
-        status: authError?.status,
-        name: authError?.name
-      })
+    if (authError || !user || !profile) {
+      console.error('POST /api/screens - Authentication failed:', authError)
       return NextResponse.json({ 
         error: 'Unauthorized',
-        details: authError?.message || 'No user found',
-        authErrorCode: authError?.status || authError?.name || 'unknown'
+        details: authError || 'Authentication validation failed'
       }, { status: 401 })
     }
-    console.log('POST /api/screens - User authenticated:', user.id)
-
-    // Get user profile to check permissions
-    console.log('POST /api/screens - Getting user profile')
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
-
-    if (profileError || !profile) {
-      console.error('POST /api/screens - Profile error:', profileError)
-      return NextResponse.json({ 
-        error: 'User profile not found',
-        details: profileError?.message || 'No profile found'
-      }, { status: 404 })
-    }
-    console.log('POST /api/screens - Profile found:', { role: profile.role, org: profile.organization_id })
+    
+    console.log('POST /api/screens - User authenticated via REST API:', { 
+      userId: user.id, 
+      role: profile.role, 
+      org: profile.organization_id 
+    })
 
     // Check if user has permission to create screens
-    if (profile.role !== 'super_admin' && profile.role !== 'district_manager' && profile.role !== 'location_manager') {
+    const allowedRoles = ['super_admin', 'district_manager', 'location_manager']
+    if (!hasRequiredRole(profile, allowedRoles)) {
       console.error('POST /api/screens - Insufficient permissions for role:', profile.role)
       return NextResponse.json({ 
         error: 'Insufficient permissions',
@@ -214,12 +182,22 @@ export async function POST(request: NextRequest) {
       }, { status: 403 })
     }
 
-    if (!profile.organization_id) {
-      console.error('POST /api/screens - No organization ID')
+    if (!hasOrganizationAccess(profile)) {
+      console.error('POST /api/screens - No organization access')
       return NextResponse.json({ 
         error: 'No organization associated with user',
         details: 'User profile missing organization_id'
       }, { status: 403 })
+    }
+    
+    // Create Supabase client for database operations (not auth)
+    const supabase = await createClient()
+    if (!supabase) {
+      console.error('POST /api/screens - Supabase client not available for database operations')
+      return NextResponse.json({ 
+        error: 'Database unavailable',
+        details: 'Supabase client initialization failed'
+      }, { status: 503 })
     }
 
     // Parse request body
