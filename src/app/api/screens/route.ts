@@ -165,12 +165,25 @@ export async function POST(request: NextRequest) {
 
     // Get current user
     console.log('POST /api/screens - Getting user authentication')
+    console.log('POST /api/screens - Supabase client auth methods:', Object.keys(supabase.auth))
+    
     const { data: { user }, error: authError } = await supabase.auth.getUser()
+    console.log('POST /api/screens - Auth response:', { 
+      user: user ? { id: user.id, email: user.email } : null, 
+      error: authError 
+    })
+    
     if (authError || !user) {
-      console.error('POST /api/screens - Auth error:', authError)
+      console.error('POST /api/screens - Auth error details:', {
+        error: authError,
+        message: authError?.message,
+        status: authError?.status,
+        name: authError?.name
+      })
       return NextResponse.json({ 
         error: 'Unauthorized',
-        details: authError?.message || 'No user found'
+        details: authError?.message || 'No user found',
+        authErrorCode: authError?.status || authError?.name || 'unknown'
       }, { status: 401 })
     }
     console.log('POST /api/screens - User authenticated:', user.id)
