@@ -50,10 +50,14 @@ export default function FolderModal({
       setLoading(true)
       setError(null)
 
-      const url = isEditing ? `/api/media/folders/${folder.id}` : '/api/media/folders'
+      const url = '/api/media/folders'
       const method = isEditing ? 'PUT' : 'POST'
       
-      const body = {
+      const body = isEditing ? {
+        id: folder.id,
+        name: name.trim(),
+        parent_folder_id: parentFolderId || null
+      } : {
         name: name.trim(),
         ...(parentFolderId && { parent_folder_id: parentFolderId })
       }

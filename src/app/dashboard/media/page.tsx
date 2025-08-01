@@ -175,6 +175,61 @@ export default function MediaPage() {
     }
   }
 
+  // Handle folder actions
+  const handleFolderEdit = (folder: MediaFolder) => {
+    setEditingFolder(folder)
+    setShowFolderModal(true)
+  }
+
+  const handleFolderDelete = async (folderId: string) => {
+    if (!confirm('Are you sure you want to delete this folder? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/media/folders?id=${folderId}`, {
+        method: 'DELETE'
+      })
+      
+      if (response.ok) {
+        fetchFolders()
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Failed to delete folder')
+      }
+    } catch (error) {
+      console.error('Delete folder error:', error)
+      alert('Failed to delete folder')
+    }
+  }
+
+  // Handle moving media to folders
+  const handleMoveMediaToFolder = async (mediaIds: string[], targetFolderId: string | null) => {
+    try {
+      const response = await fetch('/api/media/move', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          mediaIds,
+          folderId: targetFolderId
+        })
+      })
+      
+      if (response.ok) {
+        fetchMediaAssets()
+        setSelectedItems(new Set())
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Failed to move media')
+      }
+    } catch (error) {
+      console.error('Move media error:', error)
+      alert('Failed to move media')
+    }
+  }
+
   const handleUploadComplete = () => {
     fetchMediaAssets()
   }
@@ -279,6 +334,34 @@ export default function MediaPage() {
           </div>
 
           <div className="flex items-center space-x-3">
+            {/* Bulk Actions */}
+            {selectedItems.size > 0 && (
+              <div className="flex items-center space-x-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg">
+                <span className="text-sm text-indigo-700">{selectedItems.size} selected</span>
+                <select
+                  onChange={(e) => {
+                    const folderId = e.target.value || null
+                    handleMoveMediaToFolder(Array.from(selectedItems), folderId)
+                    e.target.value = ''
+                  }}
+                  className="text-sm border border-indigo-300 rounded px-2 py-1"
+                  defaultValue=""
+                >
+                  <option value="" disabled>Move to folder...</option>
+                  <option value="">Remove from folder</option>
+                  {folders.map((folder) => (
+                    <option key={folder.id} value={folder.id}>{folder.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setSelectedItems(new Set())}
+                  className="text-indigo-600 hover:text-indigo-800"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+
             {/* View Toggle */}
             <div className="flex items-center border border-gray-300 rounded-lg">
               <button
@@ -313,15 +396,58 @@ export default function MediaPage() {
                 <h3 className="text-sm font-medium text-gray-900 mb-3">Folders</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   {folders.map((folder) => (
-                    <button
-                      key={folder.id}
-                      onClick={() => navigateToFolder(folder.id, folder.name)}
-                      className="p-3 border border-gray-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50 transition-colors text-left"
-                    >
-                      <Folder className="h-8 w-8 text-indigo-600 mb-2" />
-                      <p className="text-sm font-medium text-gray-900 truncate">{folder.name}</p>
-                      <p className="text-xs text-gray-500">{folder.itemCount || 0} items</p>
-                    </button>
+                    <div key={folder.id} className="group relative">
+                      <button
+                        onClick={() => navigateToFolder(folder.id, folder.name)}
+                        className="w-full p-3 border border-gray-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50 transition-colors text-left"
+                      >
+                        <Folder className="h-8 w-8 text-indigo-600 mb-2" />
+                        <p className="text-sm font-medium text-gray-900 truncate">{folder.name}</p>
+                        <p className="text-xs text-gray-500">{folder.itemCount || 0} items</p>
+                      </button>
+                      
+                      {/* Folder actions menu */}
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              // Create a simple context menu
+                              const menu = document.createElement('div')
+                              menu.className = 'absolute right-0 top-6 bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1 min-w-32'
+                              menu.innerHTML = `
+                                <button class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 edit-folder">Edit</button>
+                                <button class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 text-red-600 delete-folder">Delete</button>
+                              `
+                              
+                              // Add event listeners
+                              menu.querySelector('.edit-folder')?.addEventListener('click', () => {
+                                handleFolderEdit(folder)
+                                menu.remove()
+                              })
+                              menu.querySelector('.delete-folder')?.addEventListener('click', () => {
+                                handleFolderDelete(folder.id)
+                                menu.remove()
+                              })
+                              
+                              // Remove menu when clicking outside
+                              const removeMenu = (event: MouseEvent) => {
+                                if (!menu.contains(event.target as Node)) {
+                                  menu.remove()
+                                  document.removeEventListener('click', removeMenu)
+                                }
+                              }
+                              setTimeout(() => document.addEventListener('click', removeMenu), 100)
+                              
+                              e.currentTarget.appendChild(menu)
+                            }}
+                            className="p-1 rounded bg-white border border-gray-200 shadow-sm hover:bg-gray-50"
+                          >
+                            <MoreVertical className="h-4 w-4 text-gray-600" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -349,8 +475,29 @@ export default function MediaPage() {
                     {mediaAssets.map((asset) => (
                       <div
                         key={asset.id}
-                        className="group relative border border-gray-200 rounded-lg overflow-hidden hover:border-indigo-300 transition-colors"
+                        className={`group relative border rounded-lg overflow-hidden transition-colors ${
+                          selectedItems.has(asset.id) 
+                            ? 'border-indigo-500 bg-indigo-50' 
+                            : 'border-gray-200 hover:border-indigo-300'
+                        }`}
                       >
+                        {/* Selection checkbox */}
+                        <div className="absolute top-2 left-2 z-10">
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.has(asset.id)}
+                            onChange={(e) => {
+                              const newSelected = new Set(selectedItems)
+                              if (e.target.checked) {
+                                newSelected.add(asset.id)
+                              } else {
+                                newSelected.delete(asset.id)
+                              }
+                              setSelectedItems(newSelected)
+                            }}
+                            className="w-4 h-4 text-indigo-600 bg-white border-gray-300 rounded focus:ring-indigo-500"
+                          />
+                        </div>
                         {/* Media Preview */}
                         <div className="aspect-square bg-gray-100 flex items-center justify-center">
                           {asset.media_type === 'image' ? (
@@ -406,8 +553,30 @@ export default function MediaPage() {
                     {mediaAssets.map((asset) => (
                       <div
                         key={asset.id}
-                        className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-indigo-300 transition-colors"
+                        className={`flex items-center p-4 border rounded-lg transition-colors ${
+                          selectedItems.has(asset.id) 
+                            ? 'border-indigo-500 bg-indigo-50' 
+                            : 'border-gray-200 hover:border-indigo-300'
+                        }`}
                       >
+                        {/* Selection checkbox */}
+                        <div className="flex-shrink-0 mr-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.has(asset.id)}
+                            onChange={(e) => {
+                              const newSelected = new Set(selectedItems)
+                              if (e.target.checked) {
+                                newSelected.add(asset.id)
+                              } else {
+                                newSelected.delete(asset.id)
+                              }
+                              setSelectedItems(newSelected)
+                            }}
+                            className="w-4 h-4 text-indigo-600 bg-white border-gray-300 rounded focus:ring-indigo-500"
+                          />
+                        </div>
+
                         <div className="flex-shrink-0 w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mr-4">
                           {asset.media_type === 'image' ? (
                             <Image className="h-6 w-6 text-blue-600" />
