@@ -38,20 +38,10 @@ export async function GET(request: NextRequest) {
     const typeFilter = searchParams.get('type')
     const search = searchParams.get('search')
 
-    // Build base query with joins
+    // Build base query (simplified to avoid relationship issues)
     let query = supabase
       .from('screens')
-      .select(`
-        *,
-        location:locations(
-          id,
-          name,
-          district:districts(
-            id,
-            name
-          )
-        )
-      `)
+      .select('*')
 
     // Apply role-based filtering
     if (profile.role === 'super_admin') {
@@ -142,15 +132,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch screens' }, { status: 500 })
     }
 
-    // Apply search filter if provided (done client-side for complex joins)
+    // Apply search filter if provided (simplified without relationship data)
     let filteredScreens = screens || []
     if (search) {
       const searchLower = search.toLowerCase()
       filteredScreens = filteredScreens.filter(screen => 
         screen.name.toLowerCase().includes(searchLower) ||
-        screen.device_id?.toLowerCase().includes(searchLower) ||
-        screen.location?.name.toLowerCase().includes(searchLower) ||
-        screen.location?.district?.name.toLowerCase().includes(searchLower)
+        screen.device_id?.toLowerCase().includes(searchLower)
       )
     }
 
@@ -270,24 +258,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify the location exists and user has permission to add screens to it
-    const locationQuery = supabase
+    const { data: location, error: locationError } = await supabase
       .from('locations')
-      .select(`
-        id, 
-        name, 
-        district_id,
-        manager_id,
-        district:districts(
-          id, 
-          name, 
-          organization_id, 
-          manager_id
-        )
-      `)
+      .select('id, name, district_id, manager_id')
       .eq('id', location_id)
       .single()
-
-    const { data: location, error: locationError } = await locationQuery
 
     if (locationError || !location) {
       return NextResponse.json({ 
@@ -295,15 +270,28 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    // Get district info separately to avoid relationship issues
+    const { data: district, error: districtError } = await supabase
+      .from('districts')
+      .select('id, name, organization_id, manager_id')
+      .eq('id', location.district_id)
+      .single()
+
+    if (districtError || !district) {
+      return NextResponse.json({ 
+        error: 'Invalid district for selected location' 
+      }, { status: 400 })
+    }
+
     // Check organization permission
-    if (location.district?.organization_id !== profile.organization_id) {
+    if (district.organization_id !== profile.organization_id) {
       return NextResponse.json({ 
         error: 'Location does not belong to your organization' 
       }, { status: 403 })
     }
 
     // Check role-based location access
-    if (profile.role === 'district_manager' && location.district?.manager_id !== user.id) {
+    if (profile.role === 'district_manager' && district.manager_id !== user.id) {
       return NextResponse.json({ 
         error: 'You can only add screens to locations in districts you manage' 
       }, { status: 403 })
@@ -329,17 +317,7 @@ export async function POST(request: NextRequest) {
         firmware_version: firmware_version?.trim() || null,
         last_heartbeat: null
       })
-      .select(`
-        *,
-        location:locations(
-          id,
-          name,
-          district:districts(
-            id,
-            name
-          )
-        )
-      `)
+      .select('*')
       .single()
 
     if (createError) {
