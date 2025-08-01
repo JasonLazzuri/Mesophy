@@ -295,9 +295,11 @@ export async function POST(request: NextRequest) {
     const newUser = await createUserResponse.json()
     console.log('User created successfully:', newUser.id)
 
-    // Create user profile
+    // Create user profile using admin client to bypass RLS
     console.log('POST /api/users - Creating user profile')
-    const { data: userProfile, error: profileCreateError } = await supabase
+    const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL, serviceKey)
+    
+    const { data: userProfile, error: profileCreateError } = await adminSupabase
       .from('user_profiles')
       .insert({
         id: newUser.id,
