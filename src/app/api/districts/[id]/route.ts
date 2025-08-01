@@ -34,17 +34,10 @@ export async function GET(
       return NextResponse.json({ error: 'No organization associated with user' }, { status: 403 })
     }
 
-    // Fetch the specific district
+    // Fetch the specific district (simplified to avoid relationship issues)
     const { data: district, error: districtError } = await supabase
       .from('districts')
-      .select(`
-        *,
-        manager:user_profiles(
-          id,
-          full_name,
-          email
-        )
-      `)
+      .select('*')
       .eq('id', params.id)
       .eq('organization_id', profile.organization_id)
       .single()
@@ -160,14 +153,7 @@ export async function PUT(
       })
       .eq('id', params.id)
       .eq('organization_id', profile.organization_id)
-      .select(`
-        *,
-        manager:user_profiles(
-          id,
-          full_name,
-          email
-        )
-      `)
+      .select('*')
       .single()
 
     if (updateError) {

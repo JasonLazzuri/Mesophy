@@ -30,18 +30,10 @@ export async function GET() {
       return NextResponse.json({ error: 'No organization associated with user' }, { status: 403 })
     }
 
-    // Fetch districts for the user's organization
+    // Fetch districts for the user's organization (simplified to avoid relationship issues)
     const { data: districts, error: districtsError } = await supabase
       .from('districts')
-      .select(`
-        *,
-        locations(count),
-        manager:user_profiles(
-          id,
-          full_name,
-          email
-        )
-      `)
+      .select('*')
       .eq('organization_id', profile.organization_id)
       .order('name')
 
