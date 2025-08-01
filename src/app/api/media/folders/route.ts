@@ -3,25 +3,44 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('GET /api/media/folders - Starting request')
     const supabase = await createClient()
+    
+    if (!supabase) {
+      console.error('GET /api/media/folders - Supabase client not available')
+      return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
+    }
+    
     const { searchParams } = new URL(request.url)
     const parentId = searchParams.get('parent_id') || null
+    console.log('GET /api/media/folders - Parent ID:', parentId)
 
     // Get user's organization
+    console.log('GET /api/media/folders - Getting user authentication')
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
+      console.error('GET /api/media/folders - Auth error:', authError)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    console.log('GET /api/media/folders - User authenticated:', user.id)
 
-    const { data: userProfile } = await supabase
+    console.log('GET /api/media/folders - Getting user profile')
+    const { data: userProfile, error: profileError } = await supabase
       .from('user_profiles')
       .select('organization_id')
       .eq('id', user.id)
       .single()
 
+    if (profileError) {
+      console.error('GET /api/media/folders - Profile error:', profileError)
+      return NextResponse.json({ error: 'Failed to get user profile' }, { status: 500 })
+    }
+
     if (!userProfile?.organization_id) {
+      console.error('GET /api/media/folders - No organization found for user')
       return NextResponse.json({ error: 'No organization found' }, { status: 403 })
     }
+    console.log('GET /api/media/folders - Organization ID:', userProfile.organization_id)
 
     // Build query for folders
     let query = supabase
