@@ -193,12 +193,17 @@ export async function POST(request: NextRequest) {
 
     // Check if email already exists using admin client
     console.log('POST /api/users - Checking if email exists:', email)
+    console.log('POST /api/users - Service key debug:', getServiceKey() ? 'present' : 'missing')
+    
     let adminClient = createAdminClient()
+    console.log('POST /api/users - Standard admin client result:', adminClient ? 'success' : 'failed')
     
     // If admin client creation failed, try manual creation
     if (!adminClient) {
       console.log('POST /api/users - Standard admin client failed, trying manual creation')
       const serviceKey = getServiceKey()
+      console.log('POST /api/users - Service key for manual creation:', serviceKey ? `present (${serviceKey.substring(0, 10)}...)` : 'missing')
+      
       if (serviceKey && process.env.NEXT_PUBLIC_SUPABASE_URL) {
         try {
           const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
@@ -208,14 +213,25 @@ export async function POST(request: NextRequest) {
           console.log('POST /api/users - Manual admin client created successfully')
         } catch (error) {
           console.error('POST /api/users - Manual admin client creation failed:', error)
+          return NextResponse.json({ 
+            error: 'Failed to create admin client', 
+            details: error.message 
+          }, { status: 500 })
         }
+      } else {
+        console.error('POST /api/users - Missing requirements for manual admin client:', {
+          hasServiceKey: !!serviceKey,
+          hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL
+        })
       }
     }
     
     if (!adminClient) {
-      console.error('POST /api/users - Admin client not available')
+      console.error('POST /api/users - Admin client not available after all attempts')
       return NextResponse.json({ error: 'Admin operations unavailable' }, { status: 503 })
     }
+    
+    console.log('POST /api/users - Admin client ready, proceeding with user existence check')
     
     const { data: existingUser, error: existingUserError } = await adminClient.auth.admin.getUserByEmail(email)
     
