@@ -101,11 +101,11 @@ export async function GET(request: NextRequest) {
 function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   
-  // Try different possible env var names for the service key
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
+  // Try different possible env var names for the service key (prioritize working pattern)
+  const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY ||
+                     process.env.SUPABASE_SERVICE_ROLE_KEY || 
                      process.env.SUPABASE_SERVICE_KEY ||
-                     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ||
-                     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY
+                     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
 
   console.log('Admin client creation attempt:', {
     url: url ? 'present' : 'missing',
