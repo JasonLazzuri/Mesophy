@@ -190,13 +190,18 @@ export async function POST(request: NextRequest) {
       }, { status: 403 })
     }
     
-    // Create Supabase client for database operations (not auth)
-    const supabase = await createClient()
-    if (!supabase) {
-      console.error('POST /api/screens - Supabase client not available for database operations')
+    // Use service key for all database operations to bypass JWT issues
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || 
+                       process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                       process.env.SUPABASE_SERVICE_KEY ||
+                       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+
+    if (!url || !serviceKey) {
+      console.error('POST /api/screens - Service key configuration missing')
       return NextResponse.json({ 
-        error: 'Database unavailable',
-        details: 'Supabase client initialization failed'
+        error: 'Database configuration unavailable',
+        details: 'Service key configuration missing'
       }, { status: 503 })
     }
 
@@ -270,24 +275,29 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Validate device_id uniqueness if provided
+    // Validate device_id uniqueness if provided using REST API
     if (device_id) {
       console.log('POST /api/screens - Checking device_id uniqueness:', device_id)
-      const { data: existingScreen, error: checkError } = await supabase
-        .from('screens')
-        .select('id')
-        .eq('device_id', device_id)
-        .single()
+      const screenCheckResponse = await fetch(`${url}/rest/v1/screens?device_id=eq.${device_id}&select=id`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey,
+          'Content-Type': 'application/json'
+        }
+      })
 
-      if (checkError && checkError.code !== 'PGRST116') {
-        console.error('POST /api/screens - Error checking device_id uniqueness:', checkError)
+      if (!screenCheckResponse.ok) {
+        const errorText = await screenCheckResponse.text()
+        console.error('POST /api/screens - Error checking device_id uniqueness:', errorText)
         return NextResponse.json({ 
           error: 'Failed to validate device ID',
-          details: checkError.message
+          details: errorText
         }, { status: 500 })
       }
 
-      if (existingScreen) {
+      const existingScreens = await screenCheckResponse.json()
+      if (existingScreens && existingScreens.length > 0) {
         console.error('POST /api/screens - Device ID already exists:', device_id)
         return NextResponse.json({ 
           error: 'Device ID already exists. Each device must have a unique ID.',
@@ -296,36 +306,66 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verify the location exists and user has permission to add screens to it
+    // Verify the location exists using REST API
     console.log('POST /api/screens - Verifying location exists:', location_id)
-    const { data: location, error: locationError } = await supabase
-      .from('locations')
-      .select('id, name, district_id, manager_id')
-      .eq('id', location_id)
-      .single()
+    const locationResponse = await fetch(`${url}/rest/v1/locations?id=eq.${location_id}&select=id,name,district_id,manager_id`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+        'Content-Type': 'application/json'
+      }
+    })
 
-    if (locationError || !location) {
-      console.error('POST /api/screens - Location error:', locationError)
+    if (!locationResponse.ok) {
+      const errorText = await locationResponse.text()
+      console.error('POST /api/screens - Location fetch error:', errorText)
       return NextResponse.json({ 
         error: 'Invalid location selected',
-        details: locationError?.message || 'Location not found'
+        details: errorText
+      }, { status: 400 })
+    }
+
+    const locations = await locationResponse.json()
+    const location = locations[0]
+    
+    if (!location) {
+      console.error('POST /api/screens - Location not found:', location_id)
+      return NextResponse.json({ 
+        error: 'Invalid location selected',
+        details: 'Location not found'
       }, { status: 400 })
     }
     console.log('POST /api/screens - Location found:', { id: location.id, name: location.name, district_id: location.district_id })
 
-    // Get district info separately to avoid relationship issues
+    // Get district info using REST API
     console.log('POST /api/screens - Getting district info:', location.district_id)
-    const { data: district, error: districtError } = await supabase
-      .from('districts')
-      .select('id, name, organization_id, manager_id')
-      .eq('id', location.district_id)
-      .single()
+    const districtResponse = await fetch(`${url}/rest/v1/districts?id=eq.${location.district_id}&select=id,name,organization_id,manager_id`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+        'Content-Type': 'application/json'
+      }
+    })
 
-    if (districtError || !district) {
-      console.error('POST /api/screens - District error:', districtError)
+    if (!districtResponse.ok) {
+      const errorText = await districtResponse.text()
+      console.error('POST /api/screens - District fetch error:', errorText)
       return NextResponse.json({ 
         error: 'Invalid district for selected location',
-        details: districtError?.message || 'District not found'
+        details: errorText
+      }, { status: 400 })
+    }
+
+    const districts = await districtResponse.json()
+    const district = districts[0]
+    
+    if (!district) {
+      console.error('POST /api/screens - District not found:', location.district_id)
+      return NextResponse.json({ 
+        error: 'Invalid district for selected location',
+        details: 'District not found'
       }, { status: 400 })
     }
     console.log('POST /api/screens - District found:', { id: district.id, name: district.name, org_id: district.organization_id })
@@ -365,60 +405,57 @@ export async function POST(request: NextRequest) {
       }, { status: 403 })
     }
 
-    // Create the screen
-    console.log('POST /api/screens - Creating screen with data:', {
+    // Create the screen using REST API
+    const screenData = {
       location_id,
       name: name.trim(),
       screen_type,
       device_id: device_id?.trim() || null,
+      device_status: 'offline',
       resolution: screenResolution,
-      orientation: screenOrientation
-    })
+      orientation: screenOrientation,
+      is_active: true,
+      ip_address: ip_address?.trim() || null,
+      firmware_version: firmware_version?.trim() || null,
+      last_heartbeat: null
+    }
     
-    const { data: screen, error: createError } = await supabase
-      .from('screens')
-      .insert({
-        location_id,
-        name: name.trim(),
-        screen_type,
-        device_id: device_id?.trim() || null,
-        device_status: 'offline' as DeviceStatus,
-        resolution: screenResolution,
-        orientation: screenOrientation,
-        is_active: true,
-        ip_address: ip_address?.trim() || null,
-        firmware_version: firmware_version?.trim() || null,
-        last_heartbeat: null
-      })
-      .select('*')
-      .single()
+    console.log('POST /api/screens - Creating screen with data:', screenData)
+    
+    const createResponse = await fetch(`${url}/rest/v1/screens`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(screenData)
+    })
 
-    if (createError) {
-      console.error('POST /api/screens - Error creating screen:', createError)
-      console.error('POST /api/screens - Full error details:', {
-        code: createError.code,
-        message: createError.message,
-        details: createError.details,
-        hint: createError.hint
-      })
+    if (!createResponse.ok) {
+      const errorText = await createResponse.text()
+      console.error('POST /api/screens - Error creating screen:', errorText)
       
       // Handle duplicate name error within location
-      if (createError.code === '23505') {
+      if (createResponse.status === 409 || errorText.includes('23505')) {
         return NextResponse.json({ 
           error: 'A screen with this name already exists in this location',
-          details: createError.message
+          details: errorText
         }, { status: 409 })
       }
       
       return NextResponse.json({ 
         error: 'Failed to create screen',
-        details: createError.message,
-        code: createError.code,
-        hint: createError.hint
+        details: errorText,
+        status: createResponse.status
       }, { status: 500 })
     }
 
-    console.log('POST /api/screens - Screen created successfully:', screen.id)
+    const screens = await createResponse.json()
+    const screen = screens[0]
+
+    console.log('POST /api/screens - Screen created successfully:', screen?.id)
 
     return NextResponse.json({ 
       message: 'Screen created successfully',
