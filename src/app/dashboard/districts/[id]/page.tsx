@@ -140,10 +140,13 @@ export default function DistrictDetailPage() {
             Back to Districts
           </Link>
         </div>
-        <button className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+        <Link
+          href={`/dashboard/districts/${districtId}/edit`}
+          className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
           <Edit className="h-4 w-4 mr-2" />
           Edit District
-        </button>
+        </Link>
       </div>
 
       {/* District Info */}
@@ -243,10 +246,13 @@ export default function DistrictDetailPage() {
       <div className="bg-white shadow rounded-lg">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-lg font-medium text-gray-900">Locations</h2>
-          <button className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+          <Link
+            href={`/dashboard/locations/add?district_id=${districtId}`}
+            className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+          >
             <Plus className="h-4 w-4 mr-2" />
             Add Location
-          </button>
+          </Link>
         </div>
         
         <div className="divide-y divide-gray-200">
