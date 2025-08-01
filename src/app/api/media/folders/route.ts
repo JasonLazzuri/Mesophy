@@ -85,11 +85,21 @@ export async function GET(request: NextRequest) {
       }, { status: 500 })
     }
 
-    // Add item count to each folder (simplified without media_assets join)
-    const foldersWithCount = folders?.map(folder => ({
-      ...folder,
-      itemCount: 0 // TODO: Get actual count with separate query if needed
-    })) || []
+    // Add item count to each folder by querying media_assets separately
+    const foldersWithCount = []
+    for (const folder of folders || []) {
+      // Count media assets in this folder
+      const { count } = await supabase
+        .from('media_assets')
+        .select('id', { count: 'exact' })
+        .eq('organization_id', userProfile.organization_id)
+        .eq('folder_id', folder.id)
+      
+      foldersWithCount.push({
+        ...folder,
+        itemCount: count || 0
+      })
+    }
 
     return NextResponse.json(foldersWithCount)
 
