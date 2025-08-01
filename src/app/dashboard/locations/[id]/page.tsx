@@ -48,46 +48,33 @@ export default function LocationDetailPage() {
   }, [locationId])
 
   const fetchLocation = async () => {
-    if (!supabase || !locationId) {
-      setError('Database connection unavailable or invalid location ID')
+    if (!locationId) {
+      setError('Invalid location ID')
       setLoading(false)
       return
     }
 
     try {
-      // Fetch location with district and manager info
-      const { data: locationData, error: locationError } = await supabase
-        .from('locations')
-        .select(`
-          *,
-          districts (
-            id,
-            name
-          ),
-          user_profiles!locations_manager_id_fkey (
-            full_name,
-            email
-          )
-        `)
-        .eq('id', locationId)
-        .single()
-
-      if (locationError) throw locationError
-
-      // Fetch screens for this location
-      const { data: screensData, error: screensError } = await supabase
-        .from('screens')
-        .select('id, name, screen_type, device_status, is_active')
-        .eq('location_id', locationId)
-        .order('name')
-
-      if (screensError) throw screensError
+      // Use API routes instead of direct Supabase queries to avoid PostgREST relationship issues
+      const locationResponse = await fetch(`/api/locations/${locationId}`)
+      if (!locationResponse.ok) {
+        const errorData = await locationResponse.json()
+        throw new Error(errorData.error || 'Failed to fetch location')
+      }
+      
+      const locationData = await locationResponse.json()
+      
+      // Fetch screens separately using the screens API
+      const screensResponse = await fetch(`/api/screens?location_id=${locationId}`)
+      let screensData = []
+      if (screensResponse.ok) {
+        const screensResult = await screensResponse.json()
+        screensData = screensResult.screens || []
+      }
 
       setLocation({
-        ...locationData,
-        district: locationData.districts,
-        manager: locationData.user_profiles,
-        screens: screensData || []
+        ...locationData.location,
+        screens: screensData
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch location details')

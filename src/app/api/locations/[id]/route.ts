@@ -34,18 +34,10 @@ export async function GET(
       return NextResponse.json({ error: 'No organization associated with user' }, { status: 403 })
     }
 
-    // Fetch the specific location with district info
+    // Fetch the specific location (simple query without relationships)
     const { data: location, error: locationError } = await supabase
       .from('locations')
-      .select(`
-        *,
-        district:districts(
-          id,
-          name,
-          organization_id,
-          manager_id
-        )
-      `)
+      .select('*')
       .eq('id', params.id)
       .single()
 
@@ -57,20 +49,26 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch location' }, { status: 500 })
     }
 
-    // Check if user has permission to view this location
-    if (!location.district) {
+    // Fetch district info separately
+    const { data: district, error: districtError } = await supabase
+      .from('districts')
+      .select('id, name, organization_id, manager_id')
+      .eq('id', location.district_id)
+      .single()
+
+    if (districtError || !district) {
       return NextResponse.json({ error: 'Location district not found' }, { status: 404 })
     }
 
     // Check organization permission
-    if (location.district.organization_id !== profile.organization_id) {
+    if (district.organization_id !== profile.organization_id) {
       return NextResponse.json({ error: 'Location not found' }, { status: 404 })
     }
 
     // Role-based access control
     if (profile.role === 'district_manager') {
       // District manager can only view locations in districts they manage
-      if (location.district.manager_id !== user.id) {
+      if (district.manager_id !== user.id) {
         return NextResponse.json({ error: 'Location not found' }, { status: 404 })
       }
     } else if (profile.role === 'location_manager') {
@@ -83,7 +81,27 @@ export async function GET(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    return NextResponse.json({ location })
+    // Fetch manager info if there is one
+    let manager = null
+    if (location.manager_id) {
+      const { data: managerData } = await supabase
+        .from('user_profiles')
+        .select('full_name, email')
+        .eq('id', location.manager_id)
+        .single()
+      
+      if (managerData) {
+        manager = managerData
+      }
+    }
+
+    return NextResponse.json({ 
+      location: {
+        ...location,
+        district,
+        manager
+      }
+    })
 
   } catch (error) {
     console.error('Unexpected error in location GET API:', error)
@@ -194,19 +212,11 @@ export async function PUT(
       }, { status: 400 })
     }
 
-    // Get the current location to check permissions
+    // Get the current location to check permissions (simple query without relationships)
     console.log(`[PUT] Fetching current location data for ID: ${params.id}`)
     const { data: currentLocation, error: currentLocationError } = await supabase
       .from('locations')
-      .select(`
-        *,
-        district:districts(
-          id,
-          name,
-          organization_id,
-          manager_id
-        )
-      `)
+      .select('*')
       .eq('id', params.id)
       .single()
 
@@ -217,15 +227,26 @@ export async function PUT(
     
     console.log(`[PUT] Current location found:`, { id: currentLocation.id, name: currentLocation.name, district_id: currentLocation.district_id })
 
+    // Fetch current district info separately
+    const { data: currentDistrict, error: currentDistrictError } = await supabase
+      .from('districts')
+      .select('id, name, organization_id, manager_id')
+      .eq('id', currentLocation.district_id)
+      .single()
+
+    if (currentDistrictError || !currentDistrict) {
+      return NextResponse.json({ error: 'Location district not found' }, { status: 404 })
+    }
+
     // Check organization permission
-    if (!currentLocation.district || currentLocation.district.organization_id !== profile.organization_id) {
+    if (currentDistrict.organization_id !== profile.organization_id) {
       return NextResponse.json({ error: 'Location not found' }, { status: 404 })
     }
 
     // Role-based permission checks
     if (profile.role === 'district_manager') {
       // District manager can only update locations in districts they manage
-      if (currentLocation.district.manager_id !== user.id) {
+      if (currentDistrict.manager_id !== user.id) {
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
     } else if (profile.role === 'location_manager') {
@@ -285,15 +306,12 @@ export async function PUT(
     
     console.log(`[PUT] Updating location with data:`, updateData)
     
-    // Update the location
+    // Update the location (simple query without relationships)
     const { data: location, error: updateError } = await supabase
       .from('locations')
       .update(updateData)
       .eq('id', params.id)
-      .select(`
-        *,
-        district:districts(id,name)
-      `)
+      .select('*')
       .single()
 
     if (updateError) {
@@ -386,18 +404,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'No organization associated with user' }, { status: 403 })
     }
 
-    // Get the location to check permissions and screens
+    // Get the location to check permissions and screens (simple query without relationships)
     const { data: location, error: locationError } = await supabase
       .from('locations')
-      .select(`
-        *,
-        district:districts(
-          id,
-          name,
-          organization_id,
-          manager_id
-        )
-      `)
+      .select('*')
       .eq('id', params.id)
       .single()
 
@@ -405,15 +415,26 @@ export async function DELETE(
       return NextResponse.json({ error: 'Location not found' }, { status: 404 })
     }
 
+    // Fetch district info separately
+    const { data: district, error: districtError } = await supabase
+      .from('districts')
+      .select('id, name, organization_id, manager_id')
+      .eq('id', location.district_id)
+      .single()
+
+    if (districtError || !district) {
+      return NextResponse.json({ error: 'Location district not found' }, { status: 404 })
+    }
+
     // Check organization permission
-    if (!location.district || location.district.organization_id !== profile.organization_id) {
+    if (district.organization_id !== profile.organization_id) {
       return NextResponse.json({ error: 'Location not found' }, { status: 404 })
     }
 
     // Role-based permission checks
     if (profile.role === 'district_manager') {
       // District manager can only delete locations in districts they manage
-      if (location.district.manager_id !== user.id) {
+      if (district.manager_id !== user.id) {
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
     }
