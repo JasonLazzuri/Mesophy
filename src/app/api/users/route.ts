@@ -102,6 +102,11 @@ export async function POST(request: NextRequest) {
     console.log('POST /api/users - Starting user creation request')
     console.log('POST /api/users - Environment debug:', debugEnvironment())
     
+    // Test service key function immediately
+    console.log('POST /api/users - Testing getServiceKey function...')
+    const testServiceKey = getServiceKey()
+    console.log('POST /api/users - Service key test result:', testServiceKey ? 'SUCCESS' : 'FAILED')
+    
     const supabase = await createClient()
     
     if (!supabase) {
@@ -361,6 +366,15 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Unexpected error in users POST API:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error stack:', error.stack)
+    console.error('Error name:', error.name)
+    console.error('Error message:', error.message)
+    
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      message: error.message,
+      name: error.name,
+      details: process.env.NODE_ENV === 'development' ? error.stack : 'Hidden in production'
+    }, { status: 500 })
   }
 }
