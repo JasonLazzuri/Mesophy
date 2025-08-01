@@ -3,28 +3,27 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('GET /api/media/folders - Starting request')
     const supabase = await createClient()
     
     if (!supabase) {
-      console.error('GET /api/media/folders - Supabase client not available')
-      return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
+      return NextResponse.json({ 
+        error: 'Database unavailable',
+        details: 'Supabase client initialization failed'
+      }, { status: 503 })
     }
     
     const { searchParams } = new URL(request.url)
     const parentId = searchParams.get('parent_id') || null
-    console.log('GET /api/media/folders - Parent ID:', parentId)
 
     // Get user's organization
-    console.log('GET /api/media/folders - Getting user authentication')
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
-      console.error('GET /api/media/folders - Auth error:', authError)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ 
+        error: 'Unauthorized',
+        details: authError?.message || 'No user found'
+      }, { status: 401 })
     }
-    console.log('GET /api/media/folders - User authenticated:', user.id)
 
-    console.log('GET /api/media/folders - Getting user profile')
     const { data: userProfile, error: profileError } = await supabase
       .from('user_profiles')
       .select('organization_id')
@@ -32,15 +31,34 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (profileError) {
-      console.error('GET /api/media/folders - Profile error:', profileError)
-      return NextResponse.json({ error: 'Failed to get user profile' }, { status: 500 })
+      return NextResponse.json({ 
+        error: 'Failed to get user profile',
+        details: profileError.message,
+        code: profileError.code
+      }, { status: 500 })
     }
 
     if (!userProfile?.organization_id) {
-      console.error('GET /api/media/folders - No organization found for user')
-      return NextResponse.json({ error: 'No organization found' }, { status: 403 })
+      return NextResponse.json({ 
+        error: 'No organization found',
+        details: 'User profile exists but has no organization_id'
+      }, { status: 403 })
     }
-    console.log('GET /api/media/folders - Organization ID:', userProfile.organization_id)
+
+    // Test if media_folders table exists by checking if we can query it
+    const { data: testQuery, error: tableError } = await supabase
+      .from('media_folders')
+      .select('id')
+      .limit(1)
+
+    if (tableError) {
+      return NextResponse.json({ 
+        error: 'Database table error',
+        details: tableError.message,
+        code: tableError.code,
+        hint: tableError.hint
+      }, { status: 500 })
+    }
 
     // Build query for folders
     let query = supabase
@@ -63,8 +81,12 @@ export async function GET(request: NextRequest) {
     const { data: folders, error } = await query
 
     if (error) {
-      console.error('Error fetching folders:', error)
-      return NextResponse.json({ error: 'Failed to fetch folders' }, { status: 500 })
+      return NextResponse.json({ 
+        error: 'Failed to fetch folders',
+        details: error.message,
+        code: error.code,
+        hint: error.hint
+      }, { status: 500 })
     }
 
     // Add item count to each folder
@@ -75,9 +97,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(foldersWithCount)
 
-  } catch (error) {
-    console.error('Error in folders API:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } catch (error: any) {
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error.message || 'Unknown error',
+      stack: error.stack
+    }, { status: 500 })
   }
 }
 
