@@ -97,47 +97,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Helper function to create admin client with proper error handling
-function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  
-  // Try different possible env var names for the service key (prioritize working pattern)
-  const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY ||
-                     process.env.SUPABASE_SERVICE_ROLE_KEY || 
-                     process.env.SUPABASE_SERVICE_KEY ||
-                     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
-
-  console.log('Admin client creation attempt:', {
-    url: url ? 'present' : 'missing',
-    serviceKey: serviceKey ? `present (${serviceKey.substring(0, 10)}...)` : 'missing'
-  })
-
-  if (!url || !serviceKey) {
-    console.error('Missing required environment variables for admin client')
-    return null
-  }
-
-  try {
-    const client = createSupabaseClient(url, serviceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
-    
-    // Verify the client has admin methods
-    if (!client.auth.admin) {
-      console.error('Admin client created but missing admin methods')
-      return null
-    }
-    
-    console.log('Admin client created successfully with admin methods')
-    return client
-  } catch (error) {
-    console.error('Failed to create admin client:', error)
-    return null
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -219,12 +178,26 @@ export async function POST(request: NextRequest) {
       }, { status: 403 })
     }
 
-    // Create admin client
+    // Create admin client using the exact same pattern as working debug endpoint
     console.log('POST /api/users - Creating admin client')
-    const adminClient = createAdminClient()
-    
-    if (!adminClient) {
-      console.error('POST /api/users - Failed to create admin client')
+    const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY ||
+                       process.env.SUPABASE_SERVICE_ROLE_KEY || 
+                       process.env.SUPABASE_SERVICE_KEY ||
+                       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+
+    if (!serviceKey || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      console.error('POST /api/users - Missing service key or URL')
+      return NextResponse.json({ error: 'Admin operations unavailable' }, { status: 503 })
+    }
+
+    let adminClient
+    try {
+      adminClient = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL, serviceKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      })
+      console.log('POST /api/users - Admin client created successfully')
+    } catch (error) {
+      console.error('POST /api/users - Failed to create admin client:', error)
       return NextResponse.json({ error: 'Admin operations unavailable' }, { status: 503 })
     }
 
