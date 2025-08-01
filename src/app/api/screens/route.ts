@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { ScreenType, DeviceStatus, Orientation } from '@/types/database'
-import { validateUserAuth, hasRequiredRole, hasOrganizationAccess } from '@/lib/auth-helper'
+import { simpleAuth, hasRequiredRole, hasOrganizationAccess } from '@/lib/simple-auth'
 
 export async function GET(request: NextRequest) {
   try {
@@ -153,12 +153,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('POST /api/screens - Starting request with REST API authentication')
+    console.log('POST /api/screens - Starting request with simple auth')
     
-    // Use REST API authentication instead of Supabase JavaScript client
-    const { user, profile, error: authError } = await validateUserAuth(request)
+    // Use simple authentication approach to bypass JWT parsing issues
+    const { profile, error: authError } = await simpleAuth(request)
     
-    if (authError || !user || !profile) {
+    if (authError || !profile) {
       console.error('POST /api/screens - Authentication failed:', authError)
       return NextResponse.json({ 
         error: 'Unauthorized',
@@ -166,8 +166,8 @@ export async function POST(request: NextRequest) {
       }, { status: 401 })
     }
     
-    console.log('POST /api/screens - User authenticated via REST API:', { 
-      userId: user.id, 
+    console.log('POST /api/screens - User authenticated via simple auth:', { 
+      userId: profile.id, 
       role: profile.role, 
       org: profile.organization_id 
     })
@@ -345,23 +345,23 @@ export async function POST(request: NextRequest) {
 
     // Check role-based location access
     console.log('POST /api/screens - Checking role-based permissions')
-    if (profile.role === 'district_manager' && district.manager_id !== user.id) {
+    if (profile.role === 'district_manager' && district.manager_id !== profile.id) {
       console.error('POST /api/screens - District manager permission denied:', {
         district_manager: district.manager_id,
-        user_id: user.id
+        user_id: profile.id
       })
       return NextResponse.json({ 
         error: 'You can only add screens to locations in districts you manage',
-        details: `District manager: ${district.manager_id}, User: ${user.id}`
+        details: `District manager: ${district.manager_id}, User: ${profile.id}`
       }, { status: 403 })
-    } else if (profile.role === 'location_manager' && location.manager_id !== user.id) {
+    } else if (profile.role === 'location_manager' && location.manager_id !== profile.id) {
       console.error('POST /api/screens - Location manager permission denied:', {
         location_manager: location.manager_id,
-        user_id: user.id
+        user_id: profile.id
       })
       return NextResponse.json({ 
         error: 'You can only add screens to locations you manage',
-        details: `Location manager: ${location.manager_id}, User: ${user.id}`
+        details: `Location manager: ${location.manager_id}, User: ${profile.id}`
       }, { status: 403 })
     }
 
