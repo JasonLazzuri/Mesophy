@@ -139,14 +139,7 @@ export async function POST(request: NextRequest) {
         organization_id: profile.organization_id,
         manager_id: manager_id || null,
       })
-      .select(`
-        *,
-        manager:user_profiles(
-          id,
-          full_name,
-          email
-        )
-      `)
+      .select('*')
       .single()
 
     if (createError) {

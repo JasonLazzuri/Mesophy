@@ -54,43 +54,21 @@ export default function DistrictDetailPage() {
   }, [districtId])
 
   const fetchDistrictDetails = async () => {
-    if (!supabase) {
-      setError('Database connection unavailable')
-      setLoading(false)
-      return
-    }
-
     try {
-      // Fetch district details
-      const { data: districtData, error: districtError } = await supabase
-        .from('districts')
-        .select(`
-          *,
-          user_profiles!districts_manager_id_fkey (
-            full_name,
-            email
-          )
-        `)
-        .eq('id', districtId)
-        .single()
+      // Fetch district details via API
+      const response = await fetch(`/api/districts/${districtId}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to fetch district')
+      }
+      
+      const { district: districtData } = await response.json()
+      setDistrict(districtData)
 
-      if (districtError) throw districtError
-
-      setDistrict({
-        ...districtData,
-        manager: districtData.user_profiles
-      })
-
-      // Fetch locations in this district
+      // Fetch locations in this district (simplified to avoid relationship issues)
       const { data: locationsData, error: locationsError } = await supabase
         .from('locations')
-        .select(`
-          *,
-          user_profiles!locations_manager_id_fkey (
-            full_name,
-            email
-          )
-        `)
+        .select('*')
         .eq('district_id', districtId)
         .order('name')
 
@@ -106,7 +84,6 @@ export default function DistrictDetailPage() {
 
           return {
             ...location,
-            manager: location.user_profiles,
             _count: { screens: count || 0 }
           }
         })
