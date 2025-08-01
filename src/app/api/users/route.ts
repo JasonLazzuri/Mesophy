@@ -201,26 +201,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Admin operations unavailable' }, { status: 503 })
     }
 
-    // Check if email already exists  
+    // Check if email already exists using direct REST API (bypass JS client issues)
     console.log('POST /api/users - Checking if email already exists:', email)
     
-    // First verify the admin client has the required methods
-    if (!adminClient.auth.admin.getUserByEmail) {
-      console.error('Admin client missing getUserByEmail method. Available methods:', Object.keys(adminClient.auth.admin))
-      return NextResponse.json({ 
-        error: 'Invalid service key - missing admin user management privileges',
-        availableMethods: Object.keys(adminClient.auth.admin)
-      }, { status: 503 })
-    }
+    const checkUserResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+        'Content-Type': 'application/json'
+      }
+    })
     
-    const { data: existingUser, error: existingUserError } = await adminClient.auth.admin.getUserByEmail(email)
-    
-    if (existingUserError && existingUserError.message !== 'User not found') {
-      console.error('POST /api/users - Error checking existing user:', existingUserError)
+    if (!checkUserResponse.ok) {
+      console.error('Failed to check existing users:', checkUserResponse.status)
       return NextResponse.json({ error: 'Failed to validate email' }, { status: 500 })
     }
-
-    if (existingUser.user) {
+    
+    const existingUsers = await checkUserResponse.json()
+    const existingUser = existingUsers.users?.find(u => u.email === email)
+    
+    if (existingUser) {
       return NextResponse.json({ 
         error: 'User with this email already exists' 
       }, { status: 409 })
@@ -262,38 +263,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create user in Supabase Auth
+    // Create user in Supabase Auth using direct REST API
     console.log('POST /api/users - Creating user in Supabase Auth')
-    const { data: newUser, error: createUserError } = await adminClient.auth.admin.createUser({
-      email,
-      email_confirm: !send_invitation,
-      user_metadata: {
-        full_name,
-        role,
-        organization_id: profile.organization_id
-      }
+    const createUserResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email,
+        email_confirm: !send_invitation,
+        user_metadata: {
+          full_name,
+          role,
+          organization_id: profile.organization_id
+        }
+      })
     })
 
-    if (createUserError) {
-      console.error('Error creating user:', createUserError)
+    if (!createUserResponse.ok) {
+      const errorText = await createUserResponse.text()
+      console.error('Error creating user:', errorText)
       return NextResponse.json({ 
         error: 'Failed to create user account',
-        details: createUserError.message
+        details: errorText
       }, { status: 500 })
     }
 
-    if (!newUser.user) {
-      return NextResponse.json({ 
-        error: 'Failed to create user account' 
-      }, { status: 500 })
-    }
+    const newUser = await createUserResponse.json()
+    console.log('User created successfully:', newUser.id)
 
     // Create user profile
     console.log('POST /api/users - Creating user profile')
     const { data: userProfile, error: profileCreateError } = await supabase
       .from('user_profiles')
       .insert({
-        id: newUser.user.id,
+        id: newUser.id,
         email,
         full_name,
         role,
@@ -313,7 +320,13 @@ export async function POST(request: NextRequest) {
       console.error('Error creating user profile:', profileCreateError)
       
       // Clean up the auth user if profile creation failed
-      await adminClient.auth.admin.deleteUser(newUser.user.id)
+      await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users/${newUser.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey
+        }
+      })
       
       return NextResponse.json({ 
         error: 'Failed to create user profile',
@@ -324,12 +337,20 @@ export async function POST(request: NextRequest) {
     // Send invitation email if requested
     if (send_invitation) {
       console.log('POST /api/users - Sending invitation email')
-      const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
+      const inviteResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users/${newUser.id}/invite`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          redirect_to: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
+        })
       })
 
-      if (inviteError) {
-        console.error('Error sending invitation:', inviteError)
+      if (!inviteResponse.ok) {
+        console.error('Error sending invitation:', await inviteResponse.text())
         // Don't fail the whole operation if invitation fails
       }
     }
