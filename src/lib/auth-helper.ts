@@ -87,26 +87,36 @@ export async function validateUserAuth(request: NextRequest): Promise<AuthResult
         }
       }
 
-      // Validate the token with Supabase REST API
-      const userResponse = await fetch(`${url}/auth/v1/user`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'apikey': anonKey,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (!userResponse.ok) {
-        const errorText = await userResponse.text()
+      // Decode the JWT token directly instead of validating with Supabase
+      // Split the JWT token to get the payload
+      const tokenParts = accessToken.split('.')
+      if (tokenParts.length !== 3) {
         return {
           user: null,
           profile: null,
-          error: `Authentication failed: ${userResponse.status} ${errorText}`
+          error: 'Invalid JWT token format'
         }
       }
 
-      const user: AuthUser = await userResponse.json()
+      // Decode the payload (second part of JWT)
+      const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64url').toString())
+      
+      // Check if token is expired
+      const now = Math.floor(Date.now() / 1000)
+      if (payload.exp && payload.exp < now) {
+        return {
+          user: null,
+          profile: null,
+          error: 'JWT token has expired'
+        }
+      }
+
+      // Extract user information from JWT payload
+      const user: AuthUser = {
+        id: payload.sub,
+        email: payload.email,
+        user_metadata: payload.user_metadata || {}
+      }
 
       // Get user profile from database using the same access token
       const profileResponse = await fetch(`${url}/rest/v1/user_profiles?id=eq.${user.id}&select=*`, {
