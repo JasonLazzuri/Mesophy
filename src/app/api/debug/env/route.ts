@@ -32,7 +32,11 @@ export async function GET() {
     vercelUrl: process.env.VERCEL_URL,
     
     // Check if this is a build vs runtime issue
-    buildTime: !process.env.VERCEL_URL ? 'likely-build-time' : 'runtime'
+    buildTime: !process.env.VERCEL_URL ? 'likely-build-time' : 'runtime',
+    
+    // Force refresh timestamp
+    timestamp: new Date().toISOString(),
+    deployment: 'force-refresh-v2'
   }
 
   return NextResponse.json(envInfo)
