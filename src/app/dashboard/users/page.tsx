@@ -76,8 +76,14 @@ export default function UsersPage() {
   const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
-    if (!authLoading && profile) {
-      fetchUsers()
+    if (!authLoading) {
+      if (profile) {
+        fetchUsers()
+      } else {
+        // Auth completed but no profile - stop loading
+        setLoading(false)
+        setError('Unable to load user profile')
+      }
     }
   }, [authLoading, profile])
 
