@@ -37,14 +37,10 @@ export async function GET(request: NextRequest) {
     const role = searchParams.get('role') || ''
     const status = searchParams.get('status') || ''
 
-    // Build base query with role-based filtering
+    // Build base query with role-based filtering (simplified to avoid relationship issues)
     let query = supabase
       .from('user_profiles')
-      .select(`
-        *,
-        district:districts(id, name),
-        location:locations(id, name)
-      `)
+      .select('*')
       .eq('organization_id', profile.organization_id)
 
     // Role-based access control
@@ -89,7 +85,41 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
     }
 
-    return NextResponse.json({ users })
+    // Enrich users with district and location information separately
+    const enrichedUsers = []
+    for (const user of users || []) {
+      const enrichedUser = { ...user }
+      
+      // Get district info if user has district_id
+      if (user.district_id) {
+        const { data: district } = await supabase
+          .from('districts')
+          .select('id, name')
+          .eq('id', user.district_id)
+          .single()
+        
+        if (district) {
+          enrichedUser.district = district
+        }
+      }
+      
+      // Get location info if user has location_id
+      if (user.location_id) {
+        const { data: location } = await supabase
+          .from('locations')
+          .select('id, name')
+          .eq('id', user.location_id)
+          .single()
+        
+        if (location) {
+          enrichedUser.location = location
+        }
+      }
+      
+      enrichedUsers.push(enrichedUser)
+    }
+
+    return NextResponse.json({ users: enrichedUsers })
 
   } catch (error) {
     console.error('Unexpected error in users API:', error)

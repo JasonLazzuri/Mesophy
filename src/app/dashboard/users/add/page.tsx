@@ -259,13 +259,14 @@ export default function AddUserPage() {
         return
       }
 
-      // Success - redirect to users list
+      // Success - reset loading and redirect to users list
+      setLoading(false)
       router.push('/dashboard/users')
+      return
       
     } catch (error) {
       console.error('Unexpected error:', error)
       setErrors({ general: 'An unexpected error occurred. Please try again.' })
-    } finally {
       setLoading(false)
     }
   }
