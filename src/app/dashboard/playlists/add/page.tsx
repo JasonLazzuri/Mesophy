@@ -198,7 +198,7 @@ export default function AddPlaylistPage() {
       }
 
       const data = await response.json()
-      router.push(`/dashboard/playlists/${data.playlist.id}/edit`)
+      router.push('/dashboard/playlists')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
