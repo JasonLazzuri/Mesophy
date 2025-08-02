@@ -159,19 +159,21 @@ export default function MediaPage() {
 
   const handleMediaDelete = async (assetId: string) => {
     try {
+      setError(null) // Clear any existing errors
       const response = await fetch(`/api/media/${assetId}`, {
         method: 'DELETE'
       })
       
       if (response.ok) {
         fetchMediaAssets()
+        setShowDetailModal(false) // Close detail modal after successful deletion
       } else {
-        const error = await response.json()
-        alert(error.error || 'Failed to delete media')
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to delete media')
       }
     } catch (error) {
       console.error('Delete error:', error)
-      alert('Failed to delete media')
+      setError('Failed to delete media')
     }
   }
 
@@ -187,6 +189,7 @@ export default function MediaPage() {
     }
 
     try {
+      setError(null) // Clear any existing errors
       const response = await fetch(`/api/media/folders?id=${folderId}`, {
         method: 'DELETE'
       })
@@ -194,18 +197,19 @@ export default function MediaPage() {
       if (response.ok) {
         fetchFolders()
       } else {
-        const error = await response.json()
-        alert(error.error || 'Failed to delete folder')
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to delete folder')
       }
     } catch (error) {
       console.error('Delete folder error:', error)
-      alert('Failed to delete folder')
+      setError('Failed to delete folder')
     }
   }
 
   // Handle moving media to folders
   const handleMoveMediaToFolder = async (mediaIds: string[], targetFolderId: string | null) => {
     try {
+      setError(null) // Clear any existing errors
       const response = await fetch('/api/media/move', {
         method: 'PUT',
         headers: {
@@ -221,12 +225,12 @@ export default function MediaPage() {
         fetchMediaAssets()
         setSelectedItems(new Set())
       } else {
-        const error = await response.json()
-        alert(error.error || 'Failed to move media')
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to move media')
       }
     } catch (error) {
       console.error('Move media error:', error)
-      alert('Failed to move media')
+      setError('Failed to move media')
     }
   }
 
