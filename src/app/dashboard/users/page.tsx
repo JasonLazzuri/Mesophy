@@ -18,7 +18,8 @@ import {
   Crown,
   Building2,
   MapPin,
-  ChevronDown
+  ChevronDown,
+  Key
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -74,6 +75,8 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [error, setError] = useState('')
   const [showFilters, setShowFilters] = useState(false)
+  const [resettingPassword, setResettingPassword] = useState<string | null>(null)
+  const [resetMessage, setResetMessage] = useState('')
 
   useEffect(() => {
     if (!authLoading) {
@@ -129,6 +132,31 @@ export default function UsersPage() {
     }
   }, [searchTerm, roleFilter, statusFilter, authLoading, profile])
 
+  const handleResetPassword = async (userId: string, userEmail: string) => {
+    try {
+      setResettingPassword(userId)
+      setError('')
+      setResetMessage('')
+
+      const response = await fetch(`/api/users/${userId}/reset-password`, {
+        method: 'POST'
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setResetMessage(`Password reset email sent to ${userEmail}`)
+        setTimeout(() => setResetMessage(''), 5000) // Clear message after 5 seconds
+      } else {
+        setError(data.error || 'Failed to send password reset email')
+      }
+    } catch (err) {
+      setError('Failed to send password reset email')
+    } finally {
+      setResettingPassword(null)
+    }
+  }
+
   const canCreateUsers = profile?.role === 'super_admin' || profile?.role === 'district_manager'
   const canViewUser = (user: User) => {
     if (profile?.role === 'super_admin') return true
@@ -136,6 +164,13 @@ export default function UsersPage() {
       return user.role === 'location_manager' && user.district_id === profile.district_id
     }
     return user.id === profile?.id
+  }
+  const canResetPassword = (user: User) => {
+    if (profile?.role === 'super_admin') return true
+    if (profile?.role === 'district_manager') {
+      return user.role === 'location_manager' && user.district_id === profile.district_id
+    }
+    return user.id === profile?.id // Users can reset their own password
   }
 
   const groupedUsers = users.reduce((acc, user) => {
@@ -261,6 +296,12 @@ export default function UsersPage() {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
           {error}
+        </div>
+      )}
+
+      {resetMessage && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+          {resetMessage}
         </div>
       )}
 
@@ -413,6 +454,16 @@ export default function UsersPage() {
                               <Edit className="h-3 w-3 mr-1" />
                               Edit
                             </Link>
+                            {canResetPassword(user) && user.is_active && (
+                              <button
+                                onClick={() => handleResetPassword(user.id, user.email)}
+                                disabled={resettingPassword === user.id}
+                                className="inline-flex items-center px-3 py-1.5 border border-orange-300 text-xs font-medium rounded text-orange-700 bg-orange-50 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Key className="h-3 w-3 mr-1" />
+                                {resettingPassword === user.id ? 'Sending...' : 'Reset Password'}
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>

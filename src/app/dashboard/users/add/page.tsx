@@ -567,7 +567,7 @@ export default function AddUserPage() {
                 </label>
                 <p className="text-sm text-blue-700 mt-1">
                   When checked, an invitation email will be sent to the user with instructions to set up their account.
-                  If unchecked, the account will be created but the user will need to request a password reset to access it.
+                  If unchecked, the account will be created but you'll need to manually send them a password reset link from the Users page.
                 </p>
               </div>
             </div>
