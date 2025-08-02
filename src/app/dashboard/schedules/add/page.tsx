@@ -246,7 +246,7 @@ export default function AddSchedulePage() {
       }
 
       const data = await response.json()
-      router.push(`/dashboard/schedules/${data.schedule.id}/edit`)
+      router.push('/dashboard/schedules')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
