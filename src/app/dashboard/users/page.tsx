@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { 
   Users, 
   UserPlus, 
@@ -19,7 +19,8 @@ import {
   Building2,
   MapPin,
   ChevronDown,
-  Key
+  Key,
+  RefreshCw
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -68,6 +69,7 @@ const roleConfig = {
 export default function UsersPage() {
   const { profile, loading: authLoading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -90,7 +92,71 @@ export default function UsersPage() {
     }
   }, [authLoading, profile])
 
-  const fetchUsers = async () => {
+  // Refresh users when component mounts or when returning from navigation
+  useEffect(() => {
+    if (!authLoading && profile) {
+      console.log('Component mounted or auth/profile changed, fetching users...')
+      fetchUsers()
+    }
+  }, [authLoading, profile]) // Trigger on auth/profile changes
+
+  // Refresh users when pathname changes (navigation back to this page)
+  useEffect(() => {
+    if (!authLoading && profile && pathname === '/dashboard/users') {
+      console.log('Pathname effect: Refreshing users for /dashboard/users')
+      fetchUsers()
+    }
+  }, [pathname, authLoading, profile, fetchUsers])
+
+  // Additional refresh mechanism using router events (for navigation back from add page)
+  useEffect(() => {
+    const handleRouteChange = () => {
+      if (!authLoading && profile) {
+        console.log('Route changed, refreshing users...')
+        // Small delay to ensure route has fully changed
+        setTimeout(() => {
+          fetchUsers()
+        }, 100)
+      }
+    }
+
+    const handleFocus = () => {
+      if (!authLoading && profile) {
+        console.log('Page gained focus, refreshing users...')
+        fetchUsers()
+      }
+    }
+    
+    const handleVisibilityChange = () => {
+      if (!document.hidden && !authLoading && profile) {
+        console.log('Page became visible, refreshing users...')
+        fetchUsers()
+      }
+    }
+
+    // Listen for custom user creation event
+    const handleUserCreated = (event: CustomEvent) => {
+      console.log('User created event received:', event.detail)
+      if (!authLoading && profile) {
+        fetchUsers()
+      }
+    }
+
+    // Listen for browser navigation events
+    window.addEventListener('popstate', handleRouteChange)
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('userCreated', handleUserCreated as EventListener)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange)
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('userCreated', handleUserCreated as EventListener)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [authLoading, profile, fetchUsers])
+
+  const fetchUsers = useCallback(async () => {
     try {
       console.log('Fetching users...', { profile, authLoading })
       const params = new URLSearchParams()
@@ -121,7 +187,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [searchTerm, roleFilter, statusFilter]) // Only include stable dependencies
 
   useEffect(() => {
     if (!authLoading && profile) {
@@ -130,7 +196,7 @@ export default function UsersPage() {
       }, 300)
       return () => clearTimeout(timeoutId)
     }
-  }, [searchTerm, roleFilter, statusFilter, authLoading, profile])
+  }, [searchTerm, roleFilter, statusFilter, authLoading, profile, fetchUsers])
 
   const handleResetPassword = async (userId: string, userEmail: string) => {
     try {
@@ -255,35 +321,50 @@ export default function UsersPage() {
             Manage user accounts, roles, and permissions across your organization
           </p>
         </div>
-        {canCreateUsers && (
-          <div className="flex gap-2">
-            <Link
-              href="/dashboard/users/add"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-              onClick={(e) => {
-                console.log('Add User Link clicked')
-                console.log('Profile:', profile)
-                console.log('Can create users:', canCreateUsers)
-              }}
-            >
-              <UserPlus className="h-4 w-4 mr-2" />
-              Add User (Link)
-            </Link>
-            
-            <button
-              onClick={() => {
-                console.log('Add User Button clicked - using router.push')
-                console.log('Profile:', profile)
-                console.log('Can create users:', canCreateUsers)
-                router.push('/dashboard/users/add')
-              }}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-            >
-              <UserPlus className="h-4 w-4 mr-2" />
-              Add User (Button)
-            </button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          {canCreateUsers && (
+            <>
+              <Link
+                href="/dashboard/users/add"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                onClick={(e) => {
+                  console.log('Add User Link clicked')
+                  console.log('Profile:', profile)
+                  console.log('Can create users:', canCreateUsers)
+                }}
+              >
+                <UserPlus className="h-4 w-4 mr-2" />
+                Add User (Link)
+              </Link>
+              
+              <button
+                onClick={() => {
+                  console.log('Add User Button clicked - using router.push')
+                  console.log('Profile:', profile)
+                  console.log('Can create users:', canCreateUsers)
+                  router.push('/dashboard/users/add')
+                }}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+              >
+                <UserPlus className="h-4 w-4 mr-2" />
+                Add User (Button)
+              </button>
+            </>
+          )}
+          
+          <button
+            onClick={() => {
+              console.log('Refresh button clicked - forcing fresh data fetch')
+              setLoading(true)
+              fetchUsers()
+            }}
+            disabled={loading}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
         
         {/* Debug info - remove in production */}
         {process.env.NODE_ENV === 'development' && (

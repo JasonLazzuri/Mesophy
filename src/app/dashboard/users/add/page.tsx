@@ -261,6 +261,10 @@ export default function AddUserPage() {
 
       // Success - reset loading and redirect to users list
       setLoading(false)
+      
+      // Dispatch custom event to notify users page of successful creation
+      window.dispatchEvent(new CustomEvent('userCreated', { detail: result.user }))
+      
       router.push('/dashboard/users')
       return
       
