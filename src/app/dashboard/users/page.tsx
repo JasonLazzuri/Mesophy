@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter, usePathname } from 'next/navigation'
 import { 
@@ -106,7 +106,7 @@ export default function UsersPage() {
       console.log('Pathname effect: Refreshing users for /dashboard/users')
       fetchUsers()
     }
-  }, [pathname, authLoading, profile, fetchUsers])
+  }, [pathname, authLoading, profile])
 
   // Additional refresh mechanism using router events (for navigation back from add page)
   useEffect(() => {
@@ -154,9 +154,9 @@ export default function UsersPage() {
       window.removeEventListener('userCreated', handleUserCreated as EventListener)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [authLoading, profile, fetchUsers])
+  }, [authLoading, profile])
 
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = async () => {
     try {
       console.log('Fetching users...', { profile, authLoading })
       const params = new URLSearchParams()
@@ -187,7 +187,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false)
     }
-  }, [searchTerm, roleFilter, statusFilter]) // Only include stable dependencies
+  }
 
   useEffect(() => {
     if (!authLoading && profile) {
@@ -196,7 +196,7 @@ export default function UsersPage() {
       }, 300)
       return () => clearTimeout(timeoutId)
     }
-  }, [searchTerm, roleFilter, statusFilter, authLoading, profile, fetchUsers])
+  }, [searchTerm, roleFilter, statusFilter, authLoading, profile])
 
   const handleResetPassword = async (userId: string, userEmail: string) => {
     try {
