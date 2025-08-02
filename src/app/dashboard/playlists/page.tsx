@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Play, Clock, Edit, Trash2, Video, Image, MoreVertical, Search } from 'lucide-react'
+import { Plus, Play, Clock, Edit, Trash2, Video, Image, MoreVertical, Search, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -44,6 +44,8 @@ export default function PlaylistsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [blockingSchedules, setBlockingSchedules] = useState<Array<{id: string, name: string}> | null>(null)
 
   useEffect(() => {
     fetchPlaylists()
@@ -65,23 +67,42 @@ export default function PlaylistsPage() {
     }
   }
 
+  const handleCloseDeleteModal = () => {
+    setShowDeleteModal(null)
+    setDeleteError(null)
+    setBlockingSchedules(null)
+  }
+
   const handleDeletePlaylist = async (playlistId: string) => {
     try {
       setDeleting(true)
+      setDeleteError(null)
+      setBlockingSchedules(null)
+      
       const response = await fetch(`/api/playlists/${playlistId}`, {
         method: 'DELETE',
       })
       
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to delete playlist')
+        
+        // Handle specific case where playlist is used in active schedules
+        if (response.status === 409 && errorData.schedules) {
+          setDeleteError(errorData.error || 'Cannot delete playlist - it is being used in active schedules')
+          setBlockingSchedules(errorData.schedules)
+          return // Keep modal open to show error
+        }
+        
+        // For other errors, show in modal
+        setDeleteError(errorData.error || 'Failed to delete playlist')
+        return // Keep modal open to show error
       }
       
-      // Remove from local state
+      // Success - remove from local state and close modal
       setPlaylists(prev => prev.filter(p => p.id !== playlistId))
-      setShowDeleteModal(null)
+      handleCloseDeleteModal()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete playlist')
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete playlist')
     } finally {
       setDeleting(false)
     }
@@ -291,24 +312,59 @@ export default function PlaylistsPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Playlist</h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to delete this playlist? This action cannot be undone.
-            </p>
+            
+            {!deleteError ? (
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to delete this playlist? This action cannot be undone.
+              </p>
+            ) : (
+              <div className="mb-6">
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start mb-4">
+                  <AlertCircle className="h-5 w-5 text-red-600 mr-2 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm text-red-600 font-medium">
+                      {deleteError}
+                    </p>
+                  </div>
+                </div>
+                
+                {blockingSchedules && blockingSchedules.length > 0 && (
+                  <div>
+                    <p className="text-sm text-gray-700 mb-2 font-medium">
+                      The following schedules are using this playlist:
+                    </p>
+                    <ul className="space-y-1">
+                      {blockingSchedules.map((schedule) => (
+                        <li key={schedule.id} className="text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded">
+                          {schedule.name}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-sm text-gray-600 mt-3">
+                      Please deactivate or delete these schedules before deleting this playlist.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            
             <div className="flex items-center justify-end space-x-3">
               <button
-                onClick={() => setShowDeleteModal(null)}
+                onClick={handleCloseDeleteModal}
                 disabled={deleting}
                 className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
               >
-                Cancel
+                {deleteError ? 'Close' : 'Cancel'}
               </button>
-              <button
-                onClick={() => handleDeletePlaylist(showDeleteModal)}
-                disabled={deleting}
-                className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
-              >
-                {deleting ? 'Deleting...' : 'Delete'}
-              </button>
+              {!deleteError && (
+                <button
+                  onClick={() => handleDeletePlaylist(showDeleteModal)}
+                  disabled={deleting}
+                  className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleting ? 'Deleting...' : 'Delete'}
+                </button>
+              )}
             </div>
           </div>
         </div>
