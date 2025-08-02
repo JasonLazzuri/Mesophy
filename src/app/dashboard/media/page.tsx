@@ -45,6 +45,7 @@ export default function MediaPage() {
   const [mediaAssets, setMediaAssets] = useState<MediaAsset[]>([])
   const [folders, setFolders] = useState<MediaFolder[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [searchQuery, setSearchQuery] = useState('')
   const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'image' | 'video'>('all')
@@ -307,6 +308,13 @@ export default function MediaPage() {
             </div>
           ))}
         </nav>
+      )}
+
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+          {error}
+        </div>
       )}
 
       {/* Toolbar */}
