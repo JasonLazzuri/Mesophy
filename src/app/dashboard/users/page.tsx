@@ -138,7 +138,11 @@ export default function UsersPage() {
     const handleUserCreated = (event: CustomEvent) => {
       console.log('User created event received:', event.detail)
       if (!authLoading && profile) {
-        fetchUsers()
+        // Add a small delay to ensure the API has processed the creation
+        setTimeout(() => {
+          console.log('Refreshing users list after creation...')
+          fetchUsers()
+        }, 500)
       }
     }
 
@@ -159,6 +163,8 @@ export default function UsersPage() {
   const fetchUsers = async () => {
     try {
       console.log('Fetching users...', { profile, authLoading })
+      setLoading(true)
+      
       const params = new URLSearchParams()
       if (searchTerm) params.append('search', searchTerm)
       if (roleFilter) params.append('role', roleFilter)
@@ -167,7 +173,15 @@ export default function UsersPage() {
       const url = `/api/users?${params.toString()}`
       console.log('Fetching from URL:', url)
       
-      const response = await fetch(url)
+      // Add timeout to prevent hanging requests
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      
+      const response = await fetch(url, {
+        signal: controller.signal
+      })
+      clearTimeout(timeoutId)
+      
       console.log('Response status:', response.status)
       
       const data = await response.json()
@@ -183,7 +197,11 @@ export default function UsersPage() {
       setError('') // Clear any previous errors
     } catch (err) {
       console.error('Error fetching users:', err)
-      setError(err instanceof Error ? err.message : 'Failed to fetch users')
+      if (err.name === 'AbortError') {
+        setError('Request timed out. Please try refreshing the page.')
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to fetch users')
+      }
     } finally {
       setLoading(false)
     }
@@ -322,6 +340,18 @@ export default function UsersPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={() => {
+              console.log('Manual refresh button clicked')
+              fetchUsers()
+            }}
+            disabled={loading}
+            className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+          
           {canCreateUsers && (
             <>
               <Link
