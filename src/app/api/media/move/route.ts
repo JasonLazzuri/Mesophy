@@ -1,78 +1,137 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = await createClient()
     const body = await request.json()
     const { mediaIds, folderId } = body
+    
+    console.log('PUT /api/media/move - Moving media:', mediaIds, 'to folder:', folderId)
 
     if (!mediaIds || !Array.isArray(mediaIds) || mediaIds.length === 0) {
       return NextResponse.json({ error: 'Media IDs are required' }, { status: 400 })
     }
 
-    // Get user's organization
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Get environment variables (same pattern as working APIs)
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || 
+                       process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                       process.env.SUPABASE_SERVICE_KEY ||
+                       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+
+    if (!url || !serviceKey) {
+      console.error('PUT /api/media/move - Missing environment variables')
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
     }
 
-    const { data: userProfile } = await supabase
-      .from('user_profiles')
-      .select('organization_id')
-      .eq('id', user.id)
-      .single()
+    // Get first organization
+    const orgResponse = await fetch(`${url}/rest/v1/user_profiles?select=organization_id&limit=1`, {
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+      }
+    })
+    
+    let organizationId = null
+    if (orgResponse.ok) {
+      const orgData = await orgResponse.json()
+      organizationId = orgData[0]?.organization_id
+    }
 
-    if (!userProfile?.organization_id) {
+    if (!organizationId) {
+      console.error('PUT /api/media/move - No organization found')
       return NextResponse.json({ error: 'No organization found' }, { status: 403 })
     }
 
     // If folderId is provided, verify the folder exists and belongs to user's organization
     if (folderId) {
-      const { data: folder } = await supabase
-        .from('media_folders')
-        .select('id')
-        .eq('id', folderId)
-        .eq('organization_id', userProfile.organization_id)
-        .single()
+      const folderResponse = await fetch(
+        `${url}/rest/v1/media_folders?id=eq.${folderId}&organization_id=eq.${organizationId}&select=id`,
+        {
+          headers: {
+            'Authorization': `Bearer ${serviceKey}`,
+            'apikey': serviceKey,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
 
-      if (!folder) {
+      if (!folderResponse.ok) {
+        console.error('PUT /api/media/move - Error verifying folder:', folderResponse.status)
+        return NextResponse.json({ error: 'Target folder not found' }, { status: 404 })
+      }
+
+      const folderData = await folderResponse.json()
+      if (!folderData || folderData.length === 0) {
+        console.error('PUT /api/media/move - Folder not found in organization')
         return NextResponse.json({ error: 'Target folder not found' }, { status: 404 })
       }
     }
 
     // Verify all media assets belong to user's organization
-    const { data: mediaAssets } = await supabase
-      .from('media_assets')
-      .select('id, organization_id')
-      .in('id', mediaIds)
+    const mediaIds_filter = mediaIds.map(id => `"${id}"`).join(',')
+    const mediaResponse = await fetch(
+      `${url}/rest/v1/media_assets?id=in.(${mediaIds_filter})&select=id,organization_id`,
+      {
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
 
-    if (!mediaAssets || mediaAssets.length !== mediaIds.length) {
+    if (!mediaResponse.ok) {
+      console.error('PUT /api/media/move - Error verifying media assets:', mediaResponse.status)
       return NextResponse.json({ error: 'Some media assets not found' }, { status: 404 })
     }
 
-    const invalidAssets = mediaAssets.filter(asset => asset.organization_id !== userProfile.organization_id)
+    const mediaAssets = await mediaResponse.json()
+    console.log('PUT /api/media/move - Found media assets:', mediaAssets.length, 'of', mediaIds.length)
+    
+    if (!mediaAssets || mediaAssets.length !== mediaIds.length) {
+      console.error('PUT /api/media/move - Media count mismatch')
+      return NextResponse.json({ error: 'Some media assets not found' }, { status: 404 })
+    }
+
+    const invalidAssets = mediaAssets.filter(asset => asset.organization_id !== organizationId)
     if (invalidAssets.length > 0) {
+      console.error('PUT /api/media/move - Invalid assets found:', invalidAssets.length)
       return NextResponse.json({ error: 'Unauthorized access to some media assets' }, { status: 403 })
     }
 
     // Update media assets to move them to the folder (or remove from folder if folderId is null)
-    const { data: updatedAssets, error } = await supabase
-      .from('media_assets')
-      .update({ 
-        folder_id: folderId || null,
-        updated_at: new Date().toISOString()
-      })
-      .in('id', mediaIds)
-      .eq('organization_id', userProfile.organization_id)
-      .select()
+    const updateData = {
+      folder_id: folderId || null,
+      updated_at: new Date().toISOString()
+    }
+    
+    console.log('PUT /api/media/move - Updating media assets with:', updateData)
+    
+    const updateResponse = await fetch(
+      `${url}/rest/v1/media_assets?id=in.(${mediaIds_filter})&organization_id=eq.${organizationId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(updateData)
+      }
+    )
 
-    if (error) {
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text()
+      console.error('PUT /api/media/move - Error updating media assets:', updateResponse.status, errorText)
       return NextResponse.json({ 
         error: 'Failed to move media assets',
-        details: error.message
+        details: errorText
       }, { status: 500 })
     }
+
+    const updatedAssets = await updateResponse.json()
+    console.log('PUT /api/media/move - Successfully moved:', updatedAssets.length, 'assets')
 
     return NextResponse.json({ 
       success: true, 

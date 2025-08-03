@@ -1,106 +1,110 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    
-    if (!supabase) {
-      return NextResponse.json({ 
-        error: 'Database unavailable',
-        details: 'Supabase client initialization failed'
-      }, { status: 503 })
-    }
-    
     const { searchParams } = new URL(request.url)
     const parentId = searchParams.get('parent_id') || null
+    
+    console.log('GET /api/media/folders - Starting request with parent_id:', parentId)
 
-    // Get user's organization
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ 
-        error: 'Unauthorized',
-        details: authError?.message || 'No user found'
-      }, { status: 401 })
+    // Get environment variables (same pattern as working APIs)
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || 
+                       process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                       process.env.SUPABASE_SERVICE_KEY ||
+                       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+
+    if (!url || !serviceKey) {
+      console.error('GET /api/media/folders - Missing environment variables')
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
     }
 
-    const { data: userProfile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('organization_id')
-      .eq('id', user.id)
-      .single()
-
-    if (profileError) {
-      return NextResponse.json({ 
-        error: 'Failed to get user profile',
-        details: profileError.message,
-        code: profileError.code
-      }, { status: 500 })
+    // Get first organization
+    const orgResponse = await fetch(`${url}/rest/v1/user_profiles?select=organization_id&limit=1`, {
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+      }
+    })
+    
+    let organizationId = null
+    if (orgResponse.ok) {
+      const orgData = await orgResponse.json()
+      organizationId = orgData[0]?.organization_id
     }
 
-    if (!userProfile?.organization_id) {
-      return NextResponse.json({ 
-        error: 'No organization found',
-        details: 'User profile exists but has no organization_id'
-      }, { status: 403 })
+    if (!organizationId) {
+      console.error('GET /api/media/folders - No organization found')
+      return NextResponse.json({ error: 'No organization found' }, { status: 403 })
     }
 
-    // Test if media_folders table exists by checking if we can query it
-    const { data: testQuery, error: tableError } = await supabase
-      .from('media_folders')
-      .select('id')
-      .limit(1)
-
-    if (tableError) {
-      return NextResponse.json({ 
-        error: 'Database table error',
-        details: tableError.message,
-        code: tableError.code,
-        hint: tableError.hint
-      }, { status: 500 })
-    }
-
-    // Build query for folders (simplified to avoid relationship issues)
-    let query = supabase
-      .from('media_folders')
-      .select('*')
-      .eq('organization_id', userProfile.organization_id)
-      .order('name')
-
+    // Build query for folders using REST API
+    let folderQuery = `${url}/rest/v1/media_folders?organization_id=eq.${organizationId}&select=*&order=name`
+    
     // Filter by parent folder
     if (parentId === 'null' || parentId === '') {
-      query = query.is('parent_folder_id', null)
+      folderQuery += '&parent_folder_id=is.null'
     } else if (parentId) {
-      query = query.eq('parent_folder_id', parentId)
+      folderQuery += `&parent_folder_id=eq.${parentId}`
     }
+    
+    console.log('GET /api/media/folders - Fetching folders with query:', folderQuery)
 
-    const { data: folders, error } = await query
+    const foldersResponse = await fetch(folderQuery, {
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+        'Content-Type': 'application/json'
+      }
+    })
 
-    if (error) {
+    if (!foldersResponse.ok) {
+      const errorText = await foldersResponse.text()
+      console.error('GET /api/media/folders - Error fetching folders:', foldersResponse.status, errorText)
       return NextResponse.json({ 
         error: 'Failed to fetch folders',
-        details: error.message,
-        code: error.code,
-        hint: error.hint
+        details: errorText
       }, { status: 500 })
     }
+
+    const folders = await foldersResponse.json()
+    console.log('GET /api/media/folders - Found folders:', folders.length)
 
     // Add item count to each folder by querying media_assets separately
     const foldersWithCount = []
     for (const folder of folders || []) {
-      // Count media assets in this folder
-      const { count } = await supabase
-        .from('media_assets')
-        .select('id', { count: 'exact' })
-        .eq('organization_id', userProfile.organization_id)
-        .eq('folder_id', folder.id)
+      // Count media assets in this folder using REST API
+      const countResponse = await fetch(
+        `${url}/rest/v1/media_assets?organization_id=eq.${organizationId}&folder_id=eq.${folder.id}&select=id`,
+        {
+          headers: {
+            'Authorization': `Bearer ${serviceKey}`,
+            'apikey': serviceKey,
+            'Content-Type': 'application/json',
+            'Prefer': 'count=exact'
+          }
+        }
+      )
+      
+      let count = 0
+      if (countResponse.ok) {
+        const countHeader = countResponse.headers.get('content-range')
+        if (countHeader) {
+          // Parse count from content-range header like "0-9/10"
+          const match = countHeader.match(/\/(\d+)$/)
+          if (match) {
+            count = parseInt(match[1], 10)
+          }
+        }
+      }
       
       foldersWithCount.push({
         ...folder,
-        itemCount: count || 0
+        itemCount: count
       })
     }
 
+    console.log('GET /api/media/folders - Returning folders with counts:', foldersWithCount.length)
     return NextResponse.json(foldersWithCount)
 
   } catch (error: any) {
@@ -114,78 +118,135 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = await createClient()
     const body = await request.json()
     const { id, name, parent_folder_id } = body
+    
+    console.log('PUT /api/media/folders - Starting request for id:', id)
 
     if (!id || !name?.trim()) {
       return NextResponse.json({ error: 'Folder ID and name are required' }, { status: 400 })
     }
 
-    // Get user's organization
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Get environment variables (same pattern as working APIs)
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || 
+                       process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                       process.env.SUPABASE_SERVICE_KEY ||
+                       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+
+    if (!url || !serviceKey) {
+      console.error('PUT /api/media/folders - Missing environment variables')
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
     }
 
-    const { data: userProfile } = await supabase
-      .from('user_profiles')
-      .select('organization_id')
-      .eq('id', user.id)
-      .single()
+    // Get first organization
+    const orgResponse = await fetch(`${url}/rest/v1/user_profiles?select=organization_id&limit=1`, {
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+      }
+    })
+    
+    let organizationId = null
+    if (orgResponse.ok) {
+      const orgData = await orgResponse.json()
+      organizationId = orgData[0]?.organization_id
+    }
 
-    if (!userProfile?.organization_id) {
+    if (!organizationId) {
+      console.error('PUT /api/media/folders - No organization found')
       return NextResponse.json({ error: 'No organization found' }, { status: 403 })
     }
 
-    // Check if folder exists and belongs to user's organization
-    const { data: existingFolder } = await supabase
-      .from('media_folders')
-      .select('id')
-      .eq('id', id)
-      .eq('organization_id', userProfile.organization_id)
-      .single()
+    // Check if folder exists and belongs to organization
+    const existingResponse = await fetch(
+      `${url}/rest/v1/media_folders?id=eq.${id}&organization_id=eq.${organizationId}&select=id`,
+      {
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
 
-    if (!existingFolder) {
+    if (!existingResponse.ok) {
+      console.error('PUT /api/media/folders - Error checking existing folder:', existingResponse.status)
+      return NextResponse.json({ error: 'Folder not found' }, { status: 404 })
+    }
+
+    const existingData = await existingResponse.json()
+    if (!existingData || existingData.length === 0) {
+      console.error('PUT /api/media/folders - Folder not found in organization')
       return NextResponse.json({ error: 'Folder not found' }, { status: 404 })
     }
 
     // Check if folder name already exists in the same parent folder (excluding current folder)
-    const { data: duplicateFolder } = await supabase
-      .from('media_folders')
-      .select('id')
-      .eq('organization_id', userProfile.organization_id)
-      .eq('name', name.trim())
-      .eq('parent_folder_id', parent_folder_id || null)
-      .neq('id', id)
-      .limit(1)
+    let duplicateQuery = `${url}/rest/v1/media_folders?organization_id=eq.${organizationId}&name=eq.${encodeURIComponent(name.trim())}&id=neq.${id}&select=id&limit=1`
+    
+    if (parent_folder_id) {
+      duplicateQuery += `&parent_folder_id=eq.${parent_folder_id}`
+    } else {
+      duplicateQuery += '&parent_folder_id=is.null'
+    }
+    
+    const duplicateResponse = await fetch(duplicateQuery, {
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+        'Content-Type': 'application/json'
+      }
+    })
 
-    if (duplicateFolder && duplicateFolder.length > 0) {
-      return NextResponse.json({ 
-        error: 'A folder with this name already exists in this location' 
-      }, { status: 400 })
+    if (duplicateResponse.ok) {
+      const duplicateData = await duplicateResponse.json()
+      if (duplicateData && duplicateData.length > 0) {
+        console.error('PUT /api/media/folders - Duplicate folder name found')
+        return NextResponse.json({ 
+          error: 'A folder with this name already exists in this location' 
+        }, { status: 400 })
+      }
     }
 
-    // Update folder
-    const { data: folder, error } = await supabase
-      .from('media_folders')
-      .update({
-        name: name.trim(),
-        parent_folder_id: parent_folder_id || null,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .eq('organization_id', userProfile.organization_id)
-      .select()
-      .single()
+    // Update folder using REST API
+    const updateData = {
+      name: name.trim(),
+      parent_folder_id: parent_folder_id || null,
+      updated_at: new Date().toISOString()
+    }
+    
+    const updateResponse = await fetch(
+      `${url}/rest/v1/media_folders?id=eq.${id}&organization_id=eq.${organizationId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(updateData)
+      }
+    )
 
-    if (error) {
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text()
+      console.error('PUT /api/media/folders - Error updating folder:', updateResponse.status, errorText)
       return NextResponse.json({ 
         error: 'Failed to update folder',
-        details: error.message
+        details: errorText
       }, { status: 500 })
     }
 
+    const updatedFolders = await updateResponse.json()
+    const folder = updatedFolders[0]
+
+    if (!folder) {
+      console.error('PUT /api/media/folders - No folder returned after update')
+      return NextResponse.json({ error: 'Folder not found' }, { status: 404 })
+    }
+
+    console.log('PUT /api/media/folders - Folder updated successfully:', folder.name)
     return NextResponse.json(folder)
 
   } catch (error: any) {
@@ -198,82 +259,137 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const folderId = searchParams.get('id')
+    
+    console.log('DELETE /api/media/folders - Starting request for id:', folderId)
 
     if (!folderId) {
       return NextResponse.json({ error: 'Folder ID is required' }, { status: 400 })
     }
 
-    // Get user's organization
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Get environment variables (same pattern as working APIs)
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || 
+                       process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                       process.env.SUPABASE_SERVICE_KEY ||
+                       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+
+    if (!url || !serviceKey) {
+      console.error('DELETE /api/media/folders - Missing environment variables')
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
     }
 
-    const { data: userProfile } = await supabase
-      .from('user_profiles')
-      .select('organization_id')
-      .eq('id', user.id)
-      .single()
+    // Get first organization
+    const orgResponse = await fetch(`${url}/rest/v1/user_profiles?select=organization_id&limit=1`, {
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+      }
+    })
+    
+    let organizationId = null
+    if (orgResponse.ok) {
+      const orgData = await orgResponse.json()
+      organizationId = orgData[0]?.organization_id
+    }
 
-    if (!userProfile?.organization_id) {
+    if (!organizationId) {
+      console.error('DELETE /api/media/folders - No organization found')
       return NextResponse.json({ error: 'No organization found' }, { status: 403 })
     }
 
-    // Check if folder exists and belongs to user's organization
-    const { data: existingFolder } = await supabase
-      .from('media_folders')
-      .select('id')
-      .eq('id', folderId)
-      .eq('organization_id', userProfile.organization_id)
-      .single()
+    // Check if folder exists and belongs to organization
+    const existingResponse = await fetch(
+      `${url}/rest/v1/media_folders?id=eq.${folderId}&organization_id=eq.${organizationId}&select=id`,
+      {
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
 
-    if (!existingFolder) {
+    if (!existingResponse.ok) {
+      console.error('DELETE /api/media/folders - Error checking existing folder:', existingResponse.status)
+      return NextResponse.json({ error: 'Folder not found' }, { status: 404 })
+    }
+
+    const existingData = await existingResponse.json()
+    if (!existingData || existingData.length === 0) {
+      console.error('DELETE /api/media/folders - Folder not found in organization')
       return NextResponse.json({ error: 'Folder not found' }, { status: 404 })
     }
 
     // Check if folder has subfolders
-    const { data: subfolders } = await supabase
-      .from('media_folders')
-      .select('id')
-      .eq('parent_folder_id', folderId)
-      .limit(1)
+    const subfoldersResponse = await fetch(
+      `${url}/rest/v1/media_folders?parent_folder_id=eq.${folderId}&select=id&limit=1`,
+      {
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
 
-    if (subfolders && subfolders.length > 0) {
-      return NextResponse.json({ 
-        error: 'Cannot delete folder that contains subfolders. Please delete or move subfolders first.' 
-      }, { status: 400 })
+    if (subfoldersResponse.ok) {
+      const subfolders = await subfoldersResponse.json()
+      if (subfolders && subfolders.length > 0) {
+        console.error('DELETE /api/media/folders - Folder has subfolders')
+        return NextResponse.json({ 
+          error: 'Cannot delete folder that contains subfolders. Please delete or move subfolders first.' 
+        }, { status: 400 })
+      }
     }
 
     // Check if folder contains media assets
-    const { data: mediaAssets } = await supabase
-      .from('media_assets')
-      .select('id')
-      .eq('folder_id', folderId)
-      .limit(1)
+    const mediaResponse = await fetch(
+      `${url}/rest/v1/media_assets?folder_id=eq.${folderId}&select=id&limit=1`,
+      {
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
 
-    if (mediaAssets && mediaAssets.length > 0) {
-      return NextResponse.json({ 
-        error: 'Cannot delete folder that contains media files. Please move or delete media files first.' 
-      }, { status: 400 })
+    if (mediaResponse.ok) {
+      const mediaAssets = await mediaResponse.json()
+      console.log('DELETE /api/media/folders - Found media assets in folder:', mediaAssets.length)
+      if (mediaAssets && mediaAssets.length > 0) {
+        console.error('DELETE /api/media/folders - Folder contains media assets')
+        return NextResponse.json({ 
+          error: 'Cannot delete folder that contains media files. Please move or delete media files first.' 
+        }, { status: 400 })
+      }
     }
 
-    // Delete folder
-    const { error } = await supabase
-      .from('media_folders')
-      .delete()
-      .eq('id', folderId)
-      .eq('organization_id', userProfile.organization_id)
+    // Delete folder using REST API
+    const deleteResponse = await fetch(
+      `${url}/rest/v1/media_folders?id=eq.${folderId}&organization_id=eq.${organizationId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
 
-    if (error) {
+    if (!deleteResponse.ok) {
+      const errorText = await deleteResponse.text()
+      console.error('DELETE /api/media/folders - Error deleting folder:', deleteResponse.status, errorText)
       return NextResponse.json({ 
         error: 'Failed to delete folder',
-        details: error.message
+        details: errorText
       }, { status: 500 })
     }
 
+    console.log('DELETE /api/media/folders - Folder deleted successfully:', folderId)
     return NextResponse.json({ success: true })
 
   } catch (error: any) {
@@ -286,64 +402,117 @@ export async function DELETE(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
     const body = await request.json()
     const { name, parent_folder_id } = body
+    
+    console.log('POST /api/media/folders - Starting request for name:', name)
 
     if (!name?.trim()) {
       return NextResponse.json({ error: 'Folder name is required' }, { status: 400 })
     }
 
-    // Get user's organization
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Get environment variables (same pattern as working APIs)
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || 
+                       process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                       process.env.SUPABASE_SERVICE_KEY ||
+                       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+
+    if (!url || !serviceKey) {
+      console.error('POST /api/media/folders - Missing environment variables')
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
     }
 
-    const { data: userProfile } = await supabase
-      .from('user_profiles')
-      .select('organization_id')
-      .eq('id', user.id)
-      .single()
+    // Get first organization and a user ID for created_by
+    const orgResponse = await fetch(`${url}/rest/v1/user_profiles?select=organization_id,id&limit=1`, {
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+      }
+    })
+    
+    let organizationId = null
+    let userId = null
+    if (orgResponse.ok) {
+      const orgData = await orgResponse.json()
+      organizationId = orgData[0]?.organization_id
+      userId = orgData[0]?.id
+    }
 
-    if (!userProfile?.organization_id) {
+    if (!organizationId || !userId) {
+      console.error('POST /api/media/folders - No organization or user found')
       return NextResponse.json({ error: 'No organization found' }, { status: 403 })
     }
 
     // Check if folder name already exists in the same parent folder
-    const { data: existingFolder } = await supabase
-      .from('media_folders')
-      .select('id')
-      .eq('organization_id', userProfile.organization_id)
-      .eq('name', name.trim())
-      .eq('parent_folder_id', parent_folder_id || null)
-      .limit(1)
+    let duplicateQuery = `${url}/rest/v1/media_folders?organization_id=eq.${organizationId}&name=eq.${encodeURIComponent(name.trim())}&select=id&limit=1`
+    
+    if (parent_folder_id) {
+      duplicateQuery += `&parent_folder_id=eq.${parent_folder_id}`
+    } else {
+      duplicateQuery += '&parent_folder_id=is.null'
+    }
+    
+    const duplicateResponse = await fetch(duplicateQuery, {
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+        'Content-Type': 'application/json'
+      }
+    })
 
-    if (existingFolder && existingFolder.length > 0) {
-      return NextResponse.json({ 
-        error: 'A folder with this name already exists in this location' 
-      }, { status: 400 })
+    if (duplicateResponse.ok) {
+      const duplicateData = await duplicateResponse.json()
+      if (duplicateData && duplicateData.length > 0) {
+        console.error('POST /api/media/folders - Duplicate folder name found')
+        return NextResponse.json({ 
+          error: 'A folder with this name already exists in this location' 
+        }, { status: 400 })
+      }
     }
 
-    // Create folder
+    // Create folder using REST API
     const folderData = {
-      organization_id: userProfile.organization_id,
+      organization_id: organizationId,
       name: name.trim(),
       parent_folder_id: parent_folder_id || null,
-      created_by: user.id
+      created_by: userId
+    }
+    
+    console.log('POST /api/media/folders - Creating folder with data:', folderData)
+    
+    const createResponse = await fetch(
+      `${url}/rest/v1/media_folders`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(folderData)
+      }
+    )
+
+    if (!createResponse.ok) {
+      const errorText = await createResponse.text()
+      console.error('POST /api/media/folders - Error creating folder:', createResponse.status, errorText)
+      return NextResponse.json({ 
+        error: 'Failed to create folder',
+        details: errorText
+      }, { status: 500 })
     }
 
-    const { data: folder, error } = await supabase
-      .from('media_folders')
-      .insert(folderData)
-      .select()
-      .single()
+    const createdFolders = await createResponse.json()
+    const folder = createdFolders[0]
 
-    if (error) {
-      console.error('Error creating folder:', error)
+    if (!folder) {
+      console.error('POST /api/media/folders - No folder returned after creation')
       return NextResponse.json({ error: 'Failed to create folder' }, { status: 500 })
     }
 
+    console.log('POST /api/media/folders - Folder created successfully:', folder.name)
     return NextResponse.json(folder, { status: 201 })
 
   } catch (error) {
