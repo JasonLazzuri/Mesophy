@@ -344,6 +344,9 @@ export default function EditSchedulePage({ params }: RouteParams) {
       const data = await response.json()
       setSchedule(data.schedule)
       setHasChanges(false)
+      
+      // Redirect back to schedules list after successful save
+      router.push('/dashboard/schedules')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {

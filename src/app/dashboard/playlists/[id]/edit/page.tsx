@@ -307,6 +307,9 @@ export default function EditPlaylistPage({ params }: RouteParams) {
       const data = await response.json()
       setPlaylist(data.playlist)
       setHasChanges(false)
+      
+      // Redirect back to playlists list after successful save
+      router.push('/dashboard/playlists')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
