@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
       screen_id,
       screen_ids = [],
       target_screen_types = null,
+      target_locations = null,
       start_date,
       end_date,
       start_time,
@@ -62,7 +63,8 @@ export async function POST(request: NextRequest) {
           p_end_time: end_time,
           p_days_of_week: days_of_week,
           p_priority: priority || 1,
-          p_target_screen_types: target_screen_types
+          p_target_screen_types: target_screen_types,
+          p_target_locations: target_locations
         })
 
       if (conflictError) {
@@ -99,7 +101,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check for screen-type-based conflicts if target_screen_types are specified
+    // Check for screen-type and location-based conflicts if target_screen_types are specified
     if (target_screen_types && target_screen_types.length > 0 && !screen_id && screen_ids.length === 0) {
       const { data: screenTypeConflicts, error: screenTypeError } = await supabase
         .rpc('check_schedule_conflicts', {
@@ -111,13 +113,29 @@ export async function POST(request: NextRequest) {
           p_end_time: end_time,
           p_days_of_week: days_of_week,
           p_priority: priority || 1,
-          p_target_screen_types: target_screen_types
+          p_target_screen_types: target_screen_types,
+          p_target_locations: target_locations
         })
 
       if (!screenTypeError && screenTypeConflicts && screenTypeConflicts.length > 0) {
+        // Build descriptive name for the conflict
+        let conflictName = target_screen_types.join(', ') + ' screens'
+        if (target_locations && target_locations.length > 0) {
+          // Get location names for better display
+          const { data: locations } = await supabase
+            .from('locations')
+            .select('name')
+            .in('id', target_locations)
+          
+          if (locations && locations.length > 0) {
+            const locationNames = locations.map(l => l.name).join(', ')
+            conflictName += ` at ${locationNames}`
+          }
+        }
+        
         conflicts.push({
           screen_id: null,
-          screen: { name: `${target_screen_types.join(', ')} screens` },
+          screen: { name: conflictName },
           conflicting_schedules: screenTypeConflicts
         })
       }

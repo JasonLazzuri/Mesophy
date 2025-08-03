@@ -361,6 +361,8 @@ export interface Database {
           name: string
           playlist_id: string
           screen_id: string | null
+          target_screen_types: ScreenType[] | null
+          target_locations: string[] | null
           start_date: string
           end_date: string | null
           start_time: string
@@ -379,6 +381,8 @@ export interface Database {
           name: string
           playlist_id: string
           screen_id?: string | null
+          target_screen_types?: ScreenType[] | null
+          target_locations?: string[] | null
           start_date: string
           end_date?: string | null
           start_time: string
@@ -397,6 +401,8 @@ export interface Database {
           name?: string
           playlist_id?: string
           screen_id?: string | null
+          target_screen_types?: ScreenType[] | null
+          target_locations?: string[] | null
           start_date?: string
           end_date?: string | null
           start_time?: string

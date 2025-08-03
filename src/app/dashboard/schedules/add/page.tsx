@@ -5,6 +5,7 @@ import { ArrowLeft, Calendar, Clock, Monitor, Play, AlertTriangle, X, Check } fr
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import LocationPicker from '@/components/LocationPicker'
 
 interface Playlist {
   id: string
@@ -72,6 +73,7 @@ export default function AddSchedulePage() {
   const [playlistId, setPlaylistId] = useState('')
   const [screenAssignment, setScreenAssignment] = useState<'screen_types' | 'single' | 'multiple'>('screen_types')
   const [selectedScreenTypes, setSelectedScreenTypes] = useState<string[]>(['menu_board'])
+  const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([])
   const [selectedScreenId, setSelectedScreenId] = useState('')
   const [selectedScreenIds, setSelectedScreenIds] = useState<string[]>([])
   const [startDate, setStartDate] = useState('')
@@ -108,7 +110,7 @@ export default function AddSchedulePage() {
       const timeoutId = setTimeout(checkConflicts, 500) // Debounce
       return () => clearTimeout(timeoutId)
     }
-  }, [playlistId, screenAssignment, selectedScreenTypes, selectedScreenId, selectedScreenIds, startDate, endDate, startTime, endTime, selectedDays, priority])
+  }, [playlistId, screenAssignment, selectedScreenTypes, selectedLocationIds, selectedScreenId, selectedScreenIds, startDate, endDate, startTime, endTime, selectedDays, priority])
 
   const fetchData = async () => {
     try {
@@ -150,6 +152,7 @@ export default function AddSchedulePage() {
         screen_id: screenAssignment === 'single' ? selectedScreenId : null,
         screen_ids: screenAssignment === 'multiple' ? selectedScreenIds : [],
         target_screen_types: screenAssignment === 'screen_types' ? selectedScreenTypes : null,
+        target_locations: screenAssignment === 'screen_types' && selectedLocationIds.length > 0 ? selectedLocationIds : null,
         start_date: startDate,
         end_date: endDate || null,
         start_time: startTime,
@@ -245,6 +248,7 @@ export default function AddSchedulePage() {
         screen_id: screenAssignment === 'single' ? selectedScreenId : null,
         screen_ids: screenAssignment === 'multiple' ? selectedScreenIds : [],
         target_screen_types: screenAssignment === 'screen_types' ? selectedScreenTypes : null,
+        target_locations: screenAssignment === 'screen_types' && selectedLocationIds.length > 0 ? selectedLocationIds : null,
         start_date: startDate,
         end_date: endDate || null,
         start_time: startTime,
@@ -590,6 +594,20 @@ export default function AddSchedulePage() {
                     <p className="text-xs text-gray-500 mt-2">
                       Your schedule will apply to all screens of the selected types. Different screen types can have the same priority without conflicts.
                     </p>
+                    
+                    {/* Location Picker for screen types */}
+                    <div className="mt-4">
+                      <LocationPicker
+                        selectedLocationIds={selectedLocationIds}
+                        onLocationChange={setSelectedLocationIds}
+                        label="Target Locations (Optional)"
+                        placeholder="All locations (leave empty for organization-wide)"
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Leave empty to apply to all locations, or select specific locations for targeted rollouts.
+                      </p>
+                    </div>
                   </div>
                 )}
                 {screenAssignment === 'single' && (
