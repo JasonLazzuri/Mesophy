@@ -62,9 +62,36 @@ export async function GET(
       return NextResponse.json({ error: 'No organization found' }, { status: 403 })
     }
 
-    // Get media asset with folder info using REST API
+    // First, try to get media asset without joins to see if it exists
+    console.log('Checking if media asset exists with id:', id, 'in organization:', organizationId)
+    
+    const simpleMediaResponse = await fetch(
+      `${url}/rest/v1/media_assets?id=eq.${id}&select=*`,
+      {
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+
+    if (!simpleMediaResponse.ok) {
+      const errorText = await simpleMediaResponse.text()
+      console.error('Error fetching media asset (simple query):', simpleMediaResponse.status, errorText)
+      return NextResponse.json({ error: 'Media asset not found' }, { status: 404 })
+    }
+
+    const simpleMediaAssets = await simpleMediaResponse.json()
+    console.log('Found media assets (any org):', simpleMediaAssets.length)
+    
+    if (simpleMediaAssets.length > 0) {
+      console.log('Media asset details:', simpleMediaAssets[0])
+    }
+
+    // Now try the organization-specific query
     const mediaResponse = await fetch(
-      `${url}/rest/v1/media_assets?id=eq.${id}&organization_id=eq.${organizationId}&select=*,media_folders!folder_id(name),user_profiles!created_by(full_name,email)`,
+      `${url}/rest/v1/media_assets?id=eq.${id}&organization_id=eq.${organizationId}&select=*`,
       {
         headers: {
           'Authorization': `Bearer ${serviceKey}`,
@@ -76,41 +103,29 @@ export async function GET(
 
     if (!mediaResponse.ok) {
       const errorText = await mediaResponse.text()
-      console.error('Error fetching media asset:', mediaResponse.status, errorText)
+      console.error('Error fetching media asset (org-specific):', mediaResponse.status, errorText)
       return NextResponse.json({ error: 'Media asset not found' }, { status: 404 })
     }
 
     const mediaAssets = await mediaResponse.json()
+    console.log('Found media assets (org-specific):', mediaAssets.length)
+    
     const mediaAsset = mediaAssets[0]
     
     if (!mediaAsset) {
-      console.error('No media asset found with id:', id)
+      console.error('No media asset found with id:', id, 'in organization:', organizationId)
       return NextResponse.json({ error: 'Media asset not found' }, { status: 404 })
     }
 
     console.log('Found media asset:', mediaAsset.name)
 
-    // Get usage information (playlists using this asset) using REST API
-    const usageResponse = await fetch(
-      `${url}/rest/v1/playlist_items?media_asset_id=eq.${id}&select=playlists(id,name)`,
-      {
-        headers: {
-          'Authorization': `Bearer ${serviceKey}`,
-          'apikey': serviceKey,
-          'Content-Type': 'application/json'
-        }
-      }
-    )
-
-    let usage = []
-    if (usageResponse.ok) {
-      const usageData = await usageResponse.json()
-      usage = usageData?.map((item: any) => item.playlists).filter(Boolean) || []
-    }
-
+    // For now, return basic media asset data without complex joins
+    // TODO: Add folder and user profile joins back later
     return NextResponse.json({
       ...mediaAsset,
-      usage
+      media_folders: null, // placeholder for folder info
+      user_profiles: null, // placeholder for creator info  
+      usage: [] // placeholder for usage info
     })
 
   } catch (error) {
