@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
     const excludeFolderId = searchParams.get('exclude_folder') || null
     const tags = searchParams.get('tags')?.split(',').filter(Boolean) || []
     
+    console.log('Media API - Query params:', { page, limit, search, mediaType, folderId, excludeFolderId, tags })
+    
     // Get user's organization
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
@@ -59,7 +61,9 @@ export async function GET(request: NextRequest) {
 
     // Exclude media from specific folder (for media selector modal)
     if (excludeFolderId) {
-      query = query.neq('folder_id', excludeFolderId)
+      console.log('Media API - Excluding folder:', excludeFolderId)
+      // Show media that is either in root (null) or in a different folder
+      query = query.not('folder_id', 'eq', excludeFolderId)
     }
 
     if (tags.length > 0) {

@@ -42,10 +42,16 @@ export default function MediaSelectorModal({
         params.append('exclude_folder', currentFolderId)
       }
 
+      console.log('MediaSelectorModal - Fetching with params:', params.toString())
+      console.log('MediaSelectorModal - Current folder ID:', currentFolderId)
+      
       const response = await fetch(`/api/media?${params}`)
       if (!response.ok) throw new Error('Failed to fetch media')
       
       const data = await response.json()
+      console.log('MediaSelectorModal - API response:', data)
+      console.log('MediaSelectorModal - Media assets found:', data.mediaAssets?.length || 0)
+      
       setMediaAssets(data.mediaAssets || [])
     } catch (error) {
       console.error('Error fetching available media:', error)
