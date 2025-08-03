@@ -650,13 +650,11 @@ export default function EditScreenPage() {
                 
                 <button
                   type="button"
-                  onClick={() => {
-                    console.log('Simple delete button clicked!')
-                    alert('Delete button works! (This proves the modal works)')
-                  }}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700"
+                  onClick={handleDelete}
+                  disabled={deleteLoading}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 disabled:opacity-50"
                 >
-                  Test Delete
+                  {deleteLoading ? 'Deleting...' : 'Delete Screen'}
                 </button>
               </div>
             </div>
