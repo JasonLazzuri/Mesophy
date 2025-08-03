@@ -70,7 +70,7 @@ export async function PUT(request: NextRequest) {
     // Verify all media assets belong to user's organization
     const mediaIds_filter = mediaIds.map(id => `"${id}"`).join(',')
     const mediaResponse = await fetch(
-      `${url}/rest/v1/media_assets?id=in.(${mediaIds_filter})&select=id,organization_id`,
+      `${url}/rest/v1/media_assets?id=in.(${mediaIds_filter})&is_active=eq.true&select=id,organization_id`,
       {
         headers: {
           'Authorization': `Bearer ${serviceKey}`,

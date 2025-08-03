@@ -89,13 +89,32 @@ export async function GET(request: NextRequest) {
       let count = 0
       if (countResponse.ok) {
         const countHeader = countResponse.headers.get('content-range')
+        console.log(`GET /api/media/folders - Folder ${folder.id} (${folder.name}) count header:`, countHeader)
         if (countHeader) {
           // Parse count from content-range header like "0-9/10"
           const match = countHeader.match(/\/(\d+)$/)
           if (match) {
             count = parseInt(match[1], 10)
+            console.log(`GET /api/media/folders - Folder ${folder.id} (${folder.name}) parsed count:`, count)
           }
         }
+        // Also debug by getting the actual media items to see what's in there
+        const debugResponse = await fetch(
+          `${url}/rest/v1/media_assets?organization_id=eq.${organizationId}&folder_id=eq.${folder.id}&is_active=eq.true&select=id,name,is_active`,
+          {
+            headers: {
+              'Authorization': `Bearer ${serviceKey}`,
+              'apikey': serviceKey,
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+        if (debugResponse.ok) {
+          const debugMedia = await debugResponse.json()
+          console.log(`GET /api/media/folders - Folder ${folder.id} (${folder.name}) actual active media:`, debugMedia.length, debugMedia.map(m => `${m.name}(${m.id})`))
+        }
+      } else {
+        console.error(`GET /api/media/folders - Error getting count for folder ${folder.id}:`, countResponse.status)
       }
       
       foldersWithCount.push({

@@ -283,7 +283,10 @@ export async function DELETE(
           'apikey': serviceKey,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ is_active: false })
+        body: JSON.stringify({ 
+          is_active: false,
+          folder_id: null // Clear folder association when soft deleting
+        })
       }
     )
 
