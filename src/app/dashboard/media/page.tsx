@@ -163,8 +163,13 @@ export default function MediaPage() {
       setError(null) // Clear any existing errors
       
       // Get the user session token for authorization
-      const { createClient } = await import('@/lib/supabase/client')
+      const { createClient } = await import('@/lib/supabase')
       const supabase = createClient()
+      
+      if (!supabase) {
+        throw new Error('Failed to initialize Supabase client')
+      }
+      
       const { data: { session } } = await supabase.auth.getSession()
       
       const headers: HeadersInit = {
@@ -173,6 +178,9 @@ export default function MediaPage() {
       
       if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`
+        console.log('Using session token for media delete API call')
+      } else {
+        console.warn('No session token available for media delete API call')
       }
       
       const response = await fetch(`/api/media/${assetId}`, {
@@ -184,8 +192,9 @@ export default function MediaPage() {
         fetchMediaAssets()
         setShowDetailModal(false) // Close detail modal after successful deletion
       } else {
-        const errorData = await response.json()
-        setError(errorData.error || 'Failed to delete media')
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('Media delete error:', response.status, response.statusText, errorData)
+        setError(errorData.error || `Failed to delete media: ${response.status} ${response.statusText}`)
       }
     } catch (error) {
       console.error('Delete error:', error)

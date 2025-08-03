@@ -79,17 +79,37 @@ export default function MediaEditModal({
         folder_id: formData.folder_id || null
       }
 
+      // Get the user session token for authorization
+      const { createClient } = await import('@/lib/supabase')
+      const supabase = createClient()
+      
+      if (!supabase) {
+        throw new Error('Failed to initialize Supabase client')
+      }
+      
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      }
+      
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`
+        console.log('Using session token for media edit API call')
+      } else {
+        console.warn('No session token available for media edit API call')
+      }
+
       const response = await fetch(`/api/media/${asset.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers,
         body: JSON.stringify(updateData)
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to update media')
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('Media edit error:', response.status, response.statusText, errorData)
+        throw new Error(errorData.error || `Failed to update media: ${response.status} ${response.statusText}`)
       }
 
       // Success
