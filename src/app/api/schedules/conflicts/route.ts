@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
       schedule_id = null,
       screen_id,
       screen_ids = [],
+      target_screen_types = null,
       start_date,
       end_date,
       start_time,
@@ -60,7 +61,8 @@ export async function POST(request: NextRequest) {
           p_start_time: start_time,
           p_end_time: end_time,
           p_days_of_week: days_of_week,
-          p_priority: priority || 1
+          p_priority: priority || 1,
+          p_target_screen_types: target_screen_types
         })
 
       if (conflictError) {
@@ -97,9 +99,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Also check for global schedules (screen_id = null) if we're creating a global schedule
-    if (!screen_id && screen_ids.length === 0) {
-      const { data: globalConflicts, error: globalError } = await supabase
+    // Check for screen-type-based conflicts if target_screen_types are specified
+    if (target_screen_types && target_screen_types.length > 0 && !screen_id && screen_ids.length === 0) {
+      const { data: screenTypeConflicts, error: screenTypeError } = await supabase
         .rpc('check_schedule_conflicts', {
           schedule_uuid: schedule_id,
           p_screen_id: null,
@@ -108,14 +110,15 @@ export async function POST(request: NextRequest) {
           p_start_time: start_time,
           p_end_time: end_time,
           p_days_of_week: days_of_week,
-          p_priority: priority || 1
+          p_priority: priority || 1,
+          p_target_screen_types: target_screen_types
         })
 
-      if (!globalError && globalConflicts && globalConflicts.length > 0) {
+      if (!screenTypeError && screenTypeConflicts && screenTypeConflicts.length > 0) {
         conflicts.push({
           screen_id: null,
-          screen: { name: 'All Screens (Global)' },
-          conflicting_schedules: globalConflicts
+          screen: { name: `${target_screen_types.join(', ')} screens` },
+          conflicting_schedules: screenTypeConflicts
         })
       }
     }
