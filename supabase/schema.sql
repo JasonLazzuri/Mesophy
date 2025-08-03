@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Custom types for enums
 CREATE TYPE user_role AS ENUM ('super_admin', 'district_manager', 'location_manager');
-CREATE TYPE screen_type AS ENUM ('ad_device', 'menu_board', 'employee_board');
+CREATE TYPE screen_type AS ENUM ('promo_board', 'menu_board', 'employee_board');
 CREATE TYPE device_status AS ENUM ('online', 'offline', 'error', 'maintenance');
 
 -- Organizations table (top level - restaurant chains)

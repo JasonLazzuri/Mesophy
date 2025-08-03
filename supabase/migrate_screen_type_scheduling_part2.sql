@@ -1,38 +1,31 @@
--- Fixed Migration: Implement Screen-Type-Specific Scheduling
--- First check what screen types actually exist in the database
+-- Part 2: Complete migration after enum value is committed
+-- Run this AFTER migrate_screen_type_scheduling_part1.sql has been committed
 
 -- Step 1: Check current enum values
 SELECT unnest(enum_range(NULL::screen_type)) as screen_type_values;
 
--- Step 1.5: Update enum to change 'ad_device' to 'promo_board'
--- First add the new enum value
-ALTER TYPE screen_type ADD VALUE IF NOT EXISTS 'promo_board';
-
--- Update any existing screens that use 'ad_device' to use 'promo_board'
+-- Step 2: Update any existing screens that use 'ad_device' to use 'promo_board'
 UPDATE screens SET screen_type = 'promo_board' WHERE screen_type = 'ad_device';
 
--- Update any existing schedules that target 'ad_device' to target 'promo_board'
+-- Step 3: Update any existing schedules that target 'ad_device' to target 'promo_board'
 UPDATE schedules 
 SET target_screen_types = array_replace(target_screen_types, 'ad_device', 'promo_board')
 WHERE target_screen_types @> ARRAY['ad_device']::screen_type[];
 
--- Note: PostgreSQL doesn't allow removing enum values easily, so 'ad_device' will remain in the enum
--- but won't be used. New installations should use the updated schema.sql
-
--- Step 2: Add target_screen_types column to schedules table
+-- Step 4: Add target_screen_types column to schedules table
 ALTER TABLE schedules 
 ADD COLUMN IF NOT EXISTS target_screen_types screen_type[] DEFAULT NULL;
 
 -- Add comment to explain the new column
 COMMENT ON COLUMN schedules.target_screen_types IS 'Array of screen types this schedule targets. If NULL, targets all screen types (legacy global behavior)';
 
--- Step 3: Check what screen types are actually being used
+-- Step 5: Check what screen types are actually being used
 SELECT DISTINCT screen_type, COUNT(*) as count
 FROM screens 
 GROUP BY screen_type
 ORDER BY count DESC;
 
--- Step 4: Migrate existing global schedules to target specific screen types
+-- Step 6: Migrate existing global schedules to target specific screen types
 -- Use only the screen types that actually exist in your database
 
 -- For schedules that mention "menu" in their name, target menu_board
@@ -75,14 +68,14 @@ SET target_screen_types = ARRAY['menu_board', 'employee_board', 'promo_board']::
 WHERE screen_id IS NULL 
   AND target_screen_types IS NULL;
 
--- Step 5: For specific screen schedules, set target_screen_types based on their assigned screen
+-- Step 7: For specific screen schedules, set target_screen_types based on their assigned screen
 UPDATE schedules 
 SET target_screen_types = ARRAY[sc.screen_type]::screen_type[]
 FROM screens sc
 WHERE schedules.screen_id = sc.id 
   AND schedules.target_screen_types IS NULL;
 
--- Step 6: Create new conflict detection function that's screen-type aware
+-- Step 8: Create new conflict detection function that's screen-type aware
 DROP FUNCTION IF EXISTS check_schedule_conflicts(UUID, UUID, DATE, DATE, TIME, TIME, INTEGER[], INTEGER);
 
 CREATE OR REPLACE FUNCTION check_schedule_conflicts(
@@ -166,7 +159,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Step 7: Create a helper function to get all available screen types (fixed)
+-- Step 9: Create a helper function to get all available screen types (fixed)
 CREATE OR REPLACE FUNCTION get_screen_types()
 RETURNS screen_type[] AS $$
 BEGIN
@@ -175,11 +168,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Step 8: Create indexes for better performance
+-- Step 10: Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_schedules_target_screen_types ON schedules USING GIN (target_screen_types);
 CREATE INDEX IF NOT EXISTS idx_schedules_active_times ON schedules (is_active, start_date, end_date, start_time, end_time) WHERE is_active = true;
 
--- Step 9: Verification queries
+-- Step 11: Verification queries
 SELECT 
     'Current enum values:' as info,
     unnest(enum_range(NULL::screen_type)) as screen_type;

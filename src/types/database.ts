@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type UserRole = 'super_admin' | 'district_manager' | 'location_manager'
-export type ScreenType = 'ad_device' | 'menu_board' | 'employee_board'
+export type ScreenType = 'promo_board' | 'menu_board' | 'employee_board'
 export type DeviceStatus = 'online' | 'offline' | 'error' | 'maintenance'
 export type Orientation = 'landscape' | 'portrait'
 export type LogLevel = 'info' | 'warning' | 'error' | 'debug'

@@ -62,7 +62,7 @@ const TIMEZONE_OPTIONS = [
 const SCREEN_TYPES = [
   { value: 'menu_board', label: '🍽️ Menu Board', description: 'Display menus and food offerings' },
   { value: 'employee_board', label: '👥 Employee Board', description: 'Staff schedules and announcements' },
-  { value: 'ad_device', label: '📢 Ad Device', description: 'Advertising and promotional content' }
+  { value: 'promo_board', label: '📢 Promo Board', description: 'Advertising and promotional content' }
 ]
 
 export default function AddSchedulePage() {

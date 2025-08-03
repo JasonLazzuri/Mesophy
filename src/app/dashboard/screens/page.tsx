@@ -172,7 +172,7 @@ export default function ScreensPage() {
     switch (type) {
       case 'menu_board':
         return '🍽️'
-      case 'ad_device':
+      case 'promo_board':
         return '📢'
       case 'employee_board':
         return '👥'
@@ -274,7 +274,7 @@ export default function ScreensPage() {
               >
                 <option value="all">All Types</option>
                 <option value="menu_board">Menu Board</option>
-                <option value="ad_device">Advertisement Display</option>
+                <option value="promo_board">Promo Board</option>
                 <option value="employee_board">Employee Board</option>
               </select>
             </div>

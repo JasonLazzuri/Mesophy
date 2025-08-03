@@ -304,7 +304,7 @@ export default function AddScreenPage() {
               required
             >
               <option value="menu_board">🍽️ Menu Board</option>
-              <option value="ad_device">📢 Advertisement Display</option>
+              <option value="promo_board">📢 Promo Board</option>
               <option value="employee_board">👥 Employee Board</option>
             </select>
             {validationErrors.screen_type && (
