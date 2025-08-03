@@ -185,20 +185,51 @@ export default function EditScreenPage() {
     setError('')
 
     try {
+      console.log('Starting screen deletion for ID:', screenId)
+      
       const response = await fetch(`/api/screens/${screenId}`, {
         method: 'DELETE',
       })
 
-      const result = await response.json()
+      console.log('Delete response status:', response.status)
+      console.log('Delete response headers:', response.headers)
+
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type')
+      console.log('Content-Type:', contentType)
+
+      let result
+      if (contentType && contentType.includes('application/json')) {
+        result = await response.json()
+        console.log('Delete response JSON:', result)
+      } else {
+        const text = await response.text()
+        console.log('Delete response text:', text)
+        throw new Error('Server returned non-JSON response: ' + text)
+      }
 
       if (!response.ok) {
+        console.error('Delete failed with status:', response.status, result)
         throw new Error(result.error || 'Failed to delete screen')
       }
 
-      // Redirect to screens list after successful deletion
-      router.push('/dashboard/screens')
+      console.log('Delete successful, redirecting to screens list')
+      
+      // Close the modal first
+      setShowDeleteConfirm(false)
+      
+      // Try different redirect methods
+      try {
+        // Method 1: Try window.location (more reliable)
+        window.location.href = '/dashboard/screens'
+      } catch (redirectError) {
+        console.error('Redirect error:', redirectError)
+        // Method 2: Fallback to router.push with replace
+        router.replace('/dashboard/screens')
+      }
 
     } catch (err) {
+      console.error('Delete error:', err)
       setError(err instanceof Error ? err.message : 'Failed to delete screen')
       setShowDeleteConfirm(false)
     } finally {
