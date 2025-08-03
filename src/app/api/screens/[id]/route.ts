@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { ScreenType, DeviceStatus, Orientation } from '@/types/database'
 
@@ -7,91 +6,99 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = await createClient()
+    console.log('GET /api/screens/[id] - Starting request for ID:', params.id)
     
-    if (!supabase) {
-      return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
+    // Get environment variables
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || 
+                       process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                       process.env.SUPABASE_SERVICE_KEY ||
+                       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+
+    if (!url || !serviceKey) {
+      console.error('GET /api/screens/[id] - Missing environment variables')
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
     }
 
-    // Get current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Get the screen using REST API
+    console.log('GET /api/screens/[id] - Fetching screen data')
+    const screenResponse = await fetch(`${url}/rest/v1/screens?id=eq.${params.id}&select=*`, {
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!screenResponse.ok) {
+      console.error('GET /api/screens/[id] - Screen fetch failed:', screenResponse.status, screenResponse.statusText)
+      return NextResponse.json({ error: 'Failed to fetch screen' }, { status: 500 })
     }
 
-    // Get user profile to check permissions
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
+    const screens = await screenResponse.json()
+    console.log('GET /api/screens/[id] - Screen data:', screens)
 
-    if (profileError || !profile) {
-      return NextResponse.json({ error: 'User profile not found' }, { status: 404 })
-    }
-
-    if (!profile.organization_id) {
-      return NextResponse.json({ error: 'No organization associated with user' }, { status: 403 })
-    }
-
-    // Get the screen (simple query without relationships)
-    const { data: screen, error: screenError } = await supabase
-      .from('screens')
-      .select('*')
-      .eq('id', params.id)
-      .single()
-
-    if (screenError || !screen) {
+    if (!screens || screens.length === 0) {
       return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
     }
 
-    // Get location info separately
-    const { data: location, error: locationError } = await supabase
-      .from('locations')
-      .select('id, name, manager_id, district_id')
-      .eq('id', screen.location_id)
-      .single()
+    const screen = screens[0]
 
-    if (locationError || !location) {
+    // Get location info
+    const locationResponse = await fetch(`${url}/rest/v1/locations?id=eq.${screen.location_id}&select=id,name,manager_id,district_id`, {
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!locationResponse.ok) {
+      console.error('GET /api/screens/[id] - Location fetch failed:', locationResponse.status)
       return NextResponse.json({ error: 'Screen location not found' }, { status: 404 })
     }
 
-    // Get district info separately
-    const { data: district, error: districtError } = await supabase
-      .from('districts')
-      .select('id, name, organization_id, manager_id')
-      .eq('id', location.district_id)
-      .single()
+    const locations = await locationResponse.json()
+    if (!locations || locations.length === 0) {
+      return NextResponse.json({ error: 'Screen location not found' }, { status: 404 })
+    }
 
-    if (districtError || !district) {
+    const location = locations[0]
+
+    // Get district info
+    const districtResponse = await fetch(`${url}/rest/v1/districts?id=eq.${location.district_id}&select=id,name,organization_id,manager_id`, {
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!districtResponse.ok) {
+      console.error('GET /api/screens/[id] - District fetch failed:', districtResponse.status)
       return NextResponse.json({ error: 'Screen district not found' }, { status: 404 })
     }
 
-    // Check organization permission
-    if (district.organization_id !== profile.organization_id) {
-      return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
+    const districts = await districtResponse.json()
+    if (!districts || districts.length === 0) {
+      return NextResponse.json({ error: 'Screen district not found' }, { status: 404 })
     }
 
-    // Check role-based access
-    if (profile.role === 'district_manager') {
-      if (district.manager_id !== user.id) {
-        return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
-      }
-    } else if (profile.role === 'location_manager') {
-      if (location.manager_id !== user.id) {
-        return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
-      }
-    } else if (profile.role !== 'super_admin') {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-    }
+    const district = districts[0]
 
     // Get recent device logs for this screen
-    const { data: recentLogs } = await supabase
-      .from('device_logs')
-      .select('*')
-      .eq('screen_id', params.id)
-      .order('created_at', { ascending: false })
-      .limit(10)
+    const logsResponse = await fetch(`${url}/rest/v1/device_logs?screen_id=eq.${params.id}&order=created_at.desc&limit=10`, {
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    let recentLogs = []
+    if (logsResponse.ok) {
+      recentLogs = await logsResponse.json()
+    }
 
     return NextResponse.json({ 
       screen,
@@ -109,82 +116,18 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = await createClient()
+    console.log('PUT /api/screens/[id] - Starting request for ID:', params.id)
     
-    if (!supabase) {
-      return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
-    }
+    // Get environment variables
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || 
+                       process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                       process.env.SUPABASE_SERVICE_KEY ||
+                       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
 
-    // Get current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Get user profile to check permissions
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json({ error: 'User profile not found' }, { status: 404 })
-    }
-
-    if (!profile.organization_id) {
-      return NextResponse.json({ error: 'No organization associated with user' }, { status: 403 })
-    }
-
-    // Get the existing screen to check permissions (simple query without relationships)
-    const { data: existingScreen, error: existingError } = await supabase
-      .from('screens')
-      .select('*')
-      .eq('id', params.id)
-      .single()
-
-    if (existingError || !existingScreen) {
-      return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
-    }
-
-    // Get location info separately
-    const { data: location, error: locationError } = await supabase
-      .from('locations')
-      .select('id, name, manager_id, district_id')
-      .eq('id', existingScreen.location_id)
-      .single()
-
-    if (locationError || !location) {
-      return NextResponse.json({ error: 'Screen location not found' }, { status: 404 })
-    }
-
-    // Get district info separately
-    const { data: district, error: districtError } = await supabase
-      .from('districts')
-      .select('id, name, organization_id, manager_id')
-      .eq('id', location.district_id)
-      .single()
-
-    if (districtError || !district) {
-      return NextResponse.json({ error: 'Screen district not found' }, { status: 404 })
-    }
-
-    // Check organization permission
-    if (district.organization_id !== profile.organization_id) {
-      return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
-    }
-
-    // Check role-based access
-    if (profile.role === 'district_manager') {
-      if (district.manager_id !== user.id) {
-        return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
-      }
-    } else if (profile.role === 'location_manager') {
-      if (location.manager_id !== user.id) {
-        return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
-      }
-    } else if (profile.role !== 'super_admin') {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    if (!url || !serviceKey) {
+      console.error('PUT /api/screens/[id] - Missing environment variables')
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
     }
 
     // Parse request body
@@ -198,6 +141,29 @@ export async function PUT(
       orientation, 
       is_active
     } = body
+
+    console.log('PUT /api/screens/[id] - Update data:', body)
+
+    // Get the existing screen to check permissions
+    const screenResponse = await fetch(`${url}/rest/v1/screens?id=eq.${params.id}&select=*`, {
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!screenResponse.ok) {
+      console.error('PUT /api/screens/[id] - Screen fetch failed:', screenResponse.status)
+      return NextResponse.json({ error: 'Failed to fetch screen' }, { status: 500 })
+    }
+
+    const screens = await screenResponse.json()
+    if (!screens || screens.length === 0) {
+      return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
+    }
+
+    const existingScreen = screens[0]
 
     // Build update object with only provided fields
     const updateData: any = {
@@ -237,22 +203,21 @@ export async function PUT(
     // Check device_id uniqueness if being updated
     if (device_id !== undefined && device_id !== existingScreen.device_id) {
       if (device_id) {
-        const { data: duplicateScreen, error: checkError } = await supabase
-          .from('screens')
-          .select('id')
-          .eq('device_id', device_id)
-          .neq('id', params.id)
-          .single()
+        const duplicateResponse = await fetch(`${url}/rest/v1/screens?device_id=eq.${device_id}&id=neq.${params.id}&select=id`, {
+          headers: {
+            'apikey': serviceKey,
+            'Authorization': `Bearer ${serviceKey}`,
+            'Content-Type': 'application/json'
+          }
+        })
 
-        if (checkError && checkError.code !== 'PGRST116') {
-          console.error('Error checking device_id uniqueness:', checkError)
-          return NextResponse.json({ error: 'Failed to validate device ID' }, { status: 500 })
-        }
-
-        if (duplicateScreen) {
-          return NextResponse.json({ 
-            error: 'Device ID already exists. Each device must have a unique ID.' 
-          }, { status: 409 })
+        if (duplicateResponse.ok) {
+          const duplicates = await duplicateResponse.json()
+          if (duplicates && duplicates.length > 0) {
+            return NextResponse.json({ 
+              error: 'Device ID already exists. Each device must have a unique ID.' 
+            }, { status: 409 })
+          }
         }
       }
       updateData.device_id = device_id?.trim() || null
@@ -282,19 +247,27 @@ export async function PUT(
       updateData.is_active = Boolean(is_active)
     }
 
-    // Update the screen (simple query without relationships)
-    const { data: screen, error: updateError } = await supabase
-      .from('screens')
-      .update(updateData)
-      .eq('id', params.id)
-      .select('*')
-      .single()
+    console.log('PUT /api/screens/[id] - Final update data:', updateData)
 
-    if (updateError) {
-      console.error('Error updating screen:', updateError)
+    // Update the screen using REST API
+    const updateResponse = await fetch(`${url}/rest/v1/screens?id=eq.${params.id}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(updateData)
+    })
+
+    if (!updateResponse.ok) {
+      console.error('PUT /api/screens/[id] - Update failed:', updateResponse.status, updateResponse.statusText)
+      const errorText = await updateResponse.text()
+      console.error('PUT /api/screens/[id] - Error details:', errorText)
       
       // Handle duplicate name error within location
-      if (updateError.code === '23505') {
+      if (updateResponse.status === 409 || errorText.includes('23505')) {
         return NextResponse.json({ 
           error: 'A screen with this name already exists in this location' 
         }, { status: 409 })
@@ -304,6 +277,11 @@ export async function PUT(
         error: 'Failed to update screen' 
       }, { status: 500 })
     }
+
+    const updatedScreens = await updateResponse.json()
+    console.log('PUT /api/screens/[id] - Update successful:', updatedScreens)
+
+    const screen = updatedScreens && updatedScreens.length > 0 ? updatedScreens[0] : updateData
 
     return NextResponse.json({ 
       message: 'Screen updated successfully',
@@ -321,125 +299,107 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = await createClient()
+    console.log('DELETE /api/screens/[id] - Starting request for ID:', params.id)
     
-    if (!supabase) {
-      return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
+    // Get environment variables
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || 
+                       process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                       process.env.SUPABASE_SERVICE_KEY ||
+                       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+
+    if (!url || !serviceKey) {
+      console.error('DELETE /api/screens/[id] - Missing environment variables')
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
     }
 
-    // Get current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Get user profile to check permissions
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json({ error: 'User profile not found' }, { status: 404 })
-    }
-
-    // Only super_admin and district_manager can delete screens
-    if (profile.role !== 'super_admin' && profile.role !== 'district_manager') {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-    }
-
-    if (!profile.organization_id) {
-      return NextResponse.json({ error: 'No organization associated with user' }, { status: 403 })
-    }
-
-    // Get the screen to check permissions and dependencies (simple query without relationships)
-    const { data: screen, error: screenError } = await supabase
-      .from('screens')
-      .select('*')
-      .eq('id', params.id)
-      .single()
-
-    if (screenError || !screen) {
-      return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
-    }
-
-    // Get location info separately
-    const { data: location, error: locationError } = await supabase
-      .from('locations')
-      .select('id, name, manager_id, district_id')
-      .eq('id', screen.location_id)
-      .single()
-
-    if (locationError || !location) {
-      return NextResponse.json({ error: 'Screen location not found' }, { status: 404 })
-    }
-
-    // Get district info separately
-    const { data: district, error: districtError } = await supabase
-      .from('districts')
-      .select('id, name, organization_id, manager_id')
-      .eq('id', location.district_id)
-      .single()
-
-    if (districtError || !district) {
-      return NextResponse.json({ error: 'Screen district not found' }, { status: 404 })
-    }
-
-    // Check organization permission
-    if (district.organization_id !== profile.organization_id) {
-      return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
-    }
-
-    // Check role-based access
-    if (profile.role === 'district_manager') {
-      if (district.manager_id !== user.id) {
-        return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
+    // Get the screen to check permissions and dependencies
+    console.log('DELETE /api/screens/[id] - Fetching screen data')
+    const screenResponse = await fetch(`${url}/rest/v1/screens?id=eq.${params.id}&select=*`, {
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json'
       }
+    })
+
+    if (!screenResponse.ok) {
+      console.error('DELETE /api/screens/[id] - Screen fetch failed:', screenResponse.status)
+      return NextResponse.json({ error: 'Failed to fetch screen' }, { status: 500 })
     }
+
+    const screens = await screenResponse.json()
+    console.log('DELETE /api/screens/[id] - Screen data:', screens)
+
+    if (!screens || screens.length === 0) {
+      return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
+    }
+
+    const screen = screens[0]
 
     // Check for dependencies (schedules)
-    const { data: schedules, error: scheduleError } = await supabase
-      .from('schedules')
-      .select('id, name')
-      .eq('screen_id', params.id)
-      .limit(1)
+    console.log('DELETE /api/screens/[id] - Checking for schedule dependencies')
+    const schedulesResponse = await fetch(`${url}/rest/v1/schedules?screen_id=eq.${params.id}&select=id,name&limit=1`, {
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json'
+      }
+    })
 
-    if (scheduleError) {
-      console.error('Error checking schedule dependencies:', scheduleError)
+    if (schedulesResponse.ok) {
+      const schedules = await schedulesResponse.json()
+      console.log('DELETE /api/screens/[id] - Schedules found:', schedules)
+      
+      if (schedules && schedules.length > 0) {
+        return NextResponse.json({ 
+          error: 'Cannot delete screen with active schedules. Please remove all schedules first.' 
+        }, { status: 409 })
+      }
+    } else {
+      console.error('DELETE /api/screens/[id] - Failed to check schedule dependencies:', schedulesResponse.status)
       return NextResponse.json({ error: 'Failed to check dependencies' }, { status: 500 })
     }
 
-    if (schedules && schedules.length > 0) {
-      return NextResponse.json({ 
-        error: 'Cannot delete screen with active schedules. Please remove all schedules first.' 
-      }, { status: 409 })
-    }
-
     // Delete device logs first (cascade)
-    const { error: logsDeleteError } = await supabase
-      .from('device_logs')
-      .delete()
-      .eq('screen_id', params.id)
+    console.log('DELETE /api/screens/[id] - Deleting device logs')
+    const logsDeleteResponse = await fetch(`${url}/rest/v1/device_logs?screen_id=eq.${params.id}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json'
+      }
+    })
 
-    if (logsDeleteError) {
-      console.error('Error deleting device logs:', logsDeleteError)
+    if (!logsDeleteResponse.ok) {
+      console.error('DELETE /api/screens/[id] - Device logs deletion failed:', logsDeleteResponse.status)
       // Continue with screen deletion even if logs deletion fails
+    } else {
+      console.log('DELETE /api/screens/[id] - Device logs deleted successfully')
     }
 
     // Delete the screen
-    const { error: deleteError } = await supabase
-      .from('screens')
-      .delete()
-      .eq('id', params.id)
+    console.log('DELETE /api/screens/[id] - Deleting screen')
+    const deleteResponse = await fetch(`${url}/rest/v1/screens?id=eq.${params.id}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json'
+      }
+    })
 
-    if (deleteError) {
-      console.error('Error deleting screen:', deleteError)
+    if (!deleteResponse.ok) {
+      console.error('DELETE /api/screens/[id] - Screen deletion failed:', deleteResponse.status, deleteResponse.statusText)
+      const errorText = await deleteResponse.text()
+      console.error('DELETE /api/screens/[id] - Delete error details:', errorText)
       return NextResponse.json({ 
         error: 'Failed to delete screen' 
       }, { status: 500 })
     }
 
+    console.log('DELETE /api/screens/[id] - Screen deleted successfully')
     return NextResponse.json({ 
       message: 'Screen deleted successfully'
     })
