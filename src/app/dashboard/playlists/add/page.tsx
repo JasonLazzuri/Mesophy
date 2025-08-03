@@ -62,6 +62,7 @@ export default function AddPlaylistPage() {
   const fetchMediaAssets = async () => {
     try {
       setFetchingMedia(true)
+      setError(null) // Clear any previous errors when fetching new data
       console.log('Fetching media assets for folder:', currentFolderId)
       const params = new URLSearchParams({ limit: '100' })
       if (currentFolderId) {
