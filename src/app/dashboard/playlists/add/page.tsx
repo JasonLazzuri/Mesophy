@@ -376,6 +376,7 @@ export default function AddPlaylistPage() {
               {folderPath.length > 0 && (
                 <nav className="flex items-center space-x-2 text-sm text-gray-600 mb-4">
                   <button
+                    type="button"
                     onClick={() => navigateToFolder(null)}
                     className="hover:text-indigo-600 flex items-center"
                   >
@@ -386,6 +387,7 @@ export default function AddPlaylistPage() {
                     <div key={folder.id} className="flex items-center">
                       <ChevronRight className="h-4 w-4 mx-2" />
                       <button
+                        type="button"
                         onClick={() => navigateToFolder(folder.id, folder.name)}
                         className="hover:text-indigo-600"
                       >
@@ -420,6 +422,7 @@ export default function AddPlaylistPage() {
                         {folders.map((folder) => (
                           <button
                             key={folder.id}
+                            type="button"
                             onClick={() => navigateToFolder(folder.id, folder.name)}
                             className="p-3 border border-gray-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50 transition-colors text-left"
                           >
@@ -456,7 +459,7 @@ export default function AddPlaylistPage() {
                           </h3>
                           <div className="text-xs text-gray-500">
                             Browse media or{' '}
-                            <button className="text-indigo-600 hover:text-indigo-700 underline">
+                            <button type="button" className="text-indigo-600 hover:text-indigo-700 underline">
                               add more files
                             </button>
                             {' '}to this folder
