@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { MapPin, Building2, Check, ChevronDown, ChevronRight } from 'lucide-react'
 
 interface Location {
@@ -42,10 +42,35 @@ export default function LocationPicker({
   const [error, setError] = useState<string | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [expandedDistricts, setExpandedDistricts] = useState<Set<string>>(new Set())
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetchAccessibleLocations()
   }, [])
+
+  // Close dropdown when clicking outside or pressing Escape
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false)
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleEscapeKey)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+        document.removeEventListener('keydown', handleEscapeKey)
+      }
+    }
+  }, [isOpen])
 
   const fetchAccessibleLocations = async () => {
     try {
@@ -147,7 +172,7 @@ export default function LocationPicker({
   }
 
   return (
-    <div className={`space-y-2 relative ${className}`}>
+    <div className={`space-y-2 relative ${className}`} ref={dropdownRef}>
       <label className="block text-sm font-medium text-gray-700">
         {label} {required && <span className="text-red-500">*</span>}
       </label>
