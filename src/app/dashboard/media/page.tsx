@@ -161,8 +161,23 @@ export default function MediaPage() {
   const handleMediaDelete = async (assetId: string) => {
     try {
       setError(null) // Clear any existing errors
+      
+      // Get the user session token for authorization
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      }
+      
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`
+      }
+      
       const response = await fetch(`/api/media/${assetId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers
       })
       
       if (response.ok) {
@@ -554,7 +569,40 @@ export default function MediaPage() {
                             >
                               <Edit className="h-4 w-4" />
                             </button>
-                            <button className="p-2 bg-white rounded-full text-gray-700 hover:bg-gray-100">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                // Create a simple context menu for media actions
+                                const menu = document.createElement('div')
+                                menu.className = 'absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 min-w-32'
+                                menu.innerHTML = `
+                                  <button class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 delete-media">Delete</button>
+                                `
+                                
+                                // Add event listeners
+                                menu.querySelector('.delete-media')?.addEventListener('click', () => {
+                                  handleMediaDelete(asset.id)
+                                  menu.remove()
+                                })
+                                
+                                // Remove menu when clicking outside
+                                const removeMenu = (event: MouseEvent) => {
+                                  if (!menu.contains(event.target as Node)) {
+                                    menu.remove()
+                                    document.removeEventListener('click', removeMenu)
+                                  }
+                                }
+                                setTimeout(() => document.addEventListener('click', removeMenu), 100)
+                                
+                                // Position menu relative to button
+                                const buttonRect = e.currentTarget.getBoundingClientRect()
+                                const overlay = e.currentTarget.closest('.group')
+                                if (overlay) {
+                                  overlay.appendChild(menu)
+                                }
+                              }}
+                              className="p-2 bg-white rounded-full text-gray-700 hover:bg-gray-100 relative"
+                            >
                               <MoreVertical className="h-4 w-4" />
                             </button>
                           </div>
@@ -632,7 +680,35 @@ export default function MediaPage() {
                           <button className="p-2 text-gray-400 hover:text-gray-600">
                             <Download className="h-4 w-4" />
                           </button>
-                          <button className="p-2 text-gray-400 hover:text-gray-600">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              // Create a simple context menu for media actions
+                              const menu = document.createElement('div')
+                              menu.className = 'absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 min-w-32'
+                              menu.innerHTML = `
+                                <button class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 delete-media">Delete</button>
+                              `
+                              
+                              // Add event listeners
+                              menu.querySelector('.delete-media')?.addEventListener('click', () => {
+                                handleMediaDelete(asset.id)
+                                menu.remove()
+                              })
+                              
+                              // Remove menu when clicking outside
+                              const removeMenu = (event: MouseEvent) => {
+                                if (!menu.contains(event.target as Node)) {
+                                  menu.remove()
+                                  document.removeEventListener('click', removeMenu)
+                                }
+                              }
+                              setTimeout(() => document.addEventListener('click', removeMenu), 100)
+                              
+                              e.currentTarget.appendChild(menu)
+                            }}
+                            className="p-2 text-gray-400 hover:text-gray-600 relative"
+                          >
                             <MoreVertical className="h-4 w-4" />
                           </button>
                         </div>
