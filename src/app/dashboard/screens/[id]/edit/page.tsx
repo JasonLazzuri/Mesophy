@@ -59,6 +59,7 @@ export default function EditScreenPage() {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
+    console.log('Component mounted with screenId:', screenId)
     if (screenId) {
       fetchScreen()
     }
@@ -329,7 +330,10 @@ export default function EditScreenPage() {
             View Details
           </Link>
           <button
-            onClick={() => setShowDeleteConfirm(true)}
+            onClick={() => {
+              console.log('Delete button clicked, showing confirmation modal')
+              setShowDeleteConfirm(true)
+            }}
             className="inline-flex items-center px-3 py-2 border border-red-300 shadow-sm text-sm leading-4 font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
           >
             <Trash2 className="h-4 w-4 mr-1" />
@@ -619,6 +623,7 @@ export default function EditScreenPage() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
+        console.log('Rendering delete confirmation modal') ||
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowDeleteConfirm(false)} />
@@ -644,7 +649,10 @@ export default function EditScreenPage() {
               <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
                 <button
                   type="button"
-                  onClick={handleDelete}
+                  onClick={() => {
+                    console.log('Confirm delete button clicked in modal')
+                    handleDelete()
+                  }}
                   disabled={deleteLoading}
                   className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
