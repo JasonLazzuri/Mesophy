@@ -5,6 +5,7 @@ import { ArrowLeft, Calendar, Clock, Monitor, Play, AlertTriangle, Save, Eye } f
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import LocationPicker from '@/components/LocationPicker'
 
 interface Playlist {
   id: string
@@ -34,6 +35,8 @@ interface Schedule {
   name: string
   playlist_id: string
   screen_id: string | null
+  target_screen_types: string[] | null
+  target_locations: string[] | null
   start_date: string
   end_date: string | null
   start_time: string
@@ -90,13 +93,21 @@ const TIMEZONE_OPTIONS = [
   'Pacific/Honolulu'
 ]
 
+const SCREEN_TYPES = [
+  { value: 'menu_board', label: '🍽️ Menu Board', description: 'Display menus and food offerings' },
+  { value: 'employee_board', label: '👥 Employee Board', description: 'Staff schedules and announcements' },
+  { value: 'promo_board', label: '📢 Promo Board', description: 'Advertising and promotional content' }
+]
+
 export default function EditSchedulePage({ params }: RouteParams) {
   const { user } = useAuth()
   const router = useRouter()
   const [schedule, setSchedule] = useState<Schedule | null>(null)
   const [name, setName] = useState('')
   const [playlistId, setPlaylistId] = useState('')
-  const [screenAssignment, setScreenAssignment] = useState<'all' | 'single' | 'multiple'>('all')
+  const [screenAssignment, setScreenAssignment] = useState<'screen_types' | 'single' | 'multiple'>('screen_types')
+  const [selectedScreenTypes, setSelectedScreenTypes] = useState<string[]>(['menu_board'])
+  const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([])
   const [selectedScreenId, setSelectedScreenId] = useState('')
   const [selectedScreenIds, setSelectedScreenIds] = useState<string[]>([])
   const [startDate, setStartDate] = useState('')
@@ -141,7 +152,10 @@ export default function EditSchedulePage({ params }: RouteParams) {
 
       const hasScreenChanges = 
         (screenAssignment === 'single' && selectedScreenId !== (schedule.screen_id || '')) ||
-        (screenAssignment === 'all' && schedule.screen_id !== null) ||
+        (screenAssignment === 'screen_types' && (
+          JSON.stringify(selectedScreenTypes.sort()) !== JSON.stringify((schedule.target_screen_types || []).sort()) ||
+          JSON.stringify(selectedLocationIds.sort()) !== JSON.stringify((schedule.target_locations || []).sort())
+        )) ||
         (screenAssignment === 'multiple' && (
           schedule.screen_id !== null ||
           JSON.stringify(selectedScreenIds.sort()) !== JSON.stringify(
@@ -151,7 +165,7 @@ export default function EditSchedulePage({ params }: RouteParams) {
 
       setHasChanges(hasBasicChanges || hasScreenChanges)
     }
-  }, [name, playlistId, screenAssignment, selectedScreenId, selectedScreenIds, startDate, endDate, startTime, endTime, selectedDays, timezone, priority, isActive, schedule])
+  }, [name, playlistId, screenAssignment, selectedScreenTypes, selectedLocationIds, selectedScreenId, selectedScreenIds, startDate, endDate, startTime, endTime, selectedDays, timezone, priority, isActive, schedule])
 
   useEffect(() => {
     // Check for conflicts when relevant fields change
@@ -163,7 +177,7 @@ export default function EditSchedulePage({ params }: RouteParams) {
       const timeoutId = setTimeout(checkConflicts, 500) // Debounce
       return () => clearTimeout(timeoutId)
     }
-  }, [playlistId, screenAssignment, selectedScreenId, selectedScreenIds, startDate, endDate, startTime, endTime, selectedDays, priority, schedule])
+  }, [playlistId, screenAssignment, selectedScreenTypes, selectedLocationIds, selectedScreenId, selectedScreenIds, startDate, endDate, startTime, endTime, selectedDays, priority, schedule])
 
   const fetchSchedule = async () => {
     try {
@@ -188,14 +202,20 @@ export default function EditSchedulePage({ params }: RouteParams) {
       setIsActive(schedule.is_active)
 
       // Set screen assignment
-      if (schedule.screen_id) {
+      if (schedule.target_screen_types && schedule.target_screen_types.length > 0) {
+        setScreenAssignment('screen_types')
+        setSelectedScreenTypes(schedule.target_screen_types)
+        setSelectedLocationIds(schedule.target_locations || [])
+      } else if (schedule.screen_id) {
         setScreenAssignment('single')
         setSelectedScreenId(schedule.screen_id)
       } else if (schedule.screen_schedules && schedule.screen_schedules.length > 0) {
         setScreenAssignment('multiple')
         setSelectedScreenIds(schedule.screen_schedules.map(ss => ss.screen_id))
       } else {
-        setScreenAssignment('all')
+        setScreenAssignment('screen_types')
+        setSelectedScreenTypes(['menu_board'])
+        setSelectedLocationIds([])
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -239,6 +259,8 @@ export default function EditSchedulePage({ params }: RouteParams) {
         schedule_id: params.id,
         screen_id: screenAssignment === 'single' ? selectedScreenId : null,
         screen_ids: screenAssignment === 'multiple' ? selectedScreenIds : [],
+        target_screen_types: screenAssignment === 'screen_types' ? selectedScreenTypes : null,
+        target_locations: screenAssignment === 'screen_types' && selectedLocationIds.length > 0 ? selectedLocationIds : null,
         start_date: startDate,
         end_date: endDate || null,
         start_time: startTime,
@@ -285,6 +307,14 @@ export default function EditSchedulePage({ params }: RouteParams) {
     )
   }
 
+  const toggleScreenType = (screenType: string) => {
+    setSelectedScreenTypes(prev => 
+      prev.includes(screenType)
+        ? prev.filter(type => type !== screenType)
+        : [...prev, screenType]
+    )
+  }
+
   const formatDuration = (seconds: number) => {
     const minutes = Math.floor(seconds / 60)
     if (minutes === 0) {
@@ -309,6 +339,11 @@ export default function EditSchedulePage({ params }: RouteParams) {
       return
     }
 
+    if (screenAssignment === 'screen_types' && selectedScreenTypes.length === 0) {
+      setError('Please select at least one screen type')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -318,6 +353,8 @@ export default function EditSchedulePage({ params }: RouteParams) {
         playlist_id: playlistId,
         screen_id: screenAssignment === 'single' ? selectedScreenId : null,
         screen_ids: screenAssignment === 'multiple' ? selectedScreenIds : [],
+        target_screen_types: screenAssignment === 'screen_types' ? selectedScreenTypes : null,
+        target_locations: screenAssignment === 'screen_types' && selectedLocationIds.length > 0 ? selectedLocationIds : null,
         start_date: startDate,
         end_date: endDate || null,
         start_time: startTime,
@@ -663,12 +700,13 @@ export default function EditSchedulePage({ params }: RouteParams) {
                     <input
                       type="radio"
                       name="screenAssignment"
-                      value="all"
-                      checked={screenAssignment === 'all'}
-                      onChange={(e) => setScreenAssignment(e.target.value as 'all')}
+                      value="screen_types"
+                      checked={screenAssignment === 'screen_types'}
+                      onChange={(e) => setScreenAssignment(e.target.value as 'screen_types')}
                       className="mr-2"
                     />
-                    <span className="text-sm">All Screens</span>
+                    <span className="text-sm">By Screen Type</span>
+                    <span className="text-xs text-gray-500 ml-2">(Recommended)</span>
                   </label>
                   <label className="flex items-center">
                     <input
@@ -694,6 +732,47 @@ export default function EditSchedulePage({ params }: RouteParams) {
                   </label>
                 </div>
               </div>
+
+              {screenAssignment === 'screen_types' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Screen Types ({selectedScreenTypes.length} selected)
+                  </label>
+                  <div className="space-y-2">
+                    {SCREEN_TYPES.map((screenType) => (
+                      <label key={screenType.value} className="flex items-start p-3 border border-gray-200 rounded-md hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedScreenTypes.includes(screenType.value)}
+                          onChange={() => toggleScreenType(screenType.value)}
+                          className="mt-1 mr-3"
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium text-sm text-gray-900">{screenType.label}</div>
+                          <div className="text-xs text-gray-500">{screenType.description}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Your schedule will apply to all screens of the selected types. Different screen types can have the same priority without conflicts.
+                  </p>
+                  
+                  {/* Location Picker for screen types */}
+                  <div className="mt-4">
+                    <LocationPicker
+                      selectedLocationIds={selectedLocationIds}
+                      onLocationChange={setSelectedLocationIds}
+                      label="Target Locations (Optional)"
+                      placeholder="All locations (leave empty for organization-wide)"
+                      className="w-full"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Leave empty to apply to all locations, or select specific locations for targeted rollouts.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {screenAssignment === 'single' && (
                 <div>
