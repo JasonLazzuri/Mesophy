@@ -650,8 +650,20 @@ export default function EditScreenPage() {
                 </div>
               </div>
               <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                {/* Test button to verify clicks work */}
                 <button
                   type="button"
+                  onClick={() => console.log('TEST BUTTON CLICKED - Modal buttons work!')}
+                  className="w-full inline-flex justify-center rounded-md border border-green-600 shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 sm:ml-3 sm:w-auto sm:text-sm mb-2"
+                >
+                  TEST CLICK
+                </button>
+                
+                <button
+                  type="button"
+                  onMouseEnter={() => console.log('Mouse entered delete button')}
+                  onMouseDown={() => console.log('Mouse down on delete button')}
+                  onMouseUp={() => console.log('Mouse up on delete button')}
                   onClick={async (e) => {
                     console.log('Confirm delete button clicked in modal - event:', e)
                     console.log('deleteLoading state:', deleteLoading)
@@ -669,6 +681,7 @@ export default function EditScreenPage() {
                   }}
                   disabled={deleteLoading}
                   className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ pointerEvents: 'auto', zIndex: 9999 }}
                 >
                   {deleteLoading ? (
                     <>
