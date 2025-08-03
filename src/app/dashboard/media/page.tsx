@@ -25,6 +25,7 @@ import MediaUpload from '@/components/MediaUpload'
 import MediaDetailModal from '@/components/MediaDetailModal'
 import MediaEditModal from '@/components/MediaEditModal'
 import FolderModal from '@/components/FolderModal'
+import MediaSelectorModal from '@/components/MediaSelectorModal'
 
 type MediaAsset = Database['public']['Tables']['media_assets']['Row'] & {
   media_folders?: { name: string } | null
@@ -65,6 +66,7 @@ export default function MediaPage() {
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingAsset, setEditingAsset] = useState<MediaAsset | null>(null)
+  const [showMediaSelector, setShowMediaSelector] = useState(false)
 
   // Fetch media assets
   const fetchMediaAssets = useCallback(async () => {
@@ -239,6 +241,35 @@ export default function MediaPage() {
 
   const handleUploadComplete = () => {
     fetchMediaAssets()
+  }
+
+  const handleMediaAddToFolder = async (selectedMediaIds: string[]) => {
+    if (!currentFolderId || selectedMediaIds.length === 0) return
+    
+    try {
+      setError(null)
+      const response = await fetch('/api/media/move', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          mediaIds: selectedMediaIds,
+          folderId: currentFolderId
+        })
+      })
+      
+      if (response.ok) {
+        fetchMediaAssets() // Refresh current folder view
+        setShowMediaSelector(false)
+      } else {
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to add media to folder')
+      }
+    } catch (error) {
+      console.error('Add media to folder error:', error)
+      setError('Failed to add media to folder')
+    }
   }
 
   const formatFileSize = (bytes: number) => {
@@ -470,17 +501,47 @@ export default function MediaPage() {
             {/* Media Assets */}
             {mediaAssets.length === 0 ? (
               <div className="p-12 text-center">
-                <Upload className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No media files yet</h3>
-                <p className="text-gray-600 mb-6">
-                  Upload your first media file to get started
-                </p>
-                <button
-                  onClick={() => setShowUpload(true)}
-                  className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
-                >
-                  Upload Media
-                </button>
+                {currentFolderId ? (
+                  // In a folder - show folder-specific options
+                  <>
+                    <Folder className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">This folder is empty</h3>
+                    <p className="text-gray-600 mb-6">
+                      Add media files to this folder by uploading new content or moving existing files
+                    </p>
+                    <div className="flex items-center justify-center space-x-4">
+                      <button
+                        onClick={() => setShowUpload(true)}
+                        className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 flex items-center"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload New Media
+                      </button>
+                      <button
+                        onClick={() => setShowMediaSelector(true)}
+                        className="bg-gray-100 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-200 flex items-center"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Existing Media
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  // At root level - show general empty state
+                  <>
+                    <Upload className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No media files yet</h3>
+                    <p className="text-gray-600 mb-6">
+                      Upload your first media file to get started
+                    </p>
+                    <button
+                      onClick={() => setShowUpload(true)}
+                      className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
+                    >
+                      Upload Media
+                    </button>
+                  </>
+                )}
               </div>
             ) : (
               <div className="p-6">
@@ -782,6 +843,16 @@ export default function MediaPage() {
         folders={folders}
         onSave={handleMediaSave}
       />
+
+      {/* Media Selector Modal for adding existing media to folder */}
+      {showMediaSelector && (
+        <MediaSelectorModal
+          isOpen={showMediaSelector}
+          onClose={() => setShowMediaSelector(false)}
+          currentFolderId={currentFolderId}
+          onMediaSelected={handleMediaAddToFolder}
+        />
+      )}
     </div>
   )
 }

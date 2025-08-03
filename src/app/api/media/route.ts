@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || ''
     const mediaType = searchParams.get('type') // 'image', 'video', or null for all
     const folderId = searchParams.get('folder_id') || null
+    const excludeFolderId = searchParams.get('exclude_folder') || null
     const tags = searchParams.get('tags')?.split(',').filter(Boolean) || []
     
     // Get user's organization
@@ -54,6 +55,11 @@ export async function GET(request: NextRequest) {
       query = query.is('folder_id', null)
     } else if (folderId) {
       query = query.eq('folder_id', folderId)
+    }
+
+    // Exclude media from specific folder (for media selector modal)
+    if (excludeFolderId) {
+      query = query.neq('folder_id', excludeFolderId)
     }
 
     if (tags.length > 0) {
