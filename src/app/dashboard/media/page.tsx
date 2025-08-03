@@ -545,6 +545,31 @@ export default function MediaPage() {
               </div>
             ) : (
               <div className="p-6">
+                {/* Add Media Actions for Non-Empty Folders */}
+                {currentFolderId && (
+                  <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Folder Contents ({mediaAssets.length} items)
+                    </h3>
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={() => setShowUpload(true)}
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center text-sm"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload
+                      </button>
+                      <button
+                        onClick={() => setShowMediaSelector(true)}
+                        className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center text-sm"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Existing
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
                 {viewMode === 'grid' ? (
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {mediaAssets.map((asset) => (

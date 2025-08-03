@@ -447,9 +447,26 @@ export default function AddPlaylistPage() {
                     </div>
                   ) : (
                     <div>
-                      {folders.length > 0 && (
+                      {/* Folder content header with add media actions */}
+                      {currentFolderId && (
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+                          <h3 className="text-sm font-medium text-gray-900">
+                            {folders.length > 0 ? 'Media Files' : `Folder Contents (${filteredMedia.length} items)`}
+                          </h3>
+                          <div className="text-xs text-gray-500">
+                            Browse media or{' '}
+                            <button className="text-indigo-600 hover:text-indigo-700 underline">
+                              add more files
+                            </button>
+                            {' '}to this folder
+                          </div>
+                        </div>
+                      )}
+                      
+                      {folders.length > 0 && !currentFolderId && (
                         <h3 className="text-sm font-medium text-gray-900 mb-3">Media Files</h3>
                       )}
+                      
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {filteredMedia.map((media) => (
                     <div key={media.id} className="relative group">
