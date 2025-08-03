@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Plus, Play, X, Save, Eye, Clock } from 'lucide-react'
+import { ArrowLeft, Plus, Play, X, Save, Eye, Clock, Folder, Home, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
@@ -10,8 +10,23 @@ interface MediaAsset {
   id: string
   name: string
   file_url: string
+  file_path: string | null
   mime_type: string
+  media_type: string | null
   duration: number | null
+  width: number | null
+  height: number | null
+  resolution: string | null
+  media_folders?: { name: string } | null
+}
+
+interface MediaFolder {
+  id: string
+  name: string
+  parent_folder_id: string | null
+  organization_id: string
+  created_at: string
+  itemCount?: number
 }
 
 interface PlaylistItem {
@@ -60,11 +75,18 @@ export default function EditPlaylistPage({ params }: RouteParams) {
   const [searchTerm, setSearchTerm] = useState('')
   const [hasChanges, setHasChanges] = useState(false)
   const [previewMode, setPreviewMode] = useState(false)
+  const [folders, setFolders] = useState<MediaFolder[]>([])
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
+  const [folderPath, setFolderPath] = useState<MediaFolder[]>([])
 
   useEffect(() => {
     fetchPlaylist()
-    fetchMediaAssets()
   }, [params.id])
+
+  useEffect(() => {
+    fetchMediaAssets()
+    fetchFolders()
+  }, [currentFolderId])
 
   useEffect(() => {
     // Check for changes
@@ -116,16 +138,76 @@ export default function EditPlaylistPage({ params }: RouteParams) {
   const fetchMediaAssets = async () => {
     try {
       setFetchingMedia(true)
-      const response = await fetch('/api/media')
-      if (!response.ok) {
-        throw new Error('Failed to fetch media assets')
+      setError(null) // Clear any previous errors when fetching new data
+      console.log('Fetching media assets for folder:', currentFolderId)
+      const params = new URLSearchParams({ limit: '100' })
+      if (currentFolderId) {
+        params.append('folder_id', currentFolderId)
       }
+      
+      const response = await fetch(`/api/media?${params}`)
+      console.log('Response status:', response.status)
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('API Error:', errorData)
+        throw new Error(errorData.error || 'Failed to fetch media assets')
+      }
+      
       const data = await response.json()
-      setMediaAssets(data.media || [])
+      console.log('Media data received:', data)
+      console.log('Number of media assets:', data.mediaAssets?.length || 0)
+      
+      setMediaAssets(data.mediaAssets || [])
     } catch (err) {
+      console.error('Error fetching media:', err)
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setFetchingMedia(false)
+    }
+  }
+
+  const fetchFolders = async () => {
+    try {
+      const params = new URLSearchParams()
+      if (currentFolderId) {
+        params.append('parent_id', currentFolderId)
+      }
+
+      const response = await fetch(`/api/media/folders?${params}`)
+      if (!response.ok) throw new Error('Failed to fetch folders')
+      
+      const data = await response.json()
+      setFolders(data || [])
+    } catch (error) {
+      console.error('Error fetching folders:', error)
+    }
+  }
+
+  const navigateToFolder = (folderId: string | null, folderName?: string) => {
+    setCurrentFolderId(folderId)
+    
+    // Update breadcrumb path
+    if (folderId === null) {
+      setFolderPath([])
+    } else if (folderName) {
+      // If clicking on a folder from breadcrumb, truncate path to that point
+      const existingIndex = folderPath.findIndex(f => f.id === folderId)
+      if (existingIndex >= 0) {
+        setFolderPath(prev => prev.slice(0, existingIndex + 1))
+      } else {
+        // Add new folder to path
+        const newFolder = folders.find(f => f.id === folderId)
+        if (newFolder) {
+          setFolderPath(prev => [...prev, newFolder])
+        }
+      }
+    } else {
+      // Navigating to a folder without name (from folder click)
+      const newFolder = folders.find(f => f.id === folderId)
+      if (newFolder) {
+        setFolderPath(prev => [...prev, newFolder])
+      }
     }
   }
 
@@ -495,7 +577,33 @@ export default function EditPlaylistPage({ params }: RouteParams) {
         <div className="lg:col-span-2">
           {!previewMode && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Add Media</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Media Library</h2>
+              
+              {/* Breadcrumb Navigation */}
+              {folderPath.length > 0 && (
+                <nav className="flex items-center space-x-2 text-sm text-gray-600 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => navigateToFolder(null)}
+                    className="hover:text-indigo-600 flex items-center"
+                  >
+                    <Home className="h-4 w-4 mr-1" />
+                    Media Library
+                  </button>
+                  {folderPath.map((folder, index) => (
+                    <div key={folder.id} className="flex items-center">
+                      <ChevronRight className="h-4 w-4 mx-2" />
+                      <button
+                        type="button"
+                        onClick={() => navigateToFolder(folder.id, folder.name)}
+                        className="hover:text-indigo-600"
+                      >
+                        {folder.name}
+                      </button>
+                    </div>
+                  ))}
+                </nav>
+              )}
               
               <div className="mb-4">
                 <input
@@ -512,37 +620,98 @@ export default function EditPlaylistPage({ params }: RouteParams) {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-64 overflow-y-auto">
-                  {filteredMedia.map((media) => (
-                    <div key={media.id} className="relative group">
-                      <div className="aspect-video bg-gray-100 rounded overflow-hidden">
-                        {media.mime_type.startsWith('image/') ? (
-                          <img
-                            src={media.file_url}
-                            alt={media.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                            <Play className="h-8 w-8 text-gray-500" />
-                          </div>
-                        )}
+                <div className="max-h-96 overflow-y-auto">
+                  {/* Folders */}
+                  {folders.length > 0 && (
+                    <div className="mb-6">
+                      <h3 className="text-sm font-medium text-gray-900 mb-3">Folders</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                        {folders.map((folder) => (
+                          <button
+                            key={folder.id}
+                            type="button"
+                            onClick={() => navigateToFolder(folder.id, folder.name)}
+                            className="p-3 border border-gray-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50 transition-colors text-left"
+                          >
+                            <Folder className="h-6 w-6 text-indigo-600 mb-2" />
+                            <p className="text-sm font-medium text-gray-900 truncate">{folder.name}</p>
+                            <p className="text-xs text-gray-500">{folder.itemCount || 0} items</p>
+                          </button>
+                        ))}
                       </div>
-                      <p className="text-xs text-gray-600 mt-1 truncate">{media.name}</p>
-                      <button
-                        type="button"
-                        onClick={() => addMediaToPlaylist(media)}
-                        disabled={selectedMediaIds.has(media.id)}
-                        className={`absolute top-2 right-2 p-1.5 rounded-full shadow-sm ${
-                          selectedMediaIds.has(media.id)
-                            ? 'bg-green-500 text-white cursor-not-allowed'
-                            : 'bg-white text-gray-700 hover:bg-indigo-50 hover:text-indigo-600'
-                        }`}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </button>
                     </div>
-                  ))}
+                  )}
+                  
+                  {/* Media Assets */}
+                  {filteredMedia.length === 0 && folders.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-32 text-gray-500">
+                      <p className="text-sm">No media assets found</p>
+                      <p className="text-xs mt-1">
+                        {searchTerm ? 'Try adjusting your search term' : currentFolderId ? 'This folder is empty' : 'Upload some media files first'}
+                      </p>
+                    </div>
+                  ) : filteredMedia.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-32 text-gray-500">
+                      <Folder className="h-12 w-12 text-gray-400 mb-2" />
+                      <p className="text-sm">This folder contains no media</p>
+                      <p className="text-xs mt-1">Navigate back or choose a different folder</p>
+                    </div>
+                  ) : (
+                    <div>
+                      {/* Folder content header with add media actions */}
+                      {currentFolderId && (
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+                          <h3 className="text-sm font-medium text-gray-900">
+                            {folders.length > 0 ? 'Media Files' : `Folder Contents (${filteredMedia.length} items)`}
+                          </h3>
+                          <div className="text-xs text-gray-500">
+                            Browse media or{' '}
+                            <button type="button" className="text-indigo-600 hover:text-indigo-700 underline">
+                              add more files
+                            </button>
+                            {' '}to this folder
+                          </div>
+                        </div>
+                      )}
+                      
+                      {folders.length > 0 && !currentFolderId && (
+                        <h3 className="text-sm font-medium text-gray-900 mb-3">Media Files</h3>
+                      )}
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {filteredMedia.map((media) => (
+                          <div key={media.id} className="relative group">
+                            <div className="aspect-video bg-gray-100 rounded overflow-hidden">
+                              {media.mime_type.startsWith('image/') ? (
+                                <img
+                                  src={media.file_url}
+                                  alt={media.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                                  <Play className="h-8 w-8 text-gray-500" />
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-600 mt-1 truncate">{media.name}</p>
+                            <button
+                              type="button"
+                              onClick={() => addMediaToPlaylist(media)}
+                              disabled={selectedMediaIds.has(media.id)}
+                              className={`absolute top-2 right-2 p-1.5 rounded-full shadow-sm ${
+                                selectedMediaIds.has(media.id)
+                                  ? 'bg-green-500 text-white cursor-not-allowed'
+                                  : 'bg-white text-gray-700 hover:bg-indigo-50 hover:text-indigo-600'
+                              }`}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
