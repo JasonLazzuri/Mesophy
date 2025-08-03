@@ -73,9 +73,9 @@ export async function GET(request: NextRequest) {
     // Add item count to each folder by querying media_assets separately
     const foldersWithCount = []
     for (const folder of folders || []) {
-      // Count media assets in this folder using REST API
+      // Count ACTIVE media assets in this folder using REST API (exclude soft-deleted)
       const countResponse = await fetch(
-        `${url}/rest/v1/media_assets?organization_id=eq.${organizationId}&folder_id=eq.${folder.id}&select=id`,
+        `${url}/rest/v1/media_assets?organization_id=eq.${organizationId}&folder_id=eq.${folder.id}&is_active=eq.true&select=id`,
         {
           headers: {
             'Authorization': `Bearer ${serviceKey}`,
@@ -344,9 +344,9 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    // Check if folder contains media assets
+    // Check if folder contains ACTIVE media assets (exclude soft-deleted)
     const mediaResponse = await fetch(
-      `${url}/rest/v1/media_assets?folder_id=eq.${folderId}&select=id&limit=1`,
+      `${url}/rest/v1/media_assets?folder_id=eq.${folderId}&is_active=eq.true&select=id&limit=1`,
       {
         headers: {
           'Authorization': `Bearer ${serviceKey}`,
@@ -358,9 +358,9 @@ export async function DELETE(request: NextRequest) {
 
     if (mediaResponse.ok) {
       const mediaAssets = await mediaResponse.json()
-      console.log('DELETE /api/media/folders - Found media assets in folder:', mediaAssets.length)
+      console.log('DELETE /api/media/folders - Found ACTIVE media assets in folder:', mediaAssets.length)
       if (mediaAssets && mediaAssets.length > 0) {
-        console.error('DELETE /api/media/folders - Folder contains media assets')
+        console.error('DELETE /api/media/folders - Folder contains active media assets')
         return NextResponse.json({ 
           error: 'Cannot delete folder that contains media files. Please move or delete media files first.' 
         }, { status: 400 })
