@@ -37,20 +37,34 @@ export default function MediaSelectorModal({
         ...(searchQuery && { search: searchQuery })
       })
       
-      // If we're in a folder, exclude media from this folder
-      if (currentFolderId) {
-        params.append('exclude_folder', currentFolderId)
-      }
+      // For now, let's show ALL media so we can debug what's available
+      // TODO: Re-enable exclude logic once we confirm media exists
+      // if (currentFolderId) {
+      //   params.append('exclude_folder', currentFolderId)
+      // }
 
       console.log('MediaSelectorModal - Fetching with params:', params.toString())
       console.log('MediaSelectorModal - Current folder ID:', currentFolderId)
       
       const response = await fetch(`/api/media?${params}`)
-      if (!response.ok) throw new Error('Failed to fetch media')
+      console.log('MediaSelectorModal - Response status:', response.status, response.statusText)
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('MediaSelectorModal - API error:', errorText)
+        throw new Error(`Failed to fetch media: ${response.status} ${errorText}`)
+      }
       
       const data = await response.json()
       console.log('MediaSelectorModal - API response:', data)
       console.log('MediaSelectorModal - Media assets found:', data.mediaAssets?.length || 0)
+      
+      // Also test a basic media call to see if we can get ANY media
+      const testResponse = await fetch('/api/media?limit=5')
+      if (testResponse.ok) {
+        const testData = await testResponse.json()
+        console.log('MediaSelectorModal - Test API call result:', testData.mediaAssets?.length || 0, 'media items')
+      }
       
       setMediaAssets(data.mediaAssets || [])
     } catch (error) {
