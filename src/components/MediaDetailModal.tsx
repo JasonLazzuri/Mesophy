@@ -66,28 +66,7 @@ export default function MediaDetailModal({
       setLoading(true)
       setError(null)
 
-      // Get the user session token for authorization
-      const { createClient } = await import('@/lib/supabase')
-      const supabase = createClient()
-      
-      if (!supabase) {
-        throw new Error('Failed to initialize Supabase client')
-      }
-      
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      }
-      
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`
-        console.log('Using session token for media API call')
-      } else {
-        console.warn('No session token available for media API call')
-      }
-
-      const response = await fetch(`/api/media/${mediaId}`, { headers })
+      const response = await fetch(`/api/media/${mediaId}`)
       if (!response.ok) {
         const errorData = await response.text()
         console.error('Media API error:', response.status, response.statusText, errorData)

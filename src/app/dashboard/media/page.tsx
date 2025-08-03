@@ -162,30 +162,8 @@ export default function MediaPage() {
     try {
       setError(null) // Clear any existing errors
       
-      // Get the user session token for authorization
-      const { createClient } = await import('@/lib/supabase')
-      const supabase = createClient()
-      
-      if (!supabase) {
-        throw new Error('Failed to initialize Supabase client')
-      }
-      
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      }
-      
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`
-        console.log('Using session token for media delete API call')
-      } else {
-        console.warn('No session token available for media delete API call')
-      }
-      
       const response = await fetch(`/api/media/${assetId}`, {
-        method: 'DELETE',
-        headers
+        method: 'DELETE'
       })
       
       if (response.ok) {

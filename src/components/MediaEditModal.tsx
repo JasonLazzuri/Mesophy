@@ -79,30 +79,11 @@ export default function MediaEditModal({
         folder_id: formData.folder_id || null
       }
 
-      // Get the user session token for authorization
-      const { createClient } = await import('@/lib/supabase')
-      const supabase = createClient()
-      
-      if (!supabase) {
-        throw new Error('Failed to initialize Supabase client')
-      }
-      
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      }
-      
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`
-        console.log('Using session token for media edit API call')
-      } else {
-        console.warn('No session token available for media edit API call')
-      }
-
       const response = await fetch(`/api/media/${asset.id}`, {
         method: 'PUT',
-        headers,
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(updateData)
       })
 
