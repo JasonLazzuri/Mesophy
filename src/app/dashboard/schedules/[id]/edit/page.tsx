@@ -110,6 +110,8 @@ export default function EditSchedulePage({ params }: RouteParams) {
   const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([])
   const [selectedScreenId, setSelectedScreenId] = useState('')
   const [selectedScreenIds, setSelectedScreenIds] = useState<string[]>([])
+  const [multipleScreenSelectionMode, setMultipleScreenSelectionMode] = useState<'individual' | 'location'>('location')
+  const [selectedMultipleLocationIds, setSelectedMultipleLocationIds] = useState<string[]>([])
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [startTime, setStartTime] = useState('09:00')
@@ -158,14 +160,14 @@ export default function EditSchedulePage({ params }: RouteParams) {
         )) ||
         (screenAssignment === 'multiple' && (
           schedule.screen_id !== null ||
-          JSON.stringify(selectedScreenIds.sort()) !== JSON.stringify(
+          JSON.stringify(getEffectiveScreenIds().sort()) !== JSON.stringify(
             (schedule.screen_schedules || []).map(ss => ss.screen_id).sort()
           )
         ))
 
       setHasChanges(hasBasicChanges || hasScreenChanges)
     }
-  }, [name, playlistId, screenAssignment, selectedScreenTypes, selectedLocationIds, selectedScreenId, selectedScreenIds, startDate, endDate, startTime, endTime, selectedDays, timezone, priority, isActive, schedule])
+  }, [name, playlistId, screenAssignment, selectedScreenTypes, selectedLocationIds, selectedScreenId, selectedScreenIds, selectedMultipleLocationIds, startDate, endDate, startTime, endTime, selectedDays, timezone, priority, isActive, schedule])
 
   useEffect(() => {
     // Check for conflicts when relevant fields change
@@ -177,7 +179,7 @@ export default function EditSchedulePage({ params }: RouteParams) {
       const timeoutId = setTimeout(checkConflicts, 500) // Debounce
       return () => clearTimeout(timeoutId)
     }
-  }, [playlistId, screenAssignment, selectedScreenTypes, selectedLocationIds, selectedScreenId, selectedScreenIds, startDate, endDate, startTime, endTime, selectedDays, priority, schedule])
+  }, [playlistId, screenAssignment, selectedScreenTypes, selectedLocationIds, selectedScreenId, selectedScreenIds, selectedMultipleLocationIds, startDate, endDate, startTime, endTime, selectedDays, priority, schedule])
 
   const fetchSchedule = async () => {
     try {
@@ -212,6 +214,8 @@ export default function EditSchedulePage({ params }: RouteParams) {
       } else if (schedule.screen_schedules && schedule.screen_schedules.length > 0) {
         setScreenAssignment('multiple')
         setSelectedScreenIds(schedule.screen_schedules.map(ss => ss.screen_id))
+        setMultipleScreenSelectionMode('individual')
+        setSelectedMultipleLocationIds([])
       } else {
         setScreenAssignment('screen_types')
         setSelectedScreenTypes(['menu_board'])
@@ -258,7 +262,7 @@ export default function EditSchedulePage({ params }: RouteParams) {
       const conflictData = {
         schedule_id: params.id,
         screen_id: screenAssignment === 'single' ? selectedScreenId : null,
-        screen_ids: screenAssignment === 'multiple' ? selectedScreenIds : [],
+        screen_ids: screenAssignment === 'multiple' ? getEffectiveScreenIds() : [],
         target_screen_types: screenAssignment === 'screen_types' ? selectedScreenTypes : null,
         target_locations: screenAssignment === 'screen_types' && selectedLocationIds.length > 0 ? selectedLocationIds : null,
         start_date: startDate,
@@ -315,6 +319,17 @@ export default function EditSchedulePage({ params }: RouteParams) {
     )
   }
 
+  const getEffectiveScreenIds = () => {
+    if (multipleScreenSelectionMode === 'individual') {
+      return selectedScreenIds
+    } else {
+      // Get screens from selected locations
+      return screens
+        .filter(screen => selectedMultipleLocationIds.includes(screen.location_id))
+        .map(screen => screen.id)
+    }
+  }
+
   const formatDuration = (seconds: number) => {
     const minutes = Math.floor(seconds / 60)
     if (minutes === 0) {
@@ -334,8 +349,8 @@ export default function EditSchedulePage({ params }: RouteParams) {
       return
     }
 
-    if (screenAssignment === 'multiple' && selectedScreenIds.length === 0) {
-      setError('Please select at least one screen')
+    if (screenAssignment === 'multiple' && getEffectiveScreenIds().length === 0) {
+      setError('Please select at least one screen or location')
       return
     }
 
@@ -352,7 +367,7 @@ export default function EditSchedulePage({ params }: RouteParams) {
         name: name.trim(),
         playlist_id: playlistId,
         screen_id: screenAssignment === 'single' ? selectedScreenId : null,
-        screen_ids: screenAssignment === 'multiple' ? selectedScreenIds : [],
+        screen_ids: screenAssignment === 'multiple' ? getEffectiveScreenIds() : [],
         target_screen_types: screenAssignment === 'screen_types' ? selectedScreenTypes : null,
         target_locations: screenAssignment === 'screen_types' && selectedLocationIds.length > 0 ? selectedLocationIds : null,
         start_date: startDate,
@@ -799,28 +814,73 @@ export default function EditSchedulePage({ params }: RouteParams) {
               {screenAssignment === 'multiple' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Screens ({selectedScreenIds.length} selected)
+                    Select Screens ({getEffectiveScreenIds().length} selected)
                   </label>
-                  <div className="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-2">
-                    {screens.map((screen) => (
-                      <label key={screen.id} className="flex items-center p-2 hover:bg-gray-50 rounded">
+                  
+                  {/* Selection Mode Toggle */}
+                  <div className="mb-3">
+                    <div className="space-y-2">
+                      <label className="flex items-center">
                         <input
-                          type="checkbox"
-                          checked={selectedScreenIds.includes(screen.id)}
-                          onChange={() => toggleScreen(screen.id)}
-                          className="mr-3"
+                          type="radio"
+                          name="multipleScreenSelection"
+                          value="location"
+                          checked={multipleScreenSelectionMode === 'location'}
+                          onChange={(e) => setMultipleScreenSelectionMode(e.target.value as 'location')}
+                          className="mr-2"
                         />
-                        <div className="flex-1">
-                          <div className="text-sm font-medium text-gray-900">
-                            {screen.name}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {screen.location?.name || 'Unknown Location'} • {screen.location?.district?.name || 'Unknown District'}
-                          </div>
-                        </div>
+                        <span className="text-sm">Select by Location</span>
+                        <span className="text-xs text-gray-500 ml-2">(Recommended)</span>
                       </label>
-                    ))}
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="multipleScreenSelection"
+                          value="individual"
+                          checked={multipleScreenSelectionMode === 'individual'}
+                          onChange={(e) => setMultipleScreenSelectionMode(e.target.value as 'individual')}
+                          className="mr-2"
+                        />
+                        <span className="text-sm">Select Individual Screens</span>
+                      </label>
+                    </div>
                   </div>
+
+                  {multipleScreenSelectionMode === 'location' ? (
+                    <div>
+                      <LocationPicker
+                        selectedLocationIds={selectedMultipleLocationIds}
+                        onLocationChange={setSelectedMultipleLocationIds}
+                        label="Select Locations"
+                        placeholder="Choose locations to target all screens"
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        All screens at the selected locations will be included in this schedule.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-2">
+                      {screens.map((screen) => (
+                        <label key={screen.id} className="flex items-center p-2 hover:bg-gray-50 rounded">
+                          <input
+                            type="checkbox"
+                            checked={selectedScreenIds.includes(screen.id)}
+                            onChange={() => toggleScreen(screen.id)}
+                            className="mr-3"
+                          />
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">
+                              {screen.name}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {screen.location?.name || 'Unknown Location'} • {screen.location?.district?.name || 'Unknown District'}
+                            </div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
