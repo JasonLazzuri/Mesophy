@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { ScreenType, DeviceStatus, Orientation } from '@/types/database'
-import { simpleAuth, hasRequiredRole, hasOrganizationAccess } from '@/lib/simple-auth'
 
 export async function GET(request: NextRequest) {
   try {
@@ -187,20 +186,39 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('POST /api/screens - Starting request with simple auth')
+    console.log('POST /api/screens - Starting request')
     
-    // Use simple authentication approach to bypass JWT parsing issues
-    const { profile, error: authError } = await simpleAuth(request)
+    const supabase = await createClient()
     
-    if (authError || !profile) {
-      console.error('POST /api/screens - Authentication failed:', authError)
-      return NextResponse.json({ 
-        error: 'Unauthorized',
-        details: authError || 'Authentication validation failed'
-      }, { status: 401 })
+    if (!supabase) {
+      console.error('POST /api/screens - Supabase client not available')
+      return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
+    }
+
+    // Get current user and check authentication
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      console.error('POST /api/screens - Auth error:', authError)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Get user profile to check permissions
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !profile) {
+      console.error('POST /api/screens - Profile error:', profileError)
+      return NextResponse.json({ error: 'User profile not found' }, { status: 404 })
+    }
+
+    if (!profile.organization_id) {
+      return NextResponse.json({ error: 'No organization associated with user' }, { status: 403 })
     }
     
-    console.log('POST /api/screens - User authenticated via simple auth:', { 
+    console.log('POST /api/screens - User authenticated:', { 
       userId: profile.id, 
       role: profile.role, 
       org: profile.organization_id 
@@ -208,7 +226,7 @@ export async function POST(request: NextRequest) {
 
     // Check if user has permission to create screens
     const allowedRoles = ['super_admin', 'district_manager', 'location_manager']
-    if (!hasRequiredRole(profile, allowedRoles)) {
+    if (!allowedRoles.includes(profile.role)) {
       console.error('POST /api/screens - Insufficient permissions for role:', profile.role)
       return NextResponse.json({ 
         error: 'Insufficient permissions',
@@ -216,13 +234,8 @@ export async function POST(request: NextRequest) {
       }, { status: 403 })
     }
 
-    if (!hasOrganizationAccess(profile)) {
-      console.error('POST /api/screens - No organization access')
-      return NextResponse.json({ 
-        error: 'No organization associated with user',
-        details: 'User profile missing organization_id'
-      }, { status: 403 })
-    }
+    // Organization access already verified above
+    console.log('POST /api/screens - User has valid organization access')
     
     // Use service key for all database operations to bypass JWT issues
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL

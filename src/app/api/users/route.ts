@@ -6,6 +6,36 @@ export async function GET(request: NextRequest) {
   try {
     console.log('GET /api/users - Starting request')
     
+    const supabase = await createClient()
+    
+    if (!supabase) {
+      console.error('GET /api/users - Supabase client not available')
+      return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
+    }
+
+    // Get current user and check authentication
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      console.error('GET /api/users - Auth error:', authError)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Get user profile to check permissions and organization
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !profile) {
+      console.error('GET /api/users - Profile error:', profileError)
+      return NextResponse.json({ error: 'User profile not found' }, { status: 404 })
+    }
+
+    if (!profile.organization_id) {
+      return NextResponse.json({ error: 'No organization associated with user' }, { status: 403 })
+    }
+
     // Parse query parameters
     const searchParams = request.nextUrl.searchParams
     const search = searchParams.get('search') || ''
@@ -14,150 +44,71 @@ export async function GET(request: NextRequest) {
 
     console.log('GET /api/users - Query params:', { search, role, status })
 
-    // Get environment variables
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || 
-                       process.env.SUPABASE_SERVICE_ROLE_KEY ||
-                       process.env.SUPABASE_SERVICE_KEY ||
-                       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+    // Build query based on user role
+    let query = supabase
+      .from('user_profiles')
+      .select(`
+        *,
+        district:districts(id, name),
+        location:locations(id, name)
+      `)
 
-    if (!url || !serviceKey) {
-      console.error('GET /api/users - Missing environment variables')
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
+    // Role-based filtering
+    if (profile.role === 'super_admin') {
+      // Super admin can see all users in their organization
+      query = query.eq('organization_id', profile.organization_id)
+    } else if (profile.role === 'district_manager') {
+      // District manager can see users in their district and locations within their district
+      // First, get location IDs in their district
+      const { data: locations } = await supabase
+        .from('locations')
+        .select('id')
+        .eq('district_id', profile.district_id)
+      
+      const locationIds = locations?.map(l => l.id) || []
+      
+      // Build filter for users in their district or in locations within their district
+      if (locationIds.length > 0) {
+        query = query.or(`district_id.eq.${profile.district_id},location_id.in.(${locationIds.join(',')})`)
+      } else {
+        query = query.eq('district_id', profile.district_id)
+      }
+    } else {
+      // Location managers can only see their own profile
+      query = query.eq('id', user.id)
     }
 
-    // For now, we'll assume the user is a super admin since that's what we've been testing with
-    // This is a simplified approach until we can fix the JWT parsing issues
-    console.log('GET /api/users - Using service key to fetch all users')
-
-    // Build the query URL
-    let queryUrl = `${url}/rest/v1/user_profiles?select=*`
-    
-    // Apply filters
-    const filters = []
-    
+    // Apply search filters
     if (search) {
-      filters.push(`or=(full_name.ilike.*${search}*,email.ilike.*${search}*)`)
+      query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`)
     }
     
     if (role) {
-      filters.push(`role=eq.${role}`)
+      query = query.eq('role', role)
     }
     
     if (status === 'active') {
-      filters.push('is_active=eq.true')
+      query = query.eq('is_active', true)
     } else if (status === 'inactive') {
-      filters.push('is_active=eq.false')
-    }
-    
-    // For now, we'll get the first organization's users (simplified)
-    // In a real implementation, we'd get this from the authenticated user's profile
-    const orgResponse = await fetch(`${url}/rest/v1/user_profiles?select=organization_id&limit=1`, {
-      headers: {
-        'Authorization': `Bearer ${serviceKey}`,
-        'apikey': serviceKey,
-      }
-    })
-    
-    if (orgResponse.ok) {
-      const orgData = await orgResponse.json()
-      if (orgData[0]?.organization_id) {
-        filters.push(`organization_id=eq.${orgData[0].organization_id}`)
-      }
-    }
-    
-    if (filters.length > 0) {
-      queryUrl += '&' + filters.join('&')
+      query = query.eq('is_active', false)
     }
     
     // Add ordering
-    queryUrl += '&order=full_name.asc.nullslast'
+    query = query.order('full_name', { ascending: true, nullsFirst: false })
 
-    console.log('GET /api/users - Fetching from URL:', queryUrl)
+    const { data: users, error: usersError } = await query
 
-    // Fetch users using REST API
-    const usersResponse = await fetch(queryUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${serviceKey}`,
-        'apikey': serviceKey,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
-    })
-
-    if (!usersResponse.ok) {
-      const errorText = await usersResponse.text()
-      console.error('GET /api/users - Failed to fetch users:', usersResponse.status, errorText)
+    if (usersError) {
+      console.error('GET /api/users - Failed to fetch users:', usersError)
       return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
     }
 
-    const users = await usersResponse.json()
-    console.log('GET /api/users - Raw users result:', {
-      count: users.length,
-      firstUser: users[0] ? {
-        id: users[0].id,
-        email: users[0].email,
-        role: users[0].role
-      } : null
+    console.log('GET /api/users - Users fetched successfully:', {
+      count: users?.length || 0,
+      userEmails: users?.map(u => u.email) || []
     })
 
-    // Enrich users with district and location information
-    const enrichedUsers = []
-    for (const user of users) {
-      const enrichedUser = { ...user }
-      
-      // Get district info if user has district_id
-      if (user.district_id) {
-        try {
-          const districtResponse = await fetch(`${url}/rest/v1/districts?id=eq.${user.district_id}&select=id,name`, {
-            headers: {
-              'Authorization': `Bearer ${serviceKey}`,
-              'apikey': serviceKey,
-            }
-          })
-          
-          if (districtResponse.ok) {
-            const districts = await districtResponse.json()
-            if (districts[0]) {
-              enrichedUser.district = districts[0]
-            }
-          }
-        } catch (err) {
-          console.warn('Failed to fetch district for user:', user.id, err)
-        }
-      }
-      
-      // Get location info if user has location_id
-      if (user.location_id) {
-        try {
-          const locationResponse = await fetch(`${url}/rest/v1/locations?id=eq.${user.location_id}&select=id,name`, {
-            headers: {
-              'Authorization': `Bearer ${serviceKey}`,
-              'apikey': serviceKey,
-            }
-          })
-          
-          if (locationResponse.ok) {
-            const locations = await locationResponse.json()
-            if (locations[0]) {
-              enrichedUser.location = locations[0]
-            }
-          }
-        } catch (err) {
-          console.warn('Failed to fetch location for user:', user.id, err)
-        }
-      }
-      
-      enrichedUsers.push(enrichedUser)
-    }
-
-    console.log('GET /api/users - Final enriched result:', {
-      count: enrichedUsers.length,
-      userEmails: enrichedUsers.map(u => u.email)
-    })
-
-    return NextResponse.json({ users: enrichedUsers })
+    return NextResponse.json({ users: users || [] })
 
   } catch (error) {
     console.error('GET /api/users - Unexpected error:', error)

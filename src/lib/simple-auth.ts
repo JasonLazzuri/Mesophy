@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 
 interface UserProfile {
   id: string
@@ -12,24 +13,20 @@ interface UserProfile {
   updated_at: string
 }
 
-interface SimpleAuthResult {
+interface AuthResult {
   profile: UserProfile | null
   error: string | null
 }
 
 /**
- * Simple authentication that trusts frontend session and uses service key for backend
- * This bypasses all JWT parsing issues by using a different approach
+ * SECURE authentication using proper JWT validation through Supabase
+ * This replaces the insecure simple-auth bypass mechanism
  */
-export async function simpleAuth(request: NextRequest): Promise<SimpleAuthResult> {
+export async function validateAuth(request: NextRequest): Promise<AuthResult> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  // Use the same service key access pattern that works for users API
-  const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || 
-                     process.env.SUPABASE_SERVICE_ROLE_KEY ||
-                     process.env.SUPABASE_SERVICE_KEY ||
-                     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   
-  if (!url || !serviceKey) {
+  if (!url || !anonKey) {
     return {
       profile: null,
       error: 'Supabase configuration missing'
@@ -37,44 +34,54 @@ export async function simpleAuth(request: NextRequest): Promise<SimpleAuthResult
   }
 
   try {
-    // Check if there's any Supabase auth cookie present
-    const cookieHeader = request.headers.get('cookie')
-    if (!cookieHeader || !cookieHeader.includes('sb-')) {
-      return {
-        profile: null,
-        error: 'No authentication session found'
-      }
-    }
-
-    // Since we can't reliably parse the JWT, we'll use a different approach:
-    // Check if there's an active super_admin user in the system (there should only be one for now)
-    // This is a temporary workaround until we can fix the JWT parsing issue
-    
-    const profileResponse = await fetch(`${url}/rest/v1/user_profiles?role=eq.super_admin&select=*&limit=1`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${serviceKey}`,
-        'apikey': serviceKey,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
+    // Create Supabase client for proper authentication
+    const supabase = createServerClient(url, anonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll() {
+          // Cookie setting is handled elsewhere
+        },
+      },
     })
 
-    if (!profileResponse.ok) {
-      const errorText = await profileResponse.text()
+    // Authenticate using proper JWT validation
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
       return {
         profile: null,
-        error: `Profile fetch failed: ${profileResponse.status} ${errorText}`
+        error: authError?.message || 'No authenticated user found'
       }
     }
 
-    const profiles: UserProfile[] = await profileResponse.json()
-    const profile = profiles[0] || null
+    // Get user profile with proper authentication context
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
 
-    if (!profile) {
+    if (profileError || !profile) {
       return {
         profile: null,
-        error: 'No super admin profile found'
+        error: profileError?.message || 'User profile not found'
+      }
+    }
+
+    // Verify user is active and properly configured
+    if (!profile.is_active) {
+      return {
+        profile: null,
+        error: 'User account is deactivated'
+      }
+    }
+
+    if (!profile.organization_id) {
+      return {
+        profile: null,
+        error: 'User is not associated with an organization'
       }
     }
 
@@ -89,6 +96,15 @@ export async function simpleAuth(request: NextRequest): Promise<SimpleAuthResult
       error: `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`
     }
   }
+}
+
+/**
+ * DEPRECATED: Use validateAuth instead
+ * This function is kept for backward compatibility but should not be used
+ */
+export async function simpleAuth(request: NextRequest): Promise<AuthResult> {
+  console.warn('⚠️  simpleAuth is deprecated and insecure. Use validateAuth instead.')
+  return validateAuth(request)
 }
 
 /**
