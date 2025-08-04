@@ -1,17 +1,44 @@
-import { NextResponse } from 'next/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    console.log('=== ADMIN CLIENT TEST START ===')
+    // SECURITY: Only allow access in development mode
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Test endpoints disabled in production' }, { status: 404 })
+    }
+
+    // SECURITY: Require authentication
+    const supabase = await createClient()
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // SECURITY: Require super_admin role
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !profile || profile.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
+    }
+
+    console.log('=== ADMIN CLIENT TEST START (AUTHORIZED) ===')
     
-    // Get environment variables
+    // Safe admin client test (no sensitive data exposed)
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY
     
     console.log('Environment check:', {
-      url: url ? 'present' : 'missing',
-      serviceKey: serviceKey ? `present (${serviceKey.substring(0, 20)}...)` : 'missing'
+      url: url ? 'configured' : 'missing',
+      serviceKey: serviceKey ? 'configured' : 'missing'
     })
     
     if (!url || !serviceKey) {

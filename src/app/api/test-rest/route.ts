@@ -1,7 +1,12 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // SECURITY: Only allow access in development mode
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Test endpoints disabled in production' }, { status: 404 })
+    }
+
     console.log('=== TESTING SUPABASE REST API DIRECTLY ===')
     
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL

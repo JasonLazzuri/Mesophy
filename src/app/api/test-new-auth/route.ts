@@ -3,6 +3,11 @@ import { validateUserAuth } from '@/lib/auth-helper'
 
 export async function GET(request: NextRequest) {
   try {
+    // SECURITY: Only allow access in development mode
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Test endpoints disabled in production' }, { status: 404 })
+    }
+
     console.log('TEST NEW AUTH - Starting request')
     
     const { user, profile, error } = await validateUserAuth(request)

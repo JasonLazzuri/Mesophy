@@ -3,6 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   try {
+    // SECURITY: Only allow access in development mode
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Test endpoints disabled in production' }, { status: 404 })
+    }
+
     const supabase = await createClient()
     
     if (!supabase) {
