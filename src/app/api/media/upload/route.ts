@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { 
+  processImage, 
+  extractVideoThumbnail, 
+  generateOptimizedPaths, 
+  getCdnUrl, 
+  isImageFile, 
+  isVideoFile,
+  getOptimizedExtension
+} from '@/lib/media-optimization'
 
 export async function POST(request: NextRequest) {
   try {
@@ -58,7 +67,106 @@ export async function POST(request: NextRequest) {
     const fileExt = file.name.split('.').pop()
     const uniqueFileName = `${userProfile.organization_id}/${timestamp}-${randomStr}.${fileExt}`
 
-    // Upload to Supabase Storage
+    // Convert file to buffer for processing
+    const fileBuffer = Buffer.from(await file.arrayBuffer())
+    const mediaType = file.type.startsWith('image/') ? 'image' : 'video'
+
+    // Initialize variables for optimization data
+    let thumbnailUrl = null
+    let thumbnailPath = null
+    let previewUrl = null
+    let previewPath = null
+    let optimizedUrl = null
+    let optimizedPath = null
+    let compressionRatio = null
+    let processingStatus = 'completed'
+
+    try {
+      // Process images for optimization
+      if (isImageFile(file.type)) {
+        console.log('Processing image for optimization...')
+        const processed = await processImage(fileBuffer, file.size)
+        const paths = generateOptimizedPaths(uniqueFileName, userProfile.organization_id)
+
+        // Upload thumbnail
+        const { error: thumbError } = await supabase.storage
+          .from('media-assets')
+          .upload(paths.thumbnailPath, processed.thumbnail.buffer, {
+            contentType: 'image/webp',
+            upsert: false
+          })
+
+        if (!thumbError) {
+          thumbnailPath = paths.thumbnailPath
+          thumbnailUrl = getCdnUrl(paths.thumbnailPath)
+        }
+
+        // Upload preview
+        const { error: previewError } = await supabase.storage
+          .from('media-assets')
+          .upload(paths.previewPath, processed.preview.buffer, {
+            contentType: 'image/webp',
+            upsert: false
+          })
+
+        if (!previewError) {
+          previewPath = paths.previewPath
+          previewUrl = getCdnUrl(paths.previewPath)
+        }
+
+        // Upload optimized version
+        const optimizedExt = getOptimizedExtension(file.type, processed.optimized.format)
+        const optimizedFileName = paths.optimizedPath + optimizedExt
+        
+        const { error: optimizedError } = await supabase.storage
+          .from('media-assets')
+          .upload(optimizedFileName, processed.optimized.buffer, {
+            contentType: `image/${processed.optimized.format}`,
+            upsert: false
+          })
+
+        if (!optimizedError) {
+          optimizedPath = optimizedFileName
+          optimizedUrl = getCdnUrl(optimizedFileName)
+          compressionRatio = processed.compressionRatio
+        }
+
+        console.log('Image processing completed:', {
+          originalSize: file.size,
+          thumbnailSize: processed.thumbnail.size,
+          previewSize: processed.preview.size,
+          optimizedSize: processed.optimized.size,
+          compressionRatio: processed.compressionRatio
+        })
+
+      } else if (isVideoFile(file.type)) {
+        console.log('Processing video thumbnail...')
+        try {
+          const thumbnailBuffer = await extractVideoThumbnail(fileBuffer)
+          const paths = generateOptimizedPaths(uniqueFileName, userProfile.organization_id)
+
+          const { error: thumbError } = await supabase.storage
+            .from('media-assets')
+            .upload(paths.thumbnailPath, thumbnailBuffer, {
+              contentType: 'image/png',
+              upsert: false
+            })
+
+          if (!thumbError) {
+            thumbnailPath = paths.thumbnailPath
+            thumbnailUrl = getCdnUrl(paths.thumbnailPath)
+          }
+        } catch (error) {
+          console.warn('Video thumbnail generation failed:', error)
+          processingStatus = 'failed'
+        }
+      }
+    } catch (error) {
+      console.error('Media processing error:', error)
+      processingStatus = 'failed'
+    }
+
+    // Upload original file
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('media-assets')
       .upload(uniqueFileName, file, {
@@ -68,25 +176,24 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) {
       console.error('Upload error:', uploadError)
+      // Clean up any processed files
+      if (thumbnailPath) await supabase.storage.from('media-assets').remove([thumbnailPath])
+      if (previewPath) await supabase.storage.from('media-assets').remove([previewPath])
+      if (optimizedPath) await supabase.storage.from('media-assets').remove([optimizedPath])
       return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 })
     }
 
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('media-assets')
-      .getPublicUrl(uniqueFileName)
+    // Get CDN URLs
+    const fileUrl = getCdnUrl(uniqueFileName)
 
-    // Extract basic metadata
-    const mediaType = file.type.startsWith('image/') ? 'image' : 'video'
-
-    // Create media asset record
+    // Create media asset record with optimization data
     const mediaAssetData = {
       organization_id: userProfile.organization_id,
       name: customName || file.name.replace(/\.[^/.]+$/, ''), // Remove extension
       description: description || null,
       file_name: file.name,
       file_path: uniqueFileName,
-      file_url: publicUrl,
+      file_url: fileUrl,
       file_size: file.size,
       mime_type: file.type,
       media_type: mediaType,
@@ -97,7 +204,19 @@ export async function POST(request: NextRequest) {
       tags: tags ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : null,
       folder_id: folderId || null,
       is_active: true,
-      created_by: user.id
+      created_by: user.id,
+      // Optimization fields
+      thumbnail_url: thumbnailUrl,
+      thumbnail_path: thumbnailPath,
+      preview_url: previewUrl,
+      preview_path: previewPath,
+      optimized_url: optimizedUrl,
+      optimized_path: optimizedPath,
+      original_file_size: file.size,
+      compressed_file_size: optimizedPath ? null : file.size, // Will be updated if optimization succeeded
+      compression_ratio: compressionRatio,
+      processing_status: processingStatus,
+      cdn_enabled: true
     }
 
     const { data: mediaAsset, error: dbError } = await supabase
@@ -108,8 +227,11 @@ export async function POST(request: NextRequest) {
 
     if (dbError) {
       console.error('Database error:', dbError)
-      // Clean up uploaded file
+      // Clean up uploaded files
       await supabase.storage.from('media-assets').remove([uniqueFileName])
+      if (thumbnailPath) await supabase.storage.from('media-assets').remove([thumbnailPath])
+      if (previewPath) await supabase.storage.from('media-assets').remove([previewPath])
+      if (optimizedPath) await supabase.storage.from('media-assets').remove([optimizedPath])
       return NextResponse.json({ error: 'Failed to save media asset' }, { status: 500 })
     }
 

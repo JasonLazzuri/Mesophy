@@ -603,14 +603,19 @@ export default function MediaPage() {
                           {asset.media_type === 'image' ? (
                             <>
                               <img
-                                src={asset.file_url}
+                                src={asset.thumbnail_url || asset.file_url}
                                 alt={asset.name}
                                 className="w-full h-full object-cover"
                                 crossOrigin="anonymous"
                                 onError={(e) => {
-                                  // Fallback to a placeholder if image fails to load
-                                  e.currentTarget.style.display = 'none'
-                                  e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                                  // Fallback to original if thumbnail fails, then to placeholder
+                                  const currentSrc = e.currentTarget.src
+                                  if (currentSrc === asset.thumbnail_url && asset.file_url) {
+                                    e.currentTarget.src = asset.file_url
+                                  } else {
+                                    e.currentTarget.style.display = 'none'
+                                    e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                                  }
                                 }}
                               />
                               <div className="hidden absolute inset-0 flex items-center justify-center">
@@ -619,10 +624,24 @@ export default function MediaPage() {
                             </>
                           ) : (
                             <div className="text-center">
-                              <Video className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                              <p className="text-xs text-gray-600">
-                                {asset.duration && formatDuration(asset.duration)}
-                              </p>
+                              {asset.thumbnail_url ? (
+                                <img
+                                  src={asset.thumbnail_url}
+                                  alt={asset.name}
+                                  className="w-full h-full object-cover rounded"
+                                  onError={(e) => {
+                                    // Fallback to video icon if thumbnail fails
+                                    e.currentTarget.style.display = 'none'
+                                    e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                                  }}
+                                />
+                              ) : null}
+                              <div className={asset.thumbnail_url ? "hidden" : ""}>
+                                <Video className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                                <p className="text-xs text-gray-600">
+                                  {asset.duration && formatDuration(asset.duration)}
+                                </p>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -687,6 +706,14 @@ export default function MediaPage() {
                           <p className="text-xs text-gray-500">{formatFileSize(asset.file_size || 0)}</p>
                           {asset.resolution && (
                             <p className="text-xs text-gray-500">{asset.resolution}</p>
+                          )}
+                          {asset.compression_ratio && asset.compression_ratio > 0 && (
+                            <p className="text-xs text-green-600">
+                              {asset.compression_ratio.toFixed(1)}% smaller
+                            </p>
+                          )}
+                          {asset.processing_status === 'failed' && (
+                            <p className="text-xs text-amber-600">Processing failed</p>
                           )}
                         </div>
                       </div>

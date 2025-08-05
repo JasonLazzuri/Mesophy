@@ -261,8 +261,11 @@ export default function MediaUpload({ isOpen, onClose, currentFolderId, onUpload
             <p className="text-sm text-gray-600 mb-4">
               Support for images (JPG, PNG, GIF, WebP) and videos (MP4, WebM, MOV)
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 mb-2">
               Maximum file size: 50MB for videos, 20MB for images
+            </p>
+            <p className="text-xs text-green-600">
+              ✨ Images will be automatically optimized with thumbnails and compression
             </p>
 
             <input
