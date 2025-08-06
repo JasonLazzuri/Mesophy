@@ -144,10 +144,19 @@ export default function MediaDetailModal({
             <>
               {asset.media_type === 'image' ? (
                 <img
-                  src={asset.file_url}
+                  src={asset.preview_url || asset.optimized_url || asset.file_url}
                   alt={asset.name}
                   className="max-w-full max-h-full object-contain"
                   crossOrigin="anonymous"
+                  onError={(e) => {
+                    // Fallback chain: preview → optimized → original
+                    const currentSrc = e.currentTarget.src
+                    if (currentSrc === asset.preview_url && asset.optimized_url) {
+                      e.currentTarget.src = asset.optimized_url
+                    } else if (currentSrc === asset.optimized_url && asset.file_url) {
+                      e.currentTarget.src = asset.file_url
+                    }
+                  }}
                 />
               ) : (
                 <div className="relative w-full h-full flex items-center justify-center">
@@ -242,6 +251,22 @@ export default function MediaDetailModal({
                       <div className="flex justify-between py-1">
                         <span className="text-gray-600">Duration:</span>
                         <span className="text-gray-900">{formatDuration(asset.duration)}</span>
+                      </div>
+                    )}
+                    {asset.compression_ratio && asset.compression_ratio > 0 && (
+                      <div className="flex justify-between py-1">
+                        <span className="text-gray-600">Compression:</span>
+                        <span className="text-green-600 font-medium">
+                          {asset.compression_ratio.toFixed(1)}% smaller
+                        </span>
+                      </div>
+                    )}
+                    {asset.processing_status && (
+                      <div className="flex justify-between py-1">
+                        <span className="text-gray-600">Processing:</span>
+                        <span className={asset.processing_status === 'completed' ? 'text-green-600' : 'text-yellow-600'}>
+                          {asset.processing_status}
+                        </span>
                       </div>
                     )}
                   </div>
