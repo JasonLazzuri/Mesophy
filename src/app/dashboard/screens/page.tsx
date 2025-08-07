@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Monitor, Search, Plus, Edit, Building2, MapPin, Wifi, WifiOff, AlertTriangle, Settings, Clock, Activity } from 'lucide-react'
+import { Monitor, Search, Plus, Edit, Building2, MapPin, Wifi, WifiOff, AlertTriangle, Settings, Clock, Activity, Smartphone } from 'lucide-react'
 import Link from 'next/link'
 import { ScreenType, DeviceStatus, Orientation } from '@/types/database'
 
@@ -12,6 +12,9 @@ interface Screen {
   screen_type: ScreenType
   device_id: string | null
   device_status: DeviceStatus
+  device_token: string | null
+  device_info: any
+  last_sync_at: string | null
   resolution: string
   orientation: Orientation
   is_active: boolean
@@ -216,13 +219,22 @@ export default function ScreensPage() {
             Manage digital display devices across all your locations
           </p>
         </div>
-        <Link
-          href="/dashboard/screens/add"
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Screen
-        </Link>
+        <div className="flex space-x-2">
+          <Link
+            href="/dashboard/devices/pair"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+          >
+            <Smartphone className="h-4 w-4 mr-2" />
+            Pair Device
+          </Link>
+          <Link
+            href="/dashboard/screens/add"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Screen
+          </Link>
+        </div>
       </div>
 
       {error && (
@@ -381,10 +393,24 @@ export default function ScreensPage() {
                                 </div>
                               )}
                               
+                              {screen.device_token && (
+                                <div className="flex items-center text-xs text-green-600">
+                                  <Smartphone className="h-3 w-3 mr-2 flex-shrink-0" />
+                                  <span>Pi Device Connected</span>
+                                </div>
+                              )}
+                              
                               <div className="flex items-center text-xs text-gray-600">
                                 <Clock className="h-3 w-3 mr-2 flex-shrink-0" />
                                 <span>Last seen: {formatLastSeen(screen.last_seen)}</span>
                               </div>
+                              
+                              {screen.last_sync_at && (
+                                <div className="flex items-center text-xs text-blue-600">
+                                  <Activity className="h-3 w-3 mr-2 flex-shrink-0" />
+                                  <span>Last sync: {formatLastSeen(screen.last_sync_at)}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
 

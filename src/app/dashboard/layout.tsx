@@ -2,7 +2,7 @@
 
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/hooks/useAuth'
-import { Building2, Monitor, Users, LogOut, Menu, X, Tv, Image, Calendar, Play } from 'lucide-react'
+import { Building2, Monitor, Users, LogOut, Menu, X, Tv, Image, Calendar, Play, Download, Smartphone } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
@@ -98,29 +98,64 @@ export default function DashboardLayout({
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                 </div>
               ) : (
-                navigation.map((item) => {
-                  const isActive = pathname === item.href || 
-                    (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
-                  return (
+                <>
+                  {navigation.map((item) => {
+                    const isActive = pathname === item.href || 
+                      (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
+                    return (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        className={`group flex items-center px-3 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
+                          isActive
+                            ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg'
+                            : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                        }`}
+                      >
+                        <item.icon className={`mr-3 h-5 w-5 transition-colors ${
+                          isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'
+                        }`} />
+                        {item.name}
+                        {isActive && (
+                          <div className="ml-auto h-2 w-2 bg-white/30 rounded-full"></div>
+                        )}
+                      </Link>
+                    )
+                  })}
+                  
+                  {/* Pi Device Section */}
+                  <div className="pt-6">
+                    <div className="px-3 pb-2">
+                      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Pi Devices
+                      </h3>
+                    </div>
                     <Link
-                      key={item.name}
-                      href={item.href}
+                      href="/dashboard/devices/pair"
                       className={`group flex items-center px-3 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
-                        isActive
-                          ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg'
+                        pathname === '/dashboard/devices/pair'
+                          ? 'bg-gradient-to-r from-green-600 to-green-700 text-white shadow-lg'
                           : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                       }`}
                     >
-                      <item.icon className={`mr-3 h-5 w-5 transition-colors ${
-                        isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'
+                      <Smartphone className={`mr-3 h-5 w-5 transition-colors ${
+                        pathname === '/dashboard/devices/pair' ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'
                       }`} />
-                      {item.name}
-                      {isActive && (
+                      Pair Device
+                      {pathname === '/dashboard/devices/pair' && (
                         <div className="ml-auto h-2 w-2 bg-white/30 rounded-full"></div>
                       )}
                     </Link>
-                  )
-                })
+                    <a
+                      href="https://raw.githubusercontent.com/JasonLazzuri/Mesophy/main/pi-client/install.sh"
+                      download="install.sh"
+                      className="group flex items-center px-3 py-3 text-sm font-medium rounded-xl transition-all duration-200 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                    >
+                      <Download className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                      Download Installer
+                    </a>
+                  </div>
+                </>
               )}
             </div>
           </nav>
