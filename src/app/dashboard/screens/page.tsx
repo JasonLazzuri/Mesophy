@@ -5,6 +5,7 @@ import { Monitor, Search, Plus, Edit, Building2, MapPin, Wifi, WifiOff, AlertTri
 import Link from 'next/link'
 import { ScreenType, DeviceStatus, Orientation } from '@/types/database'
 import PairingModal from '@/components/PairingModal'
+import EnterPairingCodeModal from '@/components/EnterPairingCodeModal'
 import Toast from '@/components/Toast'
 
 interface Screen {
@@ -55,6 +56,7 @@ export default function ScreensPage() {
   const [typeFilter, setTypeFilter] = useState<ScreenType | 'all'>('all')
   const [error, setError] = useState('')
   const [pairingModalOpen, setPairingModalOpen] = useState(false)
+  const [enterCodeModalOpen, setEnterCodeModalOpen] = useState(false)
   const [selectedScreenForPairing, setSelectedScreenForPairing] = useState<Screen | null>(null)
   const [actionLoading, setActionLoading] = useState<{ [screenId: string]: string }>({}) // Track loading state for actions
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info', title: string, message?: string } | null>(null)
@@ -277,6 +279,13 @@ export default function ScreensPage() {
           </p>
         </div>
         <div className="flex space-x-2">
+          <button
+            onClick={() => setEnterCodeModalOpen(true)}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+          >
+            <Smartphone className="h-4 w-4 mr-2" />
+            Enter Pairing Code
+          </button>
           <Link
             href="/dashboard/screens/add"
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
@@ -613,6 +622,20 @@ export default function ScreensPage() {
           onSuccess={handlePairingSuccess}
         />
       )}
+
+      {/* Enter Pairing Code Modal */}
+      <EnterPairingCodeModal
+        isOpen={enterCodeModalOpen}
+        onClose={() => setEnterCodeModalOpen(false)}
+        onSuccess={() => {
+          fetchScreens()
+          setToast({
+            type: 'success',
+            title: 'Device Paired Successfully!',
+            message: 'Your Pi device has been connected to the selected screen.'
+          })
+        }}
+      />
 
       {/* Toast Notifications */}
       {toast && (
