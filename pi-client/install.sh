@@ -1,7 +1,38 @@
 #!/bin/bash
 
-# Mesophy Pi Client Installation Script
-# Usage: curl -sSL install.mesophy.com | sudo bash
+# ⚠️  DEPRECATED: Complex Web-Based Installation
+# 
+# This installer creates a web server that requires manual browser navigation.
+# 
+# 🚀 NEW: Use install-native-simple.sh instead!
+#    - Direct HDMI display like Mediafy
+#    - No browser required
+#    - Automatic pairing code display
+#    - Much simpler and more reliable
+#
+# Usage for new system:
+#   curl -sSL https://raw.githubusercontent.com/JasonLazzuri/Mesophy/main/pi-client/install-native-simple.sh | sudo bash
+
+echo "⚠️  WARNING: You're using the DEPRECATED complex installer!"
+echo ""
+echo "🚀 NEW SIMPLIFIED INSTALLER AVAILABLE:"
+echo "   • Direct HDMI display (like Mediafy)"
+echo "   • No browser navigation required"
+echo "   • Automatic pairing code display"
+echo "   • More reliable and faster"
+echo ""
+echo "Recommended command:"
+echo "curl -sSL https://raw.githubusercontent.com/JasonLazzuri/Mesophy/main/pi-client/install-native-simple.sh | sudo bash"
+echo ""
+echo "Continue with old complex installer? (y/N)"
+read -r response
+if [[ ! "$response" =~ ^[Yy]$ ]]; then
+    echo "Exiting. Use the new installer instead!"
+    exit 0
+fi
+
+echo "Continuing with deprecated installer..."
+sleep 3
 
 set -e
 
