@@ -141,7 +141,7 @@ export default function PiInstallerPage() {
 
           <div className="warning">
             <strong>⚠️ Requirements:</strong>
-            <ul style="margin: 10px 0; padding-left: 20px;">
+            <ul style={{margin: '10px 0', paddingLeft: '20px'}}>
               <li>Raspberry Pi 3B+ or newer (Pi 4 recommended)</li>
               <li>16GB+ microSD card (Class 10+)</li>
               <li>Internet connection (WiFi or Ethernet)</li>
@@ -156,7 +156,7 @@ export default function PiInstallerPage() {
               curl -sSL https://mesophy.vercel.app/api/devices/installer | sudo bash
             </div>
             <p><strong>✨ New Features:</strong></p>
-            <ul style="margin: 10px 0; padding-left: 20px; color: #10b981;">
+            <ul style={{margin: '10px 0', paddingLeft: '20px', color: '#10b981'}}>
               <li>🎬 Native media players (no browser required)</li>
               <li>🖥️ Automatic display configuration</li>
               <li>⚡ Hardware-accelerated video playback</li>
