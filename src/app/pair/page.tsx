@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Monitor, Smartphone, Copy, CheckCircle, QrCode, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
@@ -17,7 +17,7 @@ interface PairingInfo {
   dashboard_url: string
 }
 
-export default function MobilePairingPage() {
+function MobilePairingContent() {
   const searchParams = useSearchParams()
   const [pairingInfo, setPairingInfo] = useState<PairingInfo | null>(null)
   const [copied, setCopied] = useState(false)
@@ -254,5 +254,17 @@ Dashboard: ${pairingInfo.dashboard_url}`
         </div>
       </div>
     </div>
+  )
+}
+
+export default function MobilePairingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    }>
+      <MobilePairingContent />
+    </Suspense>
   )
 }

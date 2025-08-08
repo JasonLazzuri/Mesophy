@@ -1,15 +1,19 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { apiResponse } from '@/lib/api-responses'
-import { authenticateUser } from '@/lib/secure-auth'
 
 export async function POST(request: NextRequest) {
   try {
-    const { user, supabase } = await authenticateUser(request)
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
     const { action, screen_id, device_id } = await request.json()
 
     if (!action || !screen_id) {
-      return apiResponse.badRequest('Action and screen_id are required')
+      return NextResponse.json({ error: 'Action and screen_id are required' }, { status: 400 })
     }
 
     // Get screen and verify user has access
@@ -31,7 +35,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (screenError || !screen) {
-      return apiResponse.notFound('Screen not found')
+      return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
     }
 
     // Verify user has access to this screen
@@ -42,7 +46,7 @@ export async function POST(request: NextRequest) {
       })
 
     if (!hasAccess) {
-      return apiResponse.unauthorized('Access denied to this screen')
+      return NextResponse.json({ error: 'Access denied to this screen' }, { status: 403 })
     }
 
     switch (action) {
@@ -61,10 +65,10 @@ export async function POST(request: NextRequest) {
           })
 
         if (logError) {
-          return apiResponse.internalError('Failed to log restart request')
+          return NextResponse.json({ error: 'Failed to log restart request' }, { status: 500 })
         }
 
-        return apiResponse.success({
+        return NextResponse.json({
           message: 'Restart request logged successfully',
           action: 'restart',
           screen_id: screen_id,
@@ -81,7 +85,7 @@ export async function POST(request: NextRequest) {
           .eq('id', screen_id)
 
         if (updateError) {
-          return apiResponse.internalError('Failed to trigger sync')
+          return NextResponse.json({ error: 'Failed to trigger sync' }, { status: 500 })
         }
 
         // Log sync request
@@ -97,7 +101,7 @@ export async function POST(request: NextRequest) {
             }
           })
 
-        return apiResponse.success({
+        return NextResponse.json({
           message: 'Force sync requested successfully',
           action: 'force_sync',
           screen_id: screen_id
@@ -113,10 +117,10 @@ export async function POST(request: NextRequest) {
           .limit(50)
 
         if (logsError) {
-          return apiResponse.internalError('Failed to fetch logs')
+          return NextResponse.json({ error: 'Failed to fetch logs' }, { status: 500 })
         }
 
-        return apiResponse.success({
+        return NextResponse.json({
           logs: logs || [],
           screen_id: screen_id
         })
@@ -130,10 +134,10 @@ export async function POST(request: NextRequest) {
           .single()
 
         if (statusError || !currentScreen) {
-          return apiResponse.internalError('Failed to get device status')
+          return NextResponse.json({ error: 'Failed to get device status' }, { status: 500 })
         }
 
-        return apiResponse.success({
+        return NextResponse.json({
           device_status: currentScreen.device_status,
           last_seen: currentScreen.last_seen,
           last_sync_at: currentScreen.last_sync_at,
@@ -156,7 +160,7 @@ export async function POST(request: NextRequest) {
           .eq('id', screen_id)
 
         if (unpairError) {
-          return apiResponse.internalError('Failed to unpair device')
+          return NextResponse.json({ error: 'Failed to unpair device' }, { status: 500 })
         }
 
         // Log unpair action
@@ -172,31 +176,37 @@ export async function POST(request: NextRequest) {
             }
           })
 
-        return apiResponse.success({
+        return NextResponse.json({
           message: 'Device unpaired successfully',
           action: 'unpair',
           screen_id: screen_id
         })
 
       default:
-        return apiResponse.badRequest(`Unsupported action: ${action}`)
+        return NextResponse.json({ error: `Unsupported action: ${action}` }, { status: 400 })
     }
 
   } catch (error) {
     console.error('Device management error:', error)
-    return apiResponse.internalError('Device management failed')
+    return NextResponse.json({ error: 'Device management failed' }, { status: 500 })
   }
 }
 
 // Get device management options for a screen
 export async function GET(request: NextRequest) {
   try {
-    const { user, supabase } = await authenticateUser(request)
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
     const { searchParams } = new URL(request.url)
     const screen_id = searchParams.get('screen_id')
 
     if (!screen_id) {
-      return apiResponse.badRequest('screen_id parameter is required')
+      return NextResponse.json({ error: 'screen_id parameter is required' }, { status: 400 })
     }
 
     // Get screen and verify access
@@ -218,7 +228,7 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (screenError || !screen) {
-      return apiResponse.notFound('Screen not found')
+      return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
     }
 
     // Verify user has access
@@ -229,7 +239,7 @@ export async function GET(request: NextRequest) {
       })
 
     if (!hasAccess) {
-      return apiResponse.unauthorized('Access denied to this screen')
+      return NextResponse.json({ error: 'Access denied to this screen' }, { status: 403 })
     }
 
     // Get recent logs
@@ -255,7 +265,7 @@ export async function GET(request: NextRequest) {
       { action: 'get_status', label: 'Check Status', description: 'Get current device status' }
     )
 
-    return apiResponse.success({
+    return NextResponse.json({
       screen: {
         id: screen.id,
         name: screen.name,
@@ -272,6 +282,6 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Get device management error:', error)
-    return apiResponse.internalError('Failed to get device management options')
+    return NextResponse.json({ error: 'Failed to get device management options' }, { status: 500 })
   }
 }
