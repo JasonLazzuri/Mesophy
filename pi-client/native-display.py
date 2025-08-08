@@ -467,7 +467,8 @@ class NativeDisplayManager:
             for _ in range(6):  # 6 * 5 = 30 seconds
                 time.sleep(5)
                 if self.check_pairing_status():
-                    break
+                    print("Pairing successful, exiting pairing loop")
+                    return  # Exit the pairing loop completely
             else:
                 # Regenerate code every 5 minutes
                 print("Regenerating pairing code...")
