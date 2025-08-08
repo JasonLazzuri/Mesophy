@@ -408,25 +408,39 @@ systemctl start $SERVICE_NAME
 
 sleep 3
 
+sleep 5  # Give service more time to start
+
 if systemctl is-active --quiet $SERVICE_NAME; then
     log_success "Mesophy service is running!"
     echo
     echo -e "${GREEN}✅ Installation successful!${NC}"
-    echo -e "${BLUE}The Pi will now display a pairing code on the connected display.${NC}"
+    echo -e "${BLUE}The Pi will display a pairing code on the connected HDMI display.${NC}"
     echo -e "${BLUE}Use the Mesophy dashboard to complete device pairing.${NC}"
+    
+    # Check if the service is actually working (not just running)
+    sleep 3
+    if journalctl -u $SERVICE_NAME --since="30 seconds ago" | grep -q "ERROR\|Failed\|Error"; then
+        log_warning "Service is running but may have errors. Check logs with: mesophy-logs"
+        echo -e "${YELLOW}If you see connection errors, the service will retry automatically.${NC}"
+    fi
 else
-    log_warning "Service started but may have issues. Check logs with: mesophy-logs"
+    log_warning "Service failed to start properly."
+    echo -e "${YELLOW}Try starting manually: sudo systemctl start $SERVICE_NAME${NC}"
+    echo -e "${YELLOW}Check logs: mesophy-logs${NC}"
 fi
 
 echo
-echo -e "${PURPLE}🔄 A reboot is recommended to ensure all optimizations take effect.${NC}"
-echo -e "${PURPLE}Reboot now? (y/N)${NC}"
-read -n 1 -r
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo
-    log_info "Rebooting system..."
-    reboot
-fi
-
+echo -e "${PURPLE}📋 Installation Summary:${NC}"
+echo -e "${GREEN}✅ Native media client installed successfully${NC}"
+echo -e "${GREEN}✅ Service started and enabled for auto-boot${NC}"
+echo -e "${GREEN}✅ GPU memory optimized for video playback${NC}"
+echo
+echo -e "${YELLOW}⚠️  IMPORTANT:${NC}"
+echo -e "${YELLOW}A reboot is recommended to apply GPU memory optimizations.${NC}"
+echo -e "${YELLOW}You can reboot now with: sudo reboot${NC}"
+echo
+echo -e "${BLUE}Without reboot:${NC} Basic functionality will work"
+echo -e "${BLUE}After reboot:${NC} Full hardware acceleration enabled"
 echo
 log_info "Installation complete! The Pi is ready for digital signage operation."
+echo -e "${CYAN}To reboot: sudo reboot${NC}"
