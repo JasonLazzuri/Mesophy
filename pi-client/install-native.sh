@@ -174,26 +174,48 @@ log_step "5/8 Downloading Mesophy Native Media Client..."
 cd "$INSTALL_DIR/client"
 
 # Download main daemon file
-curl -sSL "$GITHUB_REPO/media-daemon.js" -o media-daemon.js 2>/dev/null || {
-    log_warning "Failed to download from GitHub, creating local version..."
-    # Create a minimal fallback version if download fails
-    cat > media-daemon.js << 'EOF'
-#!/usr/bin/env node
-console.log('Mesophy Pi Native Media Daemon - Local fallback mode');
-console.log('Please check network connection and reinstall from GitHub');
-process.exit(1);
-EOF
-}
+log_info "Downloading main media daemon..."
+if curl -sSL "$GITHUB_REPO/media-daemon.js" -o media-daemon.js; then
+    log_success "✓ Media daemon downloaded successfully"
+else
+    log_error "✗ Failed to download main media-daemon.js"
+    log_error "Cannot proceed without main daemon file."
+    log_error "Please check your internet connection and try again."
+    exit 1
+fi
 
-# Download library files
+# Download library files with proper error checking
 mkdir -p lib
-curl -sSL "$GITHUB_REPO/lib/media-player.js" -o lib/media-player.js 2>/dev/null || log_warning "Media player library not downloaded"
-curl -sSL "$GITHUB_REPO/lib/playlist-manager.js" -o lib/playlist-manager.js 2>/dev/null || log_warning "Playlist manager not downloaded"
-curl -sSL "$GITHUB_REPO/lib/content-downloader.js" -o lib/content-downloader.js 2>/dev/null || log_warning "Content downloader not downloaded"
-curl -sSL "$GITHUB_REPO/lib/schedule-manager.js" -o lib/schedule-manager.js 2>/dev/null || log_warning "Schedule manager not downloaded"
-curl -sSL "$GITHUB_REPO/lib/display-manager.js" -o lib/display-manager.js 2>/dev/null || log_warning "Display manager not downloaded"
-curl -sSL "$GITHUB_REPO/lib/pairing-overlay.js" -o lib/pairing-overlay.js 2>/dev/null || log_warning "Pairing overlay not downloaded"
-curl -sSL "$GITHUB_REPO/lib/resource-monitor.js" -o lib/resource-monitor.js 2>/dev/null || log_warning "Resource monitor not downloaded"
+log_info "Downloading native media player libraries..."
+
+# Required library files for native media player system
+declare -a REQUIRED_LIBS=(
+    "media-player.js"
+    "playlist-manager.js" 
+    "content-downloader.js"
+    "schedule-manager.js"
+    "display-manager.js"
+    "display-config.js"
+    "pairing-overlay.js"
+    "resource-monitor.js"
+)
+
+DOWNLOAD_FAILED=false
+for lib_file in "${REQUIRED_LIBS[@]}"; do
+    log_info "Downloading $lib_file..."
+    if curl -sSL "$GITHUB_REPO/lib/$lib_file" -o "lib/$lib_file"; then
+        log_info "✓ $lib_file downloaded successfully"
+    else
+        log_error "✗ Failed to download $lib_file"
+        DOWNLOAD_FAILED=true
+    fi
+done
+
+if [[ "$DOWNLOAD_FAILED" == true ]]; then
+    log_error "Critical library files failed to download. Cannot proceed."
+    log_error "Please check your internet connection and try again."
+    exit 1
+fi
 
 # Download package.json
 curl -sSL "$GITHUB_REPO/package.json" -o package.json 2>/dev/null || {
