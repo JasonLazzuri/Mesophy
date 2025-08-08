@@ -204,6 +204,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Log the data we're about to insert for debugging
+    console.log('Creating schedule with data:', {
+      organization_id: profile.organization_id,
+      name: name.trim(),
+      playlist_id,
+      screen_id,
+      target_screen_types,
+      target_locations,
+      start_date,
+      end_date,
+      start_time,
+      end_time,
+      days_of_week,
+      timezone,
+      priority,
+      created_by: user.id,
+      is_active: true
+    })
+
     // Create the schedule
     const { data: schedule, error: scheduleError } = await supabase
       .from('schedules')
@@ -237,7 +256,27 @@ export async function POST(request: NextRequest) {
 
     if (scheduleError) {
       console.error('Error creating schedule:', scheduleError)
-      return NextResponse.json({ error: 'Failed to create schedule' }, { status: 500 })
+      console.error('Schedule data that failed:', {
+        organization_id: profile.organization_id,
+        name: name.trim(),
+        playlist_id,
+        screen_id,
+        target_screen_types,
+        target_locations,
+        start_date,
+        end_date,
+        start_time,
+        end_time,
+        days_of_week,
+        timezone,
+        priority,
+        created_by: user.id
+      })
+      return NextResponse.json({ 
+        error: 'Failed to create schedule', 
+        details: scheduleError.message,
+        code: scheduleError.code 
+      }, { status: 500 })
     }
 
     // If multiple screens are specified, create screen_schedules entries
@@ -262,6 +301,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ schedule }, { status: 201 })
   } catch (error) {
     console.error('Error in schedules POST:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    }, { status: 500 })
   }
 }
