@@ -12,6 +12,7 @@ import subprocess
 import threading
 import signal
 import requests
+import logging
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
 
@@ -34,9 +35,44 @@ CONFIG_PATH = '/opt/mesophy/config/config.json'
 DEVICE_CONFIG_PATH = '/opt/mesophy/config/device.json'
 TEMP_DIR = '/opt/mesophy/temp'
 CONTENT_DIR = '/opt/mesophy/content'
+LOG_DIR = '/opt/mesophy/logs'
+
+# Setup logging
+def setup_logging():
+    """Setup comprehensive logging for debugging"""
+    os.makedirs(LOG_DIR, exist_ok=True)
+    
+    # Configure logging to both file and console
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(f'{LOG_DIR}/mesophy-display.log'),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    
+    # Also log to a separate debug file
+    debug_handler = logging.FileHandler(f'{LOG_DIR}/debug.log')
+    debug_handler.setLevel(logging.DEBUG)
+    debug_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s')
+    debug_handler.setFormatter(debug_formatter)
+    
+    logger = logging.getLogger()
+    logger.addHandler(debug_handler)
+    logger.setLevel(logging.DEBUG)
+    
+    return logger
 
 class NativeDisplayManager:
     def __init__(self):
+        # Initialize logger
+        self.logger = logging.getLogger(__name__)
+        
+        self.logger.info("=== STARTING MESOPHY DISPLAY MANAGER ===")
+        self.logger.info(f"Python version: {sys.version}")
+        self.logger.info(f"Working directory: {os.getcwd()}")
+        
         self.config = self.load_config()
         self.device_config = None
         self.current_pairing_code = None
@@ -44,6 +80,9 @@ class NativeDisplayManager:
         self.display_width = self.config.get('display', {}).get('width', 1920)
         self.display_height = self.config.get('display', {}).get('height', 1080)
         self.api_base = self.config.get('api', {}).get('baseUrl', 'https://mesophy.vercel.app')
+        
+        self.logger.info(f"Display size: {self.display_width}x{self.display_height}")
+        self.logger.info(f"API base URL: {self.api_base}")
         
         # Display state
         self.current_display_process = None
@@ -53,12 +92,21 @@ class NativeDisplayManager:
         self.api_client = MesophyAPIClient() if MesophyAPIClient else None
         self.media_player = NativeMediaPlayer() if NativeMediaPlayer else None
         
+        self.logger.info(f"API client available: {self.api_client is not None}")
+        self.logger.info(f"Media player available: {self.media_player is not None}")
+        
         # Ensure directories exist
         os.makedirs(TEMP_DIR, exist_ok=True)
         os.makedirs(CONTENT_DIR, exist_ok=True)
+        os.makedirs(LOG_DIR, exist_ok=True)
         
         # Load existing device config if available
-        self.load_device_config()
+        device_config_loaded = self.load_device_config()
+        self.logger.info(f"Device config loaded: {device_config_loaded}")
+        self.logger.info(f"Is paired: {self.is_paired}")
+        if self.device_config:
+            self.logger.info(f"Screen name: {self.device_config.get('screen_name', 'Unknown')}")
+            self.logger.info(f"Device token: {'***' + self.device_config.get('device_token', '')[-8:] if self.device_config.get('device_token') else 'None'}")
 
     def load_config(self):
         """Load main configuration file"""
@@ -101,31 +149,42 @@ class NativeDisplayManager:
 
     def load_device_config(self):
         """Load saved device configuration"""
+        self.logger.debug(f"Looking for device config at: {DEVICE_CONFIG_PATH}")
+        
         try:
             if os.path.exists(DEVICE_CONFIG_PATH):
+                self.logger.info(f"Device config file exists, loading...")
                 with open(DEVICE_CONFIG_PATH, 'r') as f:
                     self.device_config = json.load(f)
                     self.is_paired = True
-                    print(f"Loaded saved device config for: {self.device_config.get('screen_name', 'Unknown')}")
+                    self.logger.info(f"✅ Loaded saved device config for: {self.device_config.get('screen_name', 'Unknown')}")
+                    self.logger.debug(f"Device config details: {json.dumps(self.device_config, indent=2)}")
                     return True
+            else:
+                self.logger.info(f"No device config file found at {DEVICE_CONFIG_PATH}")
         except Exception as e:
-            print(f"No saved device config: {e}")
+            self.logger.error(f"Error loading device config: {e}")
         
         self.device_config = None
         self.is_paired = False
+        self.logger.info("Device is not paired")
         return False
 
     def save_device_config(self, config):
         """Save device configuration"""
+        self.logger.info("💾 Saving device configuration...")
+        self.logger.debug(f"Config to save: {json.dumps(config, indent=2)}")
+        
         try:
             os.makedirs(os.path.dirname(DEVICE_CONFIG_PATH), exist_ok=True)
             with open(DEVICE_CONFIG_PATH, 'w') as f:
                 json.dump(config, f, indent=2)
             self.device_config = config
             self.is_paired = True
-            print(f"Device config saved for: {config.get('screen_name', 'Unknown')}")
+            self.logger.info(f"✅ Device config saved for: {config.get('screen_name', 'Unknown')}")
+            self.logger.info(f"📱 Device is now PAIRED: {self.is_paired}")
         except Exception as e:
-            print(f"Error saving device config: {e}")
+            self.logger.error(f"❌ Error saving device config: {e}")
 
     def generate_pairing_screen(self, pairing_code):
         """Generate pairing screen image using PIL"""
@@ -358,25 +417,35 @@ class NativeDisplayManager:
     def check_pairing_status(self):
         """Check if device has been paired"""
         if not self.current_pairing_code:
+            self.logger.debug("No pairing code available, skipping status check")
             return False
             
         try:
             url = f"{self.api_base}{self.config['api']['endpoints']['checkPairing']}/{self.current_pairing_code}"
+            self.logger.debug(f"🔍 Checking pairing status at: {url}")
+            
             response = requests.get(url, timeout=10)
+            self.logger.debug(f"API response: {response.status_code}")
             
             if response.status_code == 200:
                 data = response.json()
+                self.logger.debug(f"Response data: {json.dumps(data, indent=2)}")
+                
                 if data.get('paired') and data.get('device_config'):
-                    print("Device successfully paired!")
+                    self.logger.info("🎉 DEVICE SUCCESSFULLY PAIRED!")
                     self.save_device_config(data['device_config'])
                     # Show pairing success screen and hold for a few seconds
                     self.show_pairing_success()
                     # Wait a bit to let user see the success message
                     time.sleep(3)
                     return True
+                else:
+                    self.logger.debug(f"Not yet paired - status: {data.get('status', 'unknown')}")
+            else:
+                self.logger.warning(f"API returned status {response.status_code}: {response.text}")
                     
         except Exception as e:
-            print(f"Error checking pairing status: {e}")
+            self.logger.error(f"❌ Error checking pairing status: {e}")
             
         return False
 
@@ -542,35 +611,41 @@ class NativeDisplayManager:
 
     def run(self):
         """Main run loop"""
-        print("Starting Mesophy Native Display Manager...")
+        self.logger.info("🚀 Starting Mesophy Native Display Manager...")
         
         # Check if already paired
         if self.is_paired:
-            print("Device already paired, starting content playback")
+            self.logger.info("✅ Device already paired, starting content playback")
+            self.logger.info(f"Connected to screen: {self.device_config.get('screen_name', 'Unknown') if self.device_config else 'Unknown'}")
             self.start_content_playback()
             
             # Keep running
             try:
+                self.logger.info("📺 Entering main content loop")
                 while True:
                     time.sleep(60)
                     # Periodic content sync (every hour)
                     if int(time.time()) % 3600 == 0:
+                        self.logger.info("🔄 Starting periodic content sync")
                         threading.Thread(target=self.sync_and_play_content, daemon=True).start()
             except KeyboardInterrupt:
+                self.logger.info("🛑 Received interrupt signal")
                 pass
         else:
-            print("Device not paired, starting pairing process")
+            self.logger.info("❌ Device not paired, starting pairing process")
             self.start_pairing_loop()
             
             if self.is_paired:
-                print("Pairing successful, starting content playback")
+                self.logger.info("🎉 Pairing successful, starting content playback")
                 self.start_content_playback()
                 
                 # Keep running after successful pairing
                 try:
+                    self.logger.info("📺 Entering main content loop after pairing")
                     while True:
                         time.sleep(60)
                 except KeyboardInterrupt:
+                    self.logger.info("🛑 Received interrupt signal")
                     pass
 
     def cleanup(self):
@@ -605,6 +680,12 @@ def signal_handler(signum, frame):
 
 
 def main():
+    # Setup logging first
+    logger = setup_logging()
+    logger.info("=" * 60)
+    logger.info("MESOPHY PI CLIENT STARTING")
+    logger.info("=" * 60)
+    
     # Set up signal handlers for graceful shutdown
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
@@ -614,7 +695,10 @@ def main():
         signal_handler.display_manager = display_manager
         display_manager.run()
     except Exception as e:
-        print(f"Fatal error: {e}")
+        logger.error(f"💥 FATAL ERROR: {e}")
+        logger.error(f"Exception details: {e.__class__.__name__}")
+        import traceback
+        logger.error(f"Stack trace: {traceback.format_exc()}")
         sys.exit(1)
 
 
