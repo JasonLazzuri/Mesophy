@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { Monitor, Search, Plus, Edit, Building2, MapPin, Wifi, WifiOff, AlertTriangle, Settings, Clock, Activity, Smartphone, QrCode, PlayCircle, Pause, RotateCcw } from 'lucide-react'
 import Link from 'next/link'
 import { ScreenType, DeviceStatus, Orientation } from '@/types/database'
-import PairingModal from '@/components/PairingModal'
 import EnterPairingCodeModal from '@/components/EnterPairingCodeModal'
 import Toast from '@/components/Toast'
 
@@ -55,9 +54,7 @@ export default function ScreensPage() {
   const [statusFilter, setStatusFilter] = useState<DeviceStatus | 'all'>('all')
   const [typeFilter, setTypeFilter] = useState<ScreenType | 'all'>('all')
   const [error, setError] = useState('')
-  const [pairingModalOpen, setPairingModalOpen] = useState(false)
   const [enterCodeModalOpen, setEnterCodeModalOpen] = useState(false)
-  const [selectedScreenForPairing, setSelectedScreenForPairing] = useState<Screen | null>(null)
   const [actionLoading, setActionLoading] = useState<{ [screenId: string]: string }>({}) // Track loading state for actions
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info', title: string, message?: string } | null>(null)
 
@@ -87,20 +84,6 @@ export default function ScreensPage() {
     }
   }
 
-  const handlePairDevice = (screen: Screen) => {
-    setSelectedScreenForPairing(screen)
-    setPairingModalOpen(true)
-  }
-
-  const handlePairingSuccess = () => {
-    // Refresh screens data after successful pairing
-    fetchScreens()
-    setToast({
-      type: 'success',
-      title: 'Device Paired Successfully!',
-      message: `${selectedScreenForPairing?.name} is now connected to a Raspberry Pi device.`
-    })
-  }
 
   const handleDeviceAction = async (screenId: string, action: 'restart' | 'pause' | 'resume') => {
     setActionLoading(prev => ({ ...prev, [screenId]: action }))
@@ -489,13 +472,10 @@ export default function ScreensPage() {
                             <div className="flex flex-col items-center space-y-2 ml-2">
                               {/* Primary Action - Pair or View */}
                               {!isPaired ? (
-                                <button
-                                  onClick={() => handlePairDevice(screen)}
-                                  className="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500 transition-colors"
-                                >
-                                  <QrCode className="h-3 w-3 mr-1" />
-                                  Pair Device
-                                </button>
+                                <div className="text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded text-center">
+                                  Not Paired<br/>
+                                  <span className="text-green-600">Use "Enter Pairing Code" above</span>
+                                </div>
                               ) : (
                                 <Link
                                   href={`/dashboard/screens/${screen.id}`}
@@ -608,19 +588,6 @@ export default function ScreensPage() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Pairing Modal */}
-      {selectedScreenForPairing && (
-        <PairingModal
-          isOpen={pairingModalOpen}
-          onClose={() => {
-            setPairingModalOpen(false)
-            setSelectedScreenForPairing(null)
-          }}
-          screen={selectedScreenForPairing}
-          onSuccess={handlePairingSuccess}
-        />
       )}
 
       {/* Enter Pairing Code Modal */}

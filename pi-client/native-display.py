@@ -369,6 +369,10 @@ class NativeDisplayManager:
                 if data.get('paired') and data.get('device_config'):
                     print("Device successfully paired!")
                     self.save_device_config(data['device_config'])
+                    # Show pairing success screen and hold for a few seconds
+                    self.show_pairing_success()
+                    # Wait a bit to let user see the success message
+                    time.sleep(3)
                     return True
                     
         except Exception as e:
@@ -389,6 +393,59 @@ class NativeDisplayManager:
             self.display_image(image_path)
         else:
             print("Failed to generate pairing code")
+
+    def show_pairing_success(self):
+        """Show pairing success message"""
+        print("Showing pairing success screen")
+        
+        # Generate success screen
+        img = Image.new('RGB', (self.display_width, self.display_height), color='black')
+        draw = ImageDraw.Draw(img)
+        
+        try:
+            title_font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 80)
+            text_font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 48)
+        except:
+            title_font = ImageFont.load_default()
+            text_font = ImageFont.load_default()
+        
+        # Colors
+        white = (255, 255, 255)
+        green = (16, 185, 129)
+        gray = (107, 114, 128)
+        
+        center_x = self.display_width // 2
+        center_y = self.display_height // 2
+        
+        # Success icon (checkmark)
+        success_text = "✓"
+        success_bbox = draw.textbbox((0, 0), success_text, font=title_font)
+        success_width = success_bbox[2] - success_bbox[0]
+        draw.text((center_x - success_width//2, center_y - 150), success_text, fill=green, font=title_font)
+        
+        # Success message
+        success_msg = "PAIRING SUCCESSFUL!"
+        success_bbox = draw.textbbox((0, 0), success_msg, font=title_font)
+        success_width = success_bbox[2] - success_bbox[0]
+        draw.text((center_x - success_width//2, center_y - 50), success_msg, fill=green, font=title_font)
+        
+        # Waiting message
+        waiting_msg = "Waiting for media content..."
+        waiting_bbox = draw.textbbox((0, 0), waiting_msg, font=text_font)
+        waiting_width = waiting_bbox[2] - waiting_bbox[0]
+        draw.text((center_x - waiting_width//2, center_y + 50), waiting_msg, fill=gray, font=text_font)
+        
+        # Device info if available
+        if self.device_config:
+            info_msg = f"Connected to: {self.device_config.get('screen_name', 'Unknown Screen')}"
+            info_bbox = draw.textbbox((0, 0), info_msg, font=text_font)
+            info_width = info_bbox[2] - info_bbox[0]
+            draw.text((center_x - info_width//2, center_y + 120), info_msg, fill=white, font=text_font)
+        
+        # Save and display
+        image_path = os.path.join(TEMP_DIR, 'pairing_success.png')
+        img.save(image_path, 'PNG')
+        self.display_image(image_path)
 
     def show_content_screen(self):
         """Display content screen after pairing"""
