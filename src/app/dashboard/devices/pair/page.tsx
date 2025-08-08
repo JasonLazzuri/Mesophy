@@ -1,343 +1,146 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Smartphone, Monitor, ArrowRight, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { QrCode, Monitor, ArrowRight, Zap } from 'lucide-react'
 import Link from 'next/link'
-
-interface Screen {
-  id: string
-  name: string
-  screen_type: string
-  location?: {
-    name: string
-    districts?: {
-      name: string
-    }
-  }
-  device_id?: string
-  device_status?: string
-}
 
 export default function PairDevicePage() {
   const router = useRouter()
-  const [pairingCode, setPairingCode] = useState('')
-  const [selectedScreen, setSelectedScreen] = useState<Screen | null>(null)
-  const [availableScreens, setAvailableScreens] = useState<Screen[]>([])
-  const [step, setStep] = useState<'code' | 'screen' | 'pairing' | 'success'>('code')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [pairingResult, setPairingResult] = useState<any>(null)
 
-  const handleCodeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!pairingCode || pairingCode.length !== 6) {
-      setError('Please enter a valid 6-character pairing code')
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      // Fetch available screens for selection
-      const screensResponse = await fetch('/api/screens')
-      if (!screensResponse.ok) {
-        throw new Error('Failed to fetch available screens')
-      }
-      
-      const screensData = await screensResponse.json()
-      // Filter out screens that already have devices paired
-      const unpaired = screensData.filter((screen: Screen) => !screen.device_id)
-      
-      if (unpaired.length === 0) {
-        setError('No unpaired screens available. All screens already have devices assigned.')
-        return
-      }
-
-      setAvailableScreens(unpaired)
-      setStep('screen')
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to verify pairing code')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleScreenSelect = (screen: Screen) => {
-    setSelectedScreen(screen)
-  }
-
-  const handlePairDevice = async () => {
-    if (!selectedScreen || !pairingCode) return
-
-    setLoading(true)
-    setError(null)
-    setStep('pairing')
-
-    try {
-      const response = await fetch('/api/devices/pair', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          pairing_code: pairingCode.toUpperCase(),
-          screen_id: selectedScreen.id
-        })
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        setPairingResult(data)
-        setStep('success')
-      } else {
-        throw new Error(data.error || 'Failed to pair device')
-      }
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to pair device')
-      setStep('screen') // Go back to screen selection
-    } finally {
-      setLoading(false)
-    }
-  }
+  useEffect(() => {
+    // Redirect to screens page after showing the message
+    const timer = setTimeout(() => {
+      router.push('/dashboard/screens')
+    }, 7000)
+    return () => clearTimeout(timer)
+  }, [router])
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight flex items-center">
-            <Smartphone className="h-8 w-8 mr-3 text-indigo-600" />
-            Pair Device
-          </h1>
-          <p className="text-gray-600 mt-2">
-            Connect a Raspberry Pi device to one of your screens
-          </p>
+      <div className="text-center">
+        <div className="h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center mx-auto mb-6">
+          <Zap className="h-8 w-8 text-indigo-600" />
         </div>
-        <Link
-          href="/dashboard/screens"
-          className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200"
-        >
-          Back to Screens
-        </Link>
+        <h1 className="text-3xl font-bold text-gray-900 mb-4">New and Improved Device Pairing!</h1>
+        <p className="text-xl text-gray-600 mb-8">
+          We've redesigned the pairing experience to be more intuitive and mobile-friendly.
+        </p>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        {/* Progress Steps */}
-        <div className="flex items-center mb-8">
-          <div className={`flex items-center ${step === 'code' ? 'text-indigo-600' : step === 'screen' || step === 'pairing' || step === 'success' ? 'text-green-600' : 'text-gray-400'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === 'code' ? 'bg-indigo-100 text-indigo-600' : step === 'screen' || step === 'pairing' || step === 'success' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-              {step === 'screen' || step === 'pairing' || step === 'success' ? '✓' : '1'}
+      {/* Comparison */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Old Way */}
+        <div className="bg-gray-50 border-2 border-gray-200 rounded-lg p-6">
+          <div className="text-center mb-4">
+            <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center mx-auto mb-2">
+              <span className="text-sm font-medium text-gray-600">OLD</span>
             </div>
-            <span className="ml-2">Enter Code</span>
+            <h3 className="text-lg font-medium text-gray-900">Code-First Pairing</h3>
           </div>
-          <div className="flex-1 h-px bg-gray-200 mx-4" />
-          <div className={`flex items-center ${step === 'screen' ? 'text-indigo-600' : step === 'pairing' || step === 'success' ? 'text-green-600' : 'text-gray-400'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === 'screen' ? 'bg-indigo-100 text-indigo-600' : step === 'pairing' || step === 'success' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-              {step === 'pairing' || step === 'success' ? '✓' : '2'}
+          <div className="space-y-3 text-sm text-gray-600">
+            <div className="flex items-start space-x-2">
+              <span className="font-medium">1.</span>
+              <span>Get pairing code from Pi device</span>
             </div>
-            <span className="ml-2">Select Screen</span>
+            <div className="flex items-start space-x-2">
+              <span className="font-medium">2.</span>
+              <span>Enter code in dashboard</span>
+            </div>
+            <div className="flex items-start space-x-2">
+              <span className="font-medium">3.</span>
+              <span>Select which screen to pair</span>
+            </div>
+            <div className="flex items-start space-x-2">
+              <span className="font-medium">4.</span>
+              <span>Complete pairing process</span>
+            </div>
           </div>
-          <div className="flex-1 h-px bg-gray-200 mx-4" />
-          <div className={`flex items-center ${step === 'success' ? 'text-green-600' : 'text-gray-400'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === 'success' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-              {step === 'success' ? '✓' : '3'}
-            </div>
-            <span className="ml-2">Complete</span>
+          <div className="mt-4 p-3 bg-orange-100 rounded-lg">
+            <p className="text-xs text-orange-700">
+              <strong>Issues:</strong> Confusing flow, no mobile support, backwards process
+            </p>
           </div>
         </div>
 
-        {/* Error Display */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-center">
-              <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
-              <p className="text-red-700">{error}</p>
+        {/* New Way */}
+        <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6">
+          <div className="text-center mb-4">
+            <div className="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center mx-auto mb-2">
+              <span className="text-sm font-medium text-white">NEW</span>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900">Screen-First Pairing</h3>
+          </div>
+          <div className="space-y-3 text-sm text-gray-600">
+            <div className="flex items-start space-x-2">
+              <span className="font-medium">1.</span>
+              <span>Click "Pair Device" on the screen you want</span>
+            </div>
+            <div className="flex items-start space-x-2">
+              <span className="font-medium">2.</span>
+              <span>Scan QR code with your phone</span>
+            </div>
+            <div className="flex items-start space-x-2">
+              <span className="font-medium">3.</span>
+              <span>Send pairing info to your Pi device</span>
+            </div>
+            <div className="flex items-start space-x-2">
+              <span className="font-medium">4.</span>
+              <span>Device automatically pairs!</span>
             </div>
           </div>
-        )}
-
-        {/* Step 1: Enter Pairing Code */}
-        {step === 'code' && (
-          <div className="text-center space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Enter Pairing Code</h2>
-              <p className="text-gray-600">
-                Look at the Pi device screen and enter the 6-character code displayed
-              </p>
-            </div>
-            
-            <form onSubmit={handleCodeSubmit} className="space-y-4">
-              <div>
-                <input
-                  type="text"
-                  value={pairingCode}
-                  onChange={(e) => setPairingCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
-                  placeholder="ABC123"
-                  className="text-center text-2xl font-mono tracking-widest w-48 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  autoComplete="off"
-                  autoFocus
-                />
-              </div>
-              
-              <button
-                type="submit"
-                disabled={loading || pairingCode.length !== 6}
-                className="bg-indigo-600 text-white px-8 py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Verifying...
-                  </>
-                ) : (
-                  <>
-                    Continue
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </>
-                )}
-              </button>
-            </form>
-
-            <div className="mt-8 p-4 bg-blue-50 rounded-lg">
-              <h3 className="font-medium text-blue-900 mb-2">Don't see a pairing code?</h3>
-              <div className="text-sm text-blue-700 space-y-1">
-                <p>1. Make sure the Pi is powered on and connected to WiFi</p>
-                <p>2. Connect an HDMI display to see the pairing screen</p>
-                <p>3. Wait for the Pi client to start (may take 2-3 minutes)</p>
-                <p>4. The code will appear as large text on the screen</p>
-              </div>
-            </div>
+          <div className="mt-4 p-3 bg-green-100 rounded-lg">
+            <p className="text-xs text-green-700">
+              <strong>Benefits:</strong> Intuitive flow, QR code support, mobile-friendly, faster setup
+            </p>
           </div>
-        )}
+        </div>
+      </div>
 
-        {/* Step 2: Select Screen */}
-        {step === 'screen' && (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Select Screen</h2>
-              <p className="text-gray-600">
-                Choose which screen this Pi device should control
-              </p>
+      {/* Features */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4 text-center">New Features</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="text-center">
+            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-3">
+              <QrCode className="h-5 w-5 text-blue-600" />
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {availableScreens.map((screen) => (
-                <div
-                  key={screen.id}
-                  className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
-                    selectedScreen?.id === screen.id
-                      ? 'border-indigo-500 bg-indigo-50'
-                      : 'border-gray-200 hover:border-indigo-300'
-                  }`}
-                  onClick={() => handleScreenSelect(screen)}
-                >
-                  <div className="flex items-center">
-                    <Monitor className="h-6 w-6 text-gray-400 mr-3" />
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{screen.name}</h3>
-                      <p className="text-sm text-gray-500 capitalize">
-                        {screen.screen_type.replace('_', ' ')}
-                      </p>
-                      {screen.location && (
-                        <p className="text-xs text-gray-400 mt-1">
-                          {screen.location.districts?.name && `${screen.location.districts.name} > `}
-                          {screen.location.name}
-                        </p>
-                      )}
-                    </div>
-                    {selectedScreen?.id === screen.id && (
-                      <CheckCircle className="h-5 w-5 text-indigo-600" />
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {selectedScreen && (
-              <div className="text-center">
-                <button
-                  onClick={handlePairDevice}
-                  disabled={loading}
-                  className="bg-indigo-600 text-white px-8 py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                >
-                  Pair Device to {selectedScreen.name}
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </button>
-              </div>
-            )}
+            <h4 className="font-medium text-gray-900 mb-1">QR Code Pairing</h4>
+            <p className="text-sm text-gray-600">Scan with your phone for instant pairing setup</p>
           </div>
-        )}
-
-        {/* Step 3: Pairing in Progress */}
-        {step === 'pairing' && (
-          <div className="text-center space-y-6">
-            <div>
-              <Loader2 className="h-12 w-12 text-indigo-600 animate-spin mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Pairing Device...</h2>
-              <p className="text-gray-600">
-                Connecting Pi device to {selectedScreen?.name}
-              </p>
+          <div className="text-center">
+            <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center mx-auto mb-3">
+              <Monitor className="h-5 w-5 text-purple-600" />
             </div>
+            <h4 className="font-medium text-gray-900 mb-1">Screen-First Design</h4>
+            <p className="text-sm text-gray-600">Start by selecting the screen you want to pair</p>
           </div>
-        )}
-
-        {/* Step 4: Success */}
-        {step === 'success' && pairingResult && (
-          <div className="text-center space-y-6">
-            <div>
-              <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Device Paired Successfully!</h2>
-              <p className="text-gray-600">
-                The Pi device is now connected to {pairingResult.device?.screen_name}
-              </p>
+          <div className="text-center">
+            <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
+              <Zap className="h-5 w-5 text-green-600" />
             </div>
-
-            <div className="bg-green-50 p-4 rounded-lg">
-              <h3 className="font-medium text-green-900 mb-2">Device Information</h3>
-              <div className="text-sm text-green-700 space-y-1">
-                <p><strong>Device ID:</strong> {pairingResult.device?.device_id}</p>
-                <p><strong>Screen:</strong> {pairingResult.device?.screen_name}</p>
-                <p><strong>Screen Type:</strong> {pairingResult.device?.screen_type?.replace('_', ' ')}</p>
-                <p><strong>Location:</strong> {pairingResult.device?.location?.name}</p>
-              </div>
-            </div>
-
-            <div className="bg-blue-50 p-4 rounded-lg text-left">
-              <h3 className="font-medium text-blue-900 mb-2">What happens next?</h3>
-              <div className="text-sm text-blue-700 space-y-1">
-                <p>• The Pi device will automatically sync content and schedules</p>
-                <p>• It will start displaying scheduled content immediately</p>
-                <p>• You can monitor device status in the Screens page</p>
-                <p>• Content updates will sync within 2 minutes</p>
-              </div>
-            </div>
-
-            <div className="flex space-x-4 justify-center">
-              <Link
-                href="/dashboard/screens"
-                className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700"
-              >
-                View All Screens
-              </Link>
-              <button
-                onClick={() => {
-                  setPairingCode('')
-                  setSelectedScreen(null)
-                  setAvailableScreens([])
-                  setStep('code')
-                  setPairingResult(null)
-                  setError(null)
-                }}
-                className="bg-gray-100 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-200"
-              >
-                Pair Another Device
-              </button>
-            </div>
+            <h4 className="font-medium text-gray-900 mb-1">Real-time Status</h4>
+            <p className="text-sm text-gray-600">Live updates and instant pairing confirmation</p>
           </div>
-        )}
+        </div>
+      </div>
+
+      {/* Call to Action */}
+      <div className="text-center">
+        <p className="text-gray-600 mb-4">
+          Ready to try the new pairing experience?
+        </p>
+        <Link
+          href="/dashboard/screens"
+          className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+        >
+          Go to Screens Page
+          <ArrowRight className="h-4 w-4 ml-2" />
+        </Link>
+        <p className="text-xs text-gray-500 mt-2">
+          Redirecting automatically in a few seconds...
+        </p>
       </div>
     </div>
   )

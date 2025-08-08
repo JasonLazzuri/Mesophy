@@ -147,12 +147,13 @@ export default function DashboardLayout({
                       )}
                     </Link>
                     <a
-                      href="/api/devices/installer"
-                      download="mesophy-pi-installer.sh"
+                      href="/pi-installer"
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="group flex items-center px-3 py-3 text-sm font-medium rounded-xl transition-all duration-200 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                     >
                       <Download className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-600 transition-colors" />
-                      Download Installer
+                      Pi Installer Page
                     </a>
                   </div>
                 </>

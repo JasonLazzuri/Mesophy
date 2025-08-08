@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Monitor, Search, Plus, Edit, Building2, MapPin, Wifi, WifiOff, AlertTriangle, Settings, Clock, Activity, Smartphone } from 'lucide-react'
+import { Monitor, Search, Plus, Edit, Building2, MapPin, Wifi, WifiOff, AlertTriangle, Settings, Clock, Activity, Smartphone, QrCode, PlayCircle, Pause, RotateCcw } from 'lucide-react'
 import Link from 'next/link'
 import { ScreenType, DeviceStatus, Orientation } from '@/types/database'
+import PairingModal from '@/components/PairingModal'
+import Toast from '@/components/Toast'
 
 interface Screen {
   id: string
@@ -52,6 +54,10 @@ export default function ScreensPage() {
   const [statusFilter, setStatusFilter] = useState<DeviceStatus | 'all'>('all')
   const [typeFilter, setTypeFilter] = useState<ScreenType | 'all'>('all')
   const [error, setError] = useState('')
+  const [pairingModalOpen, setPairingModalOpen] = useState(false)
+  const [selectedScreenForPairing, setSelectedScreenForPairing] = useState<Screen | null>(null)
+  const [actionLoading, setActionLoading] = useState<{ [screenId: string]: string }>({}) // Track loading state for actions
+  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info', title: string, message?: string } | null>(null)
 
   useEffect(() => {
     fetchScreens()
@@ -76,6 +82,57 @@ export default function ScreensPage() {
       console.error('Error fetching screens:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handlePairDevice = (screen: Screen) => {
+    setSelectedScreenForPairing(screen)
+    setPairingModalOpen(true)
+  }
+
+  const handlePairingSuccess = () => {
+    // Refresh screens data after successful pairing
+    fetchScreens()
+    setToast({
+      type: 'success',
+      title: 'Device Paired Successfully!',
+      message: `${selectedScreenForPairing?.name} is now connected to a Raspberry Pi device.`
+    })
+  }
+
+  const handleDeviceAction = async (screenId: string, action: 'restart' | 'pause' | 'resume') => {
+    setActionLoading(prev => ({ ...prev, [screenId]: action }))
+    
+    try {
+      const response = await fetch(`/api/screens/${screenId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ device_action: action })
+      })
+      
+      if (!response.ok) {
+        const result = await response.json()
+        throw new Error(result.error || `Failed to ${action} device`)
+      }
+      
+      // Refresh screens data
+      setTimeout(fetchScreens, 1000) // Give device time to respond
+      setToast({
+        type: 'success',
+        title: `Device ${action} command sent`,
+        message: 'The device should respond within a few seconds.'
+      })
+    } catch (error) {
+      console.error(`Error ${action}ing device:`, error)
+      setToast({
+        type: 'error',
+        title: `Failed to ${action} device`,
+        message: error instanceof Error ? error.message : 'An unexpected error occurred'
+      })
+    } finally {
+      setActionLoading(prev => ({ ...prev, [screenId]: '' }))
     }
   }
 
@@ -221,13 +278,6 @@ export default function ScreensPage() {
         </div>
         <div className="flex space-x-2">
           <Link
-            href="/dashboard/devices/pair"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-          >
-            <Smartphone className="h-4 w-4 mr-2" />
-            Pair Device
-          </Link>
-          <Link
             href="/dashboard/screens/add"
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
           >
@@ -350,87 +400,135 @@ export default function ScreensPage() {
 
                   {/* Screens in this location */}
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 ml-11">
-                    {locationData.screens.map((screen) => (
-                      <div
-                        key={screen.id}
-                        className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 text-lg mr-3">
-                                {getTypeIcon(screen.screen_type)}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="text-sm font-medium text-gray-900 truncate">
-                                  {screen.name}
-                                </h4>
-                                <div className="flex items-center mt-1 space-x-2">
-                                  {getStatusBadge(screen.device_status, screen.last_seen)}
-                                  {!screen.is_active && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                      Inactive
-                                    </span>
-                                  )}
+                    {locationData.screens.map((screen) => {
+                      const isPaired = !!(screen.device_id && screen.device_token)
+                      const isLoading = actionLoading[screen.id]
+                      
+                      return (
+                        <div
+                          key={screen.id}
+                          className={`rounded-lg p-4 transition-colors border-2 ${
+                            isPaired 
+                              ? 'bg-white border-green-200 hover:border-green-300' 
+                              : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center">
+                                <div className="flex-shrink-0 text-lg mr-3">
+                                  {getTypeIcon(screen.screen_type)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-sm font-medium text-gray-900 truncate">
+                                    {screen.name}
+                                  </h4>
+                                  <div className="flex items-center mt-1 space-x-2">
+                                    {getStatusBadge(screen.device_status, screen.last_seen)}
+                                    {isPaired && (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        <Smartphone className="h-3 w-3 mr-1" />
+                                        Paired
+                                      </span>
+                                    )}
+                                    {!isPaired && (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                        <AlertTriangle className="h-3 w-3 mr-1" />
+                                        Unpaired
+                                      </span>
+                                    )}
+                                    {!screen.is_active && (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                        Inactive
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
 
-                            <div className="mt-3 space-y-2">
-                              <div className="flex items-center text-xs text-gray-600">
-                                {getStatusIcon(screen.device_status, screen.last_seen)}
-                                <span className="ml-2 capitalize">{screen.screen_type.replace('_', ' ')}</span>
-                                <span className="mx-1">•</span>
-                                <span>{screen.resolution}</span>
-                                <span className="mx-1">•</span>
-                                <span className="capitalize">{screen.orientation}</span>
-                              </div>
-                              
-                              {screen.device_id && (
+                              <div className="mt-3 space-y-2">
                                 <div className="flex items-center text-xs text-gray-600">
-                                  <Monitor className="h-3 w-3 mr-2 flex-shrink-0" />
-                                  <span className="truncate">{screen.device_id}</span>
+                                  {getStatusIcon(screen.device_status, screen.last_seen)}
+                                  <span className="ml-2 capitalize">{screen.screen_type.replace('_', ' ')}</span>
+                                  <span className="mx-1">•</span>
+                                  <span>{screen.resolution}</span>
+                                  <span className="mx-1">•</span>
+                                  <span className="capitalize">{screen.orientation}</span>
                                 </div>
-                              )}
-                              
-                              {screen.device_token && (
-                                <div className="flex items-center text-xs text-green-600">
-                                  <Smartphone className="h-3 w-3 mr-2 flex-shrink-0" />
-                                  <span>Pi Device Connected</span>
+                                
+                                {screen.device_id && (
+                                  <div className="flex items-center text-xs text-gray-600">
+                                    <Monitor className="h-3 w-3 mr-2 flex-shrink-0" />
+                                    <span className="truncate">{screen.device_id}</span>
+                                  </div>
+                                )}
+                                
+                                <div className="flex items-center text-xs text-gray-600">
+                                  <Clock className="h-3 w-3 mr-2 flex-shrink-0" />
+                                  <span>Last seen: {formatLastSeen(screen.last_seen)}</span>
                                 </div>
-                              )}
-                              
-                              <div className="flex items-center text-xs text-gray-600">
-                                <Clock className="h-3 w-3 mr-2 flex-shrink-0" />
-                                <span>Last seen: {formatLastSeen(screen.last_seen)}</span>
+                                
+                                {screen.last_sync_at && (
+                                  <div className="flex items-center text-xs text-blue-600">
+                                    <Activity className="h-3 w-3 mr-2 flex-shrink-0" />
+                                    <span>Last sync: {formatLastSeen(screen.last_sync_at)}</span>
+                                  </div>
+                                )}
                               </div>
-                              
-                              {screen.last_sync_at && (
-                                <div className="flex items-center text-xs text-blue-600">
-                                  <Activity className="h-3 w-3 mr-2 flex-shrink-0" />
-                                  <span>Last sync: {formatLastSeen(screen.last_sync_at)}</span>
-                                </div>
-                              )}
                             </div>
-                          </div>
 
-                          <div className="flex flex-col items-center space-y-2 ml-2">
-                            <Link
-                              href={`/dashboard/screens/${screen.id}`}
-                              className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs leading-4 font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-colors"
-                            >
-                              View
-                            </Link>
-                            <Link
-                              href={`/dashboard/screens/${screen.id}/edit`}
-                              className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs leading-4 font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-colors"
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Link>
+                            <div className="flex flex-col items-center space-y-2 ml-2">
+                              {/* Primary Action - Pair or View */}
+                              {!isPaired ? (
+                                <button
+                                  onClick={() => handlePairDevice(screen)}
+                                  className="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500 transition-colors"
+                                >
+                                  <QrCode className="h-3 w-3 mr-1" />
+                                  Pair Device
+                                </button>
+                              ) : (
+                                <Link
+                                  href={`/dashboard/screens/${screen.id}`}
+                                  className="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-colors"
+                                >
+                                  <Monitor className="h-3 w-3 mr-1" />
+                                  View
+                                </Link>
+                              )}
+                              
+                              {/* Secondary Actions */}
+                              <div className="flex space-x-1">
+                                <Link
+                                  href={`/dashboard/screens/${screen.id}/edit`}
+                                  className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs leading-4 font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-colors"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Link>
+                                
+                                {/* Device Control Actions for Paired Devices */}
+                                {isPaired && screen.device_status === 'online' && (
+                                  <>
+                                    <button
+                                      onClick={() => handleDeviceAction(screen.id, 'restart')}
+                                      disabled={isLoading === 'restart'}
+                                      className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs leading-4 font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-colors disabled:opacity-50"
+                                      title="Restart device"
+                                    >
+                                      {isLoading === 'restart' ? (
+                                        <Settings className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <RotateCcw className="h-3 w-3" />
+                                      )}
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )
@@ -501,6 +599,29 @@ export default function ScreensPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Pairing Modal */}
+      {selectedScreenForPairing && (
+        <PairingModal
+          isOpen={pairingModalOpen}
+          onClose={() => {
+            setPairingModalOpen(false)
+            setSelectedScreenForPairing(null)
+          }}
+          screen={selectedScreenForPairing}
+          onSuccess={handlePairingSuccess}
+        />
+      )}
+
+      {/* Toast Notifications */}
+      {toast && (
+        <Toast
+          type={toast.type}
+          title={toast.title}
+          message={toast.message}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   )
