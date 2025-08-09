@@ -1,0 +1,30 @@
+2025-08-08 17:44:47,722 - INFO - === TESTING ENHANCED DISPLAY METHODS ===
+2025-08-08 17:44:47,722 - INFO - 🚀 Starting Enhanced Display Methods Test
+2025-08-08 17:44:47,722 - INFO - \n🔍 SYSTEM ENVIRONMENT TEST
+2025-08-08 17:44:47,722 - INFO - ==================================================
+2025-08-08 17:44:47,723 - INFO - Current user: ttadmin
+2025-08-08 17:44:47,723 - INFO - User ID: 501
+2025-08-08 17:44:47,723 - INFO - Running as root: False
+2025-08-08 17:44:47,723 - INFO - DISPLAY environment: Not set
+2025-08-08 17:44:47,723 - INFO - \n🛠️  Available tools:
+2025-08-08 17:44:47,725 - INFO -    ❌ fbi        - Not found
+2025-08-08 17:44:47,727 - INFO -    ❌ feh        - Not found
+2025-08-08 17:44:47,728 - INFO -    ❌ eog        - Not found
+2025-08-08 17:44:47,730 - INFO -    ❌ convert    - Not found
+2025-08-08 17:44:47,732 - INFO -    ✅ open       - /usr/bin/open
+2025-08-08 17:44:47,732 - INFO - ✅ Write access to temp directory: /Users/ttadmin/Mesophy/digital-signage-platform/pi-client/temp
+2025-08-08 17:44:47,732 - INFO - Generating test image: DISPLAY TEST
+2025-08-08 17:44:48,008 - INFO - Test image saved to: /Users/ttadmin/Mesophy/digital-signage-platform/pi-client/temp/test_display_1754700287.png
+2025-08-08 17:44:48,008 - INFO - 🧪 Testing display methods with: test_display_1754700287.png
+2025-08-08 17:44:48,008 - INFO - \n🧪 Testing: open (macOS default)
+2025-08-08 17:44:48,008 - INFO -    Reason: macOS system default image viewer
+2025-08-08 17:44:48,008 - INFO -    Command: open /Users/ttadmin/Mesophy/digital-signage-platform/pi-client/temp/test_display_1754700287.png
+2025-08-08 17:44:48,012 - INFO -    ⏳ Started process PID 84587
+2025-08-08 17:44:50,018 - INFO -    ✅ open (macOS default) completed successfully
+2025-08-08 17:44:50,018 - INFO - \n============================================================
+2025-08-08 17:44:50,018 - INFO - TEST COMPLETE
+2025-08-08 17:44:50,018 - INFO - ============================================================
+2025-08-08 17:44:50,018 - INFO - ✅ SUCCESS: Display method 'open (macOS default)' worked!
+2025-08-08 17:44:50,018 - INFO - 💡 The enhanced Pi client should work properly on Pi hardware
+2025-08-08 17:44:50,018 - INFO - 📄 Test image saved at: /Users/ttadmin/Mesophy/digital-signage-platform/pi-client/temp/test_display_1754700287.png
+2025-08-08 17:44:50,018 - INFO - 📝 Test log saved at: /Users/ttadmin/Mesophy/digital-signage-platform/pi-client/logs/test-display.log

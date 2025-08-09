@@ -386,7 +386,137 @@ class MesophyKioskApp {
      */
     handleContentUpdate(data) {
         console.log('📺 Content update:', data);
-        // TODO: Implement content playback
+        
+        if (!data.content || !data.content.media_assets) {
+            console.log('📺 No content to play - showing waiting state');
+            this.setState('content');
+            this.showWaitingForContent(data.message || 'No content scheduled for current time');
+            return;
+        }
+        
+        console.log('📺 Starting content playback', {
+            assetCount: data.content.media_assets.length,
+            scheduleId: data.content.schedule_id
+        });
+        
+        this.currentContent = data.content;
+        this.setState('content');
+        this.startContentPlayback(data.content.media_assets);
+    }
+    
+    /**
+     * Show waiting for content state
+     */
+    showWaitingForContent(message) {
+        const mediaPlayer = document.getElementById('media-player');
+        if (mediaPlayer) {
+            mediaPlayer.innerHTML = `
+                <div class="placeholder-content">
+                    <div class="content-message">
+                        <h3>Ready for Content</h3>
+                        <p>${message}</p>
+                        <div class="loading-spinner"></div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+    
+    /**
+     * Start content playback
+     */
+    startContentPlayback(mediaAssets) {
+        console.log('🎬 Starting playback of', mediaAssets.length, 'assets');
+        
+        const mediaPlayer = document.getElementById('media-player');
+        if (!mediaPlayer) {
+            console.error('Media player element not found');
+            return;
+        }
+        
+        let currentAssetIndex = 0;
+        
+        const playNextAsset = () => {
+            if (currentAssetIndex >= mediaAssets.length) {
+                currentAssetIndex = 0; // Loop back to start
+            }
+            
+            const asset = mediaAssets[currentAssetIndex];
+            console.log('🎬 Playing asset:', asset.filename, 'Type:', asset.file_type);
+            
+            this.playMediaAsset(asset, () => {
+                currentAssetIndex++;
+                setTimeout(playNextAsset, 500); // Small gap between assets
+            });
+        };
+        
+        // Start playback
+        playNextAsset();
+    }
+    
+    /**
+     * Play individual media asset
+     */
+    playMediaAsset(asset, onComplete) {
+        const mediaPlayer = document.getElementById('media-player');
+        const localUrl = `/content/${asset.filename}`;
+        
+        if (asset.file_type.startsWith('video/')) {
+            console.log('🎥 Playing video:', asset.filename);
+            
+            mediaPlayer.innerHTML = `
+                <video 
+                    id="current-video"
+                    autoplay 
+                    muted 
+                    playsinline
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                    onended="this.dispatchEvent(new Event('assetComplete'))"
+                    onerror="this.dispatchEvent(new Event('assetError'))"
+                >
+                    <source src="${localUrl}" type="${asset.file_type}">
+                    Your browser does not support the video tag.
+                </video>
+            `;
+            
+            const video = document.getElementById('current-video');
+            video.addEventListener('assetComplete', onComplete, { once: true });
+            video.addEventListener('assetError', (e) => {
+                console.error('Video playback error:', e);
+                setTimeout(onComplete, 1000); // Skip to next asset
+            }, { once: true });
+            
+        } else if (asset.file_type.startsWith('image/')) {
+            console.log('🖼️ Showing image:', asset.filename);
+            
+            mediaPlayer.innerHTML = `
+                <img 
+                    id="current-image"
+                    src="${localUrl}"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                    onload="this.dispatchEvent(new Event('assetComplete'))"
+                    onerror="this.dispatchEvent(new Event('assetError'))"
+                >
+            `;
+            
+            const image = document.getElementById('current-image');
+            
+            // Show image for 10 seconds (configurable)
+            const displayDuration = 10000;
+            
+            image.addEventListener('assetComplete', () => {
+                setTimeout(onComplete, displayDuration);
+            }, { once: true });
+            
+            image.addEventListener('assetError', (e) => {
+                console.error('Image display error:', e);
+                setTimeout(onComplete, 1000); // Skip to next asset
+            }, { once: true });
+            
+        } else {
+            console.warn('Unsupported media type:', asset.file_type);
+            setTimeout(onComplete, 1000); // Skip to next asset
+        }
     }
 
     /**
