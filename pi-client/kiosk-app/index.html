@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mesophy Digital Signage</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4F46E5">
+</head>
+<body>
+    <div id="app">
+        <!-- Loading State -->
+        <div id="loading-state" class="state active">
+            <div class="loading-container">
+                <div class="logo">
+                    <h1>MESOPHY</h1>
+                    <p>Digital Signage</p>
+                </div>
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Initializing system...</p>
+            </div>
+        </div>
+
+        <!-- Pairing State -->
+        <div id="pairing-state" class="state">
+            <div class="pairing-container">
+                <header class="pairing-header">
+                    <div class="logo">
+                        <h1>MESOPHY</h1>
+                        <p>Digital Signage</p>
+                    </div>
+                    <div class="status-indicator">
+                        <div class="status-dot" id="connection-status"></div>
+                        <span id="connection-text">Connecting...</span>
+                    </div>
+                </header>
+
+                <main class="pairing-main">
+                    <div class="pairing-content">
+                        <h2>Device Setup Required</h2>
+                        <p class="setup-description">
+                            To connect this display to your Mesophy dashboard, 
+                            please enter the pairing code shown below.
+                        </p>
+
+                        <div class="pairing-code-container">
+                            <div class="pairing-code" id="pairing-code">
+                                <span class="code-loading">Generating...</span>
+                            </div>
+                            <button class="refresh-code" id="refresh-code" title="Generate new code">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="23 4 23 10 17 10"></polyline>
+                                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="pairing-steps">
+                            <h3>Setup Instructions</h3>
+                            <ol>
+                                <li>Go to <strong>mesophy.vercel.app</strong> in your browser</li>
+                                <li>Log in to your dashboard</li>
+                                <li>Navigate to <strong>Screens → Pair Device</strong></li>
+                                <li>Enter the code: <span class="inline-code" id="inline-code">______</span></li>
+                                <li>Select this screen's location and type</li>
+                            </ol>
+                        </div>
+
+                        <div class="pairing-status" id="pairing-status">
+                            <div class="status-message">
+                                <div class="pulse-dot"></div>
+                                <span>Waiting for pairing...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="qr-section">
+                        <div class="qr-code" id="qr-code">
+                            <!-- QR code will be generated here -->
+                        </div>
+                        <p class="qr-text">Or scan this QR code</p>
+                    </div>
+                </main>
+
+                <footer class="pairing-footer">
+                    <div class="device-info">
+                        <span class="device-id">Device: <span id="device-hostname">Pi-Display</span></span>
+                        <span class="separator">•</span>
+                        <span class="network-info" id="network-info">Checking network...</span>
+                    </div>
+                </footer>
+            </div>
+        </div>
+
+        <!-- Success State -->
+        <div id="success-state" class="state">
+            <div class="success-container">
+                <div class="success-content">
+                    <div class="success-icon">
+                        <svg width="80" height="80" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="#10B981" stroke-width="2" fill="none"/>
+                            <path d="m9 12 2 2 4-4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <h2>Pairing Successful!</h2>
+                    <p class="success-message">
+                        This display is now connected to your Mesophy dashboard.
+                        <br>Content will begin playing shortly.
+                    </p>
+                    <div class="device-details">
+                        <div class="detail-item">
+                            <label>Screen Name:</label>
+                            <span id="screen-name">Loading...</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Location:</label>
+                            <span id="screen-location">Loading...</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Type:</label>
+                            <span id="screen-type">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content Playback State -->
+        <div id="content-state" class="state">
+            <div class="content-container">
+                <div class="media-player" id="media-player">
+                    <!-- Video/image content will be displayed here -->
+                    <div class="placeholder-content">
+                        <div class="content-message">
+                            <h3>Ready for Content</h3>
+                            <p>Waiting for content from your Mesophy dashboard...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="content-overlay" id="content-overlay">
+                    <!-- Status overlay for debugging -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="error-state" class="state">
+            <div class="error-container">
+                <div class="error-content">
+                    <div class="error-icon">
+                        <svg width="80" height="80" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="#EF4444" stroke-width="2"/>
+                            <line x1="15" y1="9" x2="9" y2="15" stroke="#EF4444" stroke-width="2"/>
+                            <line x1="9" y1="9" x2="15" y2="15" stroke="#EF4444" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <h2>Connection Error</h2>
+                    <p class="error-message" id="error-message">
+                        Unable to connect to the Mesophy service. Please check your internet connection.
+                    </p>
+                    <div class="error-actions">
+                        <button class="retry-button" id="retry-button">Retry Connection</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="qrcode.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

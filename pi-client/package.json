@@ -1,17 +1,23 @@
 {
-  "name": "mesophy-pi-client",
-  "version": "1.0.0",
-  "description": "Mesophy Digital Signage Pi Client - Native Media Daemon",
-  "main": "media-daemon.js",
+  "name": "mesophy-kiosk",
+  "version": "2.0.0",
+  "description": "Mesophy Digital Signage Kiosk Application",
+  "main": "kiosk-server.js",
   "scripts": {
-    "start": "node media-daemon.js",
+    "start": "node kiosk-server.js",
+    "dev": "nodemon kiosk-server.js",
+    "legacy": "node media-daemon.js",
     "setup": "node setup.js",
-    "dev": "NODE_ENV=development node media-daemon.js",
-    "daemon": "node media-daemon.js --daemon"
+    "daemon": "node media-daemon.js --daemon",
+    "install-service": "sudo cp mesophy-kiosk.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable mesophy-kiosk",
+    "uninstall-service": "sudo systemctl disable mesophy-kiosk && sudo rm -f /etc/systemd/system/mesophy-kiosk.service && sudo systemctl daemon-reload",
+    "logs": "journalctl -u mesophy-kiosk -f"
   },
   "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.14.2",
     "sqlite3": "^5.1.6",
-    "node-fetch": "^2.7.0",
+    "node-fetch": "^3.3.2",
     "fs-extra": "^11.1.1",
     "systeminformation": "^5.21.20",
     "node-schedule": "^2.1.1",
@@ -19,10 +25,28 @@
     "lockfile": "^1.0.4",
     "qrcode": "^1.5.3"
   },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
   "engines": {
     "node": ">=16.0.0"
   },
-  "keywords": ["digital-signage", "raspberry-pi", "mesophy", "native-media"],
-  "author": "Mesophy",
-  "license": "MIT"
+  "keywords": [
+    "digital-signage",
+    "kiosk",
+    "raspberry-pi",
+    "mesophy",
+    "browser-based"
+  ],
+  "author": "Mesophy Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JasonLazzuri/Mesophy.git",
+    "directory": "pi-client"
+  },
+  "bugs": {
+    "url": "https://github.com/JasonLazzuri/Mesophy/issues"
+  },
+  "homepage": "https://github.com/JasonLazzuri/Mesophy#readme"
 }

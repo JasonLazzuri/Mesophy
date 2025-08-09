@@ -1,0 +1,40 @@
+[Unit]
+Description=Mesophy Digital Signage Kiosk
+Documentation=https://github.com/JasonLazzuri/Mesophy
+After=network-online.target graphical-session.target
+Wants=network-online.target
+Requires=graphical-session.target
+
+[Service]
+Type=exec
+User=pi
+Group=pi
+Environment=HOME=/home/pi
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+WorkingDirectory=/opt/mesophy
+ExecStartPre=/bin/bash -c 'until ping -c1 google.com; do sleep 5; done'
+ExecStart=/opt/mesophy/start-kiosk.sh
+Restart=always
+RestartSec=10
+StandardOutput=append:/opt/mesophy/logs/kiosk-service.log
+StandardError=append:/opt/mesophy/logs/kiosk-service-error.log
+TimeoutStartSec=300
+KillMode=mixed
+KillSignal=SIGTERM
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/mesophy
+ReadOnlyPaths=/home/pi/.Xauthority
+ProtectHome=read-only
+
+# Resource limits
+MemoryMax=2G
+TasksMax=500
+
+[Install]
+WantedBy=graphical-session.target

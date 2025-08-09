@@ -1,0 +1,562 @@
+/* Mesophy Digital Signage Kiosk Styles */
+
+/* Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+    color: white;
+    overflow: hidden;
+    cursor: none; /* Hide cursor in kiosk mode */
+}
+
+#app {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+}
+
+/* State management */
+.state {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.5s ease-in-out, visibility 0.5s ease-in-out;
+}
+
+.state.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Loading State */
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    text-align: center;
+}
+
+.logo h1 {
+    font-size: 4rem;
+    font-weight: 800;
+    background: linear-gradient(45deg, #4F46E5, #7C3AED, #EC4899);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+}
+
+.logo p {
+    font-size: 1.5rem;
+    color: #94A3B8;
+    margin-bottom: 3rem;
+}
+
+.loading-spinner {
+    width: 60px;
+    height: 60px;
+    border: 4px solid #334155;
+    border-top: 4px solid #4F46E5;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 2rem;
+}
+
+.loading-text {
+    font-size: 1.2rem;
+    color: #94A3B8;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Pairing State */
+.pairing-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 2rem;
+}
+
+.pairing-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+}
+
+.pairing-header .logo h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.pairing-header .logo p {
+    font-size: 1rem;
+    margin-bottom: 0;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 0.5rem;
+    backdrop-filter: blur(10px);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #EF4444;
+    animation: pulse-red 2s ease-in-out infinite alternate;
+}
+
+.status-dot.connected {
+    background: #10B981;
+    animation: pulse-green 2s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-red {
+    from { opacity: 1; }
+    to { opacity: 0.3; }
+}
+
+@keyframes pulse-green {
+    from { opacity: 1; }
+    to { opacity: 0.3; }
+}
+
+#connection-text {
+    font-size: 0.9rem;
+    color: #E2E8F0;
+}
+
+.pairing-main {
+    display: flex;
+    flex: 1;
+    gap: 4rem;
+    align-items: center;
+}
+
+.pairing-content {
+    flex: 2;
+}
+
+.pairing-content h2 {
+    font-size: 3rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    background: linear-gradient(45deg, #F8FAFC, #E2E8F0);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.setup-description {
+    font-size: 1.3rem;
+    color: #CBD5E1;
+    line-height: 1.6;
+    margin-bottom: 3rem;
+}
+
+.pairing-code-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-bottom: 3rem;
+}
+
+.pairing-code {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 400px;
+    height: 120px;
+    background: linear-gradient(135deg, #1E293B, #334155);
+    border: 3px solid #4F46E5;
+    border-radius: 1rem;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: #F8FAFC;
+    letter-spacing: 0.2em;
+    position: relative;
+    overflow: hidden;
+}
+
+.pairing-code::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+.code-loading {
+    color: #94A3B8;
+    font-size: 1.5rem;
+    animation: loading-dots 1.5s ease-in-out infinite;
+}
+
+@keyframes loading-dots {
+    0%, 20% { content: 'Generating'; }
+    40% { content: 'Generating.'; }
+    60% { content: 'Generating..'; }
+    80%, 100% { content: 'Generating...'; }
+}
+
+.refresh-code {
+    margin-left: 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+}
+
+.refresh-code:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+}
+
+.pairing-steps {
+    margin-bottom: 2rem;
+}
+
+.pairing-steps h3 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: #E2E8F0;
+}
+
+.pairing-steps ol {
+    list-style: none;
+    counter-reset: step-counter;
+}
+
+.pairing-steps li {
+    counter-increment: step-counter;
+    margin-bottom: 1rem;
+    padding-left: 3rem;
+    position: relative;
+    font-size: 1.1rem;
+    line-height: 1.6;
+    color: #CBD5E1;
+}
+
+.pairing-steps li::before {
+    content: counter(step-counter);
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 2rem;
+    height: 2rem;
+    background: #4F46E5;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.inline-code {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-weight: 700;
+    color: #4F46E5;
+}
+
+.pairing-status {
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 0.75rem;
+    backdrop-filter: blur(10px);
+}
+
+.status-message {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 1.1rem;
+}
+
+.pulse-dot {
+    width: 12px;
+    height: 12px;
+    background: #4F46E5;
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.qr-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.qr-code {
+    width: 300px;
+    height: 300px;
+    background: white;
+    border-radius: 1rem;
+    padding: 2rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.qr-text {
+    font-size: 1.1rem;
+    color: #94A3B8;
+}
+
+.pairing-footer {
+    margin-top: auto;
+    padding-top: 2rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.device-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    justify-content: center;
+    color: #94A3B8;
+    font-size: 0.9rem;
+}
+
+.separator {
+    opacity: 0.5;
+}
+
+/* Success State */
+.success-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    text-align: center;
+}
+
+.success-content {
+    max-width: 600px;
+}
+
+.success-icon {
+    margin-bottom: 2rem;
+}
+
+.success-container h2 {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #10B981;
+}
+
+.success-message {
+    font-size: 1.3rem;
+    color: #CBD5E1;
+    line-height: 1.6;
+    margin-bottom: 3rem;
+}
+
+.device-details {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2rem;
+    border-radius: 1rem;
+    backdrop-filter: blur(10px);
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.detail-item:last-child {
+    border-bottom: none;
+}
+
+.detail-item label {
+    font-weight: 600;
+    color: #94A3B8;
+}
+
+.detail-item span {
+    color: #F8FAFC;
+    font-weight: 500;
+}
+
+/* Content State */
+.content-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.media-player {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.placeholder-content {
+    text-align: center;
+}
+
+.content-message h3 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    color: #E2E8F0;
+}
+
+.content-message p {
+    font-size: 1.2rem;
+    color: #94A3B8;
+}
+
+.content-overlay {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 1rem;
+    border-radius: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.content-overlay.show {
+    opacity: 1;
+}
+
+/* Error State */
+.error-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    text-align: center;
+}
+
+.error-content {
+    max-width: 600px;
+}
+
+.error-icon {
+    margin-bottom: 2rem;
+}
+
+.error-container h2 {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #EF4444;
+}
+
+.error-message {
+    font-size: 1.3rem;
+    color: #CBD5E1;
+    line-height: 1.6;
+    margin-bottom: 3rem;
+}
+
+.retry-button {
+    background: #4F46E5;
+    color: white;
+    border: none;
+    padding: 1rem 2rem;
+    border-radius: 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.retry-button:hover {
+    background: #3730A3;
+    transform: translateY(-2px);
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+    .pairing-main {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .pairing-content {
+        flex: none;
+        margin-bottom: 2rem;
+    }
+    
+    .qr-section {
+        flex: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .pairing-container {
+        padding: 1rem;
+    }
+    
+    .pairing-header {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    
+    .pairing-content h2 {
+        font-size: 2rem;
+    }
+    
+    .pairing-code {
+        min-width: 300px;
+        height: 80px;
+        font-size: 2.5rem;
+    }
+}
