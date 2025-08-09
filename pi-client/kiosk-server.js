@@ -66,10 +66,14 @@ function logDebug(message, data = null) { log('debug', message, data); }
  */
 async function initDatabase() {
     return new Promise((resolve, reject) => {
+        console.log('🗄️ Initializing database at:', DATABASE_PATH);
+        
         db = new sqlite3.Database(DATABASE_PATH, (err) => {
             if (err) {
-                console.error('Database connection error:', err);
-                reject(err);
+                console.error('❌ Database connection error:', err);
+                // Still resolve to continue server startup, but db will be null
+                db = null;
+                resolve(null);
                 return;
             }
             
@@ -482,6 +486,18 @@ app.get('/api/status', (req, res) => {
     });
 });
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        database: db ? 'connected' : 'disconnected',
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        version: '2.0.0'
+    });
+});
+
 app.post('/api/generate-code', async (req, res) => {
     const code = await generatePairingCode();
     if (code) {
@@ -498,6 +514,15 @@ app.get('/api/check-pairing/:code', async (req, res) => {
 
 // Logs API for debugging
 app.get('/api/logs', (req, res) => {
+    // Check if database is available
+    if (!db) {
+        return res.status(503).json({ 
+            error: 'Database not available',
+            logs: [],
+            message: 'Database is still initializing or failed to initialize'
+        });
+    }
+    
     const limit = parseInt(req.query.limit) || 100;
     const level = req.query.level || null;
     
@@ -514,10 +539,20 @@ app.get('/api/logs', (req, res) => {
     
     db.all(query, params, (err, rows) => {
         if (err) {
-            res.status(500).json({ error: err.message });
+            console.error('Database query error:', err);
+            res.status(500).json({ 
+                error: err.message,
+                logs: [],
+                query: query 
+            });
             return;
         }
-        res.json({ logs: rows });
+        res.json({ 
+            logs: rows || [],
+            count: rows ? rows.length : 0,
+            limit: limit,
+            level: level
+        });
     });
 });
 
