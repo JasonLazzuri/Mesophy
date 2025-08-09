@@ -1,20 +1,19 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 /**
- * GET /api/screens/[screen_id]/current-content
+ * GET /api/screens/[id]/current-content
  * 
  * Returns the current scheduled content for a specific screen
  * Used by Pi devices to fetch content that should be playing now
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { screen_id: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    const { screen_id } = params
+    const supabase = await createClient()
+    const { id: screen_id } = params
     
     console.log(`🔍 Checking content for screen: ${screen_id}`)
     console.log(`📍 API endpoint is working!`)
