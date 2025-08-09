@@ -17,6 +17,7 @@ export async function GET(
     const { screen_id } = params
     
     console.log(`🔍 Checking content for screen: ${screen_id}`)
+    console.log(`📍 API endpoint is working!`)
 
     // 1. Verify the screen exists
     const { data: screen, error: screenError } = await supabase
