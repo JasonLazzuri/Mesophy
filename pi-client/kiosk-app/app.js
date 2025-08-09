@@ -235,13 +235,25 @@ class MesophyKioskApp {
      */
     async checkInitialState() {
         try {
+            console.log('🔍 Checking initial state...');
             const response = await fetch('/api/status');
             const data = await response.json();
             
+            console.log('📊 Initial state data:', data);
+            
             if (data.is_paired && data.device_config) {
+                console.log('✅ Device already paired - showing success screen');
                 this.deviceConfig = data.device_config;
                 this.setState('success');
+                this.updateSuccessScreenInfo(data.device_config);
+                
+                // Transition to content after showing success
+                setTimeout(() => {
+                    console.log('⏭️ Transitioning to content state');
+                    this.setState('content');
+                }, 3000);
             } else {
+                console.log('📱 Device not paired, starting pairing flow');
                 this.setState('pairing');
                 if (data.pairing_code) {
                     this.updatePairingCode(data.pairing_code);
@@ -358,6 +370,7 @@ class MesophyKioskApp {
      */
     handlePairingSuccess(deviceConfig) {
         console.log('🎉 Pairing successful!', deviceConfig);
+        console.log('Device config structure:', JSON.stringify(deviceConfig, null, 2));
         
         if (this.pairingCheckInterval) {
             clearInterval(this.pairingCheckInterval);
@@ -366,19 +379,82 @@ class MesophyKioskApp {
         this.deviceConfig = deviceConfig;
         this.setState('success');
         
-        // Update success screen with device info
-        const screenName = document.getElementById('screen-name');
-        const screenLocation = document.getElementById('screen-location');
-        const screenType = document.getElementById('screen-type');
-        
-        if (screenName) screenName.textContent = deviceConfig.screen_name || 'Unknown';
-        if (screenLocation) screenLocation.textContent = deviceConfig.location?.name || 'Unknown';
-        if (screenType) screenType.textContent = deviceConfig.screen_type || 'Unknown';
+        // Update success screen with device info with enhanced error handling
+        this.updateSuccessScreenInfo(deviceConfig);
         
         // Transition to content after a few seconds
         setTimeout(() => {
             this.setState('content');
         }, 5000);
+    }
+    
+    /**
+     * Update success screen with device information
+     */
+    updateSuccessScreenInfo(deviceConfig) {
+        console.log('🔄 Updating success screen info');
+        
+        const screenName = document.getElementById('screen-name');
+        const screenLocation = document.getElementById('screen-location');
+        const screenType = document.getElementById('screen-type');
+        
+        // Handle screen name with multiple possible properties
+        let displayName = 'Loading...';
+        if (deviceConfig.screen_name) {
+            displayName = deviceConfig.screen_name;
+        } else if (deviceConfig.name) {
+            displayName = deviceConfig.name;
+        } else if (deviceConfig.device_name) {
+            displayName = deviceConfig.device_name;
+        } else {
+            displayName = `Screen ${deviceConfig.screen_id || 'Unknown'}`;
+        }
+        
+        // Handle location with multiple possible structures
+        let displayLocation = 'Loading...';
+        if (deviceConfig.location) {
+            if (typeof deviceConfig.location === 'string') {
+                displayLocation = deviceConfig.location;
+            } else if (deviceConfig.location.name) {
+                displayLocation = deviceConfig.location.name;
+            } else if (deviceConfig.location.location_name) {
+                displayLocation = deviceConfig.location.location_name;
+            }
+        } else if (deviceConfig.location_name) {
+            displayLocation = deviceConfig.location_name;
+        } else {
+            displayLocation = 'Location not specified';
+        }
+        
+        // Handle screen type with multiple possible properties
+        let displayType = 'Loading...';
+        if (deviceConfig.screen_type) {
+            displayType = deviceConfig.screen_type;
+        } else if (deviceConfig.type) {
+            displayType = deviceConfig.type;
+        } else if (deviceConfig.device_type) {
+            displayType = deviceConfig.device_type;
+        } else {
+            displayType = 'Digital Display';
+        }
+        
+        // Update the DOM elements
+        if (screenName) {
+            screenName.textContent = displayName;
+            console.log('✅ Updated screen name:', displayName);
+        }
+        
+        if (screenLocation) {
+            screenLocation.textContent = displayLocation;
+            console.log('✅ Updated screen location:', displayLocation);
+        }
+        
+        if (screenType) {
+            screenType.textContent = displayType;
+            console.log('✅ Updated screen type:', displayType);
+        }
+        
+        console.log('🎯 Success screen info updated successfully');
     }
 
     /**
