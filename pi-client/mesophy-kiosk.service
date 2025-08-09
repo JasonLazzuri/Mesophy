@@ -1,9 +1,9 @@
 [Unit]
 Description=Mesophy Digital Signage Kiosk
 Documentation=https://github.com/JasonLazzuri/Mesophy
-After=network-online.target graphical-session.target
+After=network-online.target graphical.target multi-user.target
 Wants=network-online.target
-Requires=graphical-session.target
+Requires=multi-user.target
 
 [Service]
 Type=exec
@@ -37,4 +37,4 @@ MemoryMax=2G
 TasksMax=500
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=multi-user.target
