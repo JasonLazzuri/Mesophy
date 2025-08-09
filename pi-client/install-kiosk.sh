@@ -309,8 +309,8 @@ EOF
 }
 
 # Configure unclutter (hide mouse cursor)
-configure_unclutter() {
-    log_step "Configuring cursor hiding..."
+configure_display_settings() {
+    log_step "Configuring display settings and screen sleep prevention..."
     
     # Create unclutter service
     cat > /etc/systemd/user/unclutter.service << 'EOF'
@@ -330,7 +330,46 @@ EOF
     # Enable for pi user
     sudo -u pi systemctl --user enable unclutter > /dev/null 2>&1
     
-    log_info "Cursor hiding configured"
+    # Configure X11 to disable screen blanking and power management
+    mkdir -p /etc/X11/xorg.conf.d
+    cat > /etc/X11/xorg.conf.d/10-monitor.conf << 'EOF'
+Section "Monitor"
+    Identifier "HDMI-1"
+    Option "DPMS" "false"
+EndSection
+
+Section "ServerLayout"
+    Identifier "ServerLayout0"
+    Option "StandbyTime" "0"
+    Option "SuspendTime" "0"
+    Option "OffTime" "0"
+    Option "BlankTime" "0"
+EndSection
+
+Section "ServerFlags"
+    Option "NoTrapSignals" "true"
+    Option "DontZap" "true"
+EndSection
+EOF
+    
+    # Disable console blanking
+    if ! grep -q "consoleblank=0" /boot/cmdline.txt 2>/dev/null; then
+        sed -i 's/$/ consoleblank=0/' /boot/cmdline.txt 2>/dev/null || true
+    fi
+    
+    # Configure LXDE to disable screensaver
+    sudo -u pi mkdir -p /home/pi/.config/lxsession/LXDE-pi
+    sudo -u pi cat > /home/pi/.config/lxsession/LXDE-pi/autostart << 'EOF'
+@lxpanel --profile LXDE-pi
+@pcmanfm --desktop --profile LXDE-pi
+@xscreensaver -no-splash
+@point-rpi
+@xset s off
+@xset -dpms
+@xset s noblank
+EOF
+    
+    log_info "Display settings and screen sleep prevention configured"
 }
 
 # Final configuration and cleanup
@@ -379,10 +418,10 @@ show_summary() {
     echo -e "${BLUE}║${NC} Browser: ${GREEN}Chromium Kiosk Mode${NC}"
     echo -e "${BLUE}║${NC} User: ${GREEN}pi${NC}"
     echo -e "${BLUE}╠══════════════════════════════════════════════════════════╣${NC}"
-    echo -e "${BLUE}║${NC} ${YELLOW}NEXT STEPS:${NC}"
-    echo -e "${BLUE}║${NC} 1. Reboot the Pi: ${GREEN}sudo reboot${NC}"
-    echo -e "${BLUE}║${NC} 2. The kiosk will auto-start and show pairing code"
-    echo -e "${BLUE}║${NC} 3. Go to mesophy.vercel.app to pair the device"
+    echo -e "${BLUE}║${NC} ${YELLOW}AUTOMATIC REBOOT:${NC}"
+    echo -e "${BLUE}║${NC} System will reboot automatically in 10 seconds"
+    echo -e "${BLUE}║${NC} The kiosk will auto-start and show pairing code"
+    echo -e "${BLUE}║${NC} Go to mesophy.vercel.app to pair the device"
     echo -e "${BLUE}║${NC}"
     echo -e "${BLUE}║${NC} ${YELLOW}MANAGEMENT COMMANDS:${NC}"
     echo -e "${BLUE}║${NC} • Check status: ${GREEN}sudo systemctl status $SERVICE_NAME${NC}"
@@ -391,6 +430,30 @@ show_summary() {
     echo -e "${BLUE}║${NC} • Test install: ${GREEN}$INSTALL_DIR/test-kiosk.sh${NC}"
     echo -e "${BLUE}╚══════════════════════════════════════════════════════════╝${NC}"
     echo
+}
+
+# Auto-reboot function with countdown
+auto_reboot() {
+    echo
+    log_info "🔄 Preparing for automatic reboot..."
+    echo
+    
+    # Countdown with option to cancel
+    for i in {10..1}; do
+        echo -ne "\r${YELLOW}⏰ Rebooting in ${i} seconds... (Press Ctrl+C to cancel)${NC}"
+        sleep 1
+    done
+    
+    echo
+    echo
+    log_info "🚀 Rebooting now..."
+    
+    # Final system preparations
+    systemctl daemon-reload
+    sync
+    
+    # Reboot the system
+    reboot
 }
 
 # Main installation function
@@ -409,7 +472,7 @@ main() {
     install_service
     configure_autologin
     configure_x11_autostart
-    configure_unclutter
+    configure_display_settings
     finalize_installation
     
     show_summary
@@ -417,3 +480,6 @@ main() {
 
 # Run main function
 main "$@"
+
+# Auto-reboot after successful installation
+auto_reboot

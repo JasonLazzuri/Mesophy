@@ -67,6 +67,9 @@ class MesophyKioskApp {
         // Prevent text selection in kiosk mode
         document.addEventListener('selectstart', (e) => e.preventDefault());
         
+        // Screen wake-lock functionality
+        this.setupScreenWakeLock();
+        
         // Handle keyboard shortcuts for debugging (only in development)
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.shiftKey) {
@@ -305,37 +308,11 @@ class MesophyKioskApp {
             inlineCodeElement.textContent = code;
         }
         
-        // Generate QR code
-        this.generateQRCode(code);
         
         // Start checking for pairing
         this.startPairingCheck();
     }
 
-    /**
-     * Generate QR code
-     */
-    generateQRCode(code) {
-        const qrCodeElement = document.getElementById('qr-code');
-        if (qrCodeElement && window.QRCode) {
-            // Clear existing QR code
-            qrCodeElement.innerHTML = '';
-            
-            try {
-                new QRCode(qrCodeElement, {
-                    text: `https://mesophy.vercel.app/pair?code=${code}`,
-                    width: 200,
-                    height: 200,
-                    colorDark: '#000000',
-                    colorLight: '#ffffff',
-                    correctLevel: QRCode.CorrectLevel.M
-                });
-            } catch (error) {
-                console.warn('⚠️ Could not generate QR code:', error);
-                qrCodeElement.innerHTML = '<div style="color: #666;">QR code unavailable</div>';
-            }
-        }
-    }
 
     /**
      * Start checking for pairing status
@@ -487,6 +464,105 @@ class MesophyKioskApp {
         }
         
         this.currentState = newState;
+    }
+
+    /**
+     * Set up screen wake-lock functionality to prevent sleep
+     */
+    setupScreenWakeLock() {
+        console.log('🔒 Setting up screen wake-lock...');
+        
+        // Modern Wake Lock API (if supported)
+        if ('wakeLock' in navigator) {
+            this.requestWakeLock();
+        } else {
+            console.warn('⚠️ Wake Lock API not supported, using fallback methods');
+        }
+        
+        // Fallback: Periodic activity simulation
+        this.setupActivitySimulation();
+        
+        // Handle visibility changes
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && 'wakeLock' in navigator) {
+                this.requestWakeLock();
+            }
+        });
+    }
+
+    /**
+     * Request screen wake lock using modern API
+     */
+    async requestWakeLock() {
+        try {
+            if (this.wakeLock) {
+                this.wakeLock.release();
+            }
+            
+            this.wakeLock = await navigator.wakeLock.request('screen');
+            console.log('✅ Screen wake lock acquired');
+            
+            this.wakeLock.addEventListener('release', () => {
+                console.log('🔓 Screen wake lock released');
+            });
+        } catch (error) {
+            console.warn('⚠️ Could not acquire screen wake lock:', error);
+        }
+    }
+
+    /**
+     * Fallback activity simulation to prevent sleep
+     */
+    setupActivitySimulation() {
+        // Create invisible video element that plays constantly
+        const video = document.createElement('video');
+        video.setAttribute('muted', '');
+        video.setAttribute('playsinline', '');
+        video.style.position = 'fixed';
+        video.style.top = '-1px';
+        video.style.left = '-1px';
+        video.style.width = '1px';
+        video.style.height = '1px';
+        video.style.opacity = '0.01';
+        
+        // Create a canvas-based video source
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        const ctx = canvas.getContext('2d');
+        
+        // Stream the canvas to the video
+        if (canvas.captureStream) {
+            video.srcObject = canvas.captureStream(1);
+            document.body.appendChild(video);
+            
+            // Animate the canvas to keep it "active"
+            let frame = 0;
+            const animate = () => {
+                ctx.fillStyle = frame % 2 ? '#000000' : '#000001';
+                ctx.fillRect(0, 0, 1, 1);
+                frame++;
+                requestAnimationFrame(animate);
+            };
+            
+            video.play().then(() => {
+                console.log('✅ Activity simulation video started');
+                animate();
+            }).catch(error => {
+                console.warn('⚠️ Could not start activity simulation:', error);
+            });
+        }
+        
+        // Additional periodic activity
+        setInterval(() => {
+            // Simulate tiny mouse movement
+            const event = new MouseEvent('mousemove', {
+                clientX: 1,
+                clientY: 1,
+                bubbles: false
+            });
+            document.dispatchEvent(event);
+        }, 30000); // Every 30 seconds
     }
 
     /**

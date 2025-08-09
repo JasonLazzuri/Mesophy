@@ -300,13 +300,55 @@ chown pi:pi /opt/mesophy/start-kiosk.sh
 
 log_info "✅ Start script updated"
 
-# Fix 6: Install unclutter if missing
-log_info "6. Installing missing packages..."
+# Fix 6: Install missing packages and configure screen sleep prevention
+log_info "6. Installing missing packages and configuring display settings..."
 if ! command -v unclutter > /dev/null; then
     apt-get update > /dev/null 2>&1
     apt-get install -y unclutter > /dev/null 2>&1
     log_info "✅ unclutter installed"
 fi
+
+# Configure X11 to disable screen blanking and power management
+log_info "6a. Configuring screen sleep prevention..."
+mkdir -p /etc/X11/xorg.conf.d
+cat > /etc/X11/xorg.conf.d/10-monitor.conf << 'EOF'
+Section "Monitor"
+    Identifier "HDMI-1"
+    Option "DPMS" "false"
+EndSection
+
+Section "ServerLayout"
+    Identifier "ServerLayout0"
+    Option "StandbyTime" "0"
+    Option "SuspendTime" "0"
+    Option "OffTime" "0"
+    Option "BlankTime" "0"
+EndSection
+
+Section "ServerFlags"
+    Option "NoTrapSignals" "true"
+    Option "DontZap" "true"
+EndSection
+EOF
+
+# Disable console blanking
+if ! grep -q "consoleblank=0" /boot/cmdline.txt 2>/dev/null; then
+    sed -i 's/$/ consoleblank=0/' /boot/cmdline.txt 2>/dev/null || true
+fi
+
+# Configure LXDE to disable screensaver
+sudo -u pi mkdir -p /home/pi/.config/lxsession/LXDE-pi
+sudo -u pi cat > /home/pi/.config/lxsession/LXDE-pi/autostart << 'EOF'
+@lxpanel --profile LXDE-pi
+@pcmanfm --desktop --profile LXDE-pi
+@xscreensaver -no-splash
+@point-rpi
+@xset s off
+@xset -dpms
+@xset s noblank
+EOF
+
+log_info "✅ Screen sleep prevention configured"
 
 # Fix 7: Reload systemd and services
 log_info "7. Reloading services..."

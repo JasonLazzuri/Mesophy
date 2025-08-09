@@ -138,6 +138,12 @@ chromium_args=(
     --disable-default-apps
     --disable-background-networking
     --no-first-run
+    --autoplay-policy=no-user-gesture-required
+    --enable-features=VaapiVideoDecoder
+    --disable-ipc-flooding-protection
+    --enable-aggressive-domstorage-flushing
+    --disable-background-mode
+    --disable-hang-monitor
     --no-default-browser-check
     --autoplay-policy=no-user-gesture-required
     --enable-features=VaapiVideoDecoder
