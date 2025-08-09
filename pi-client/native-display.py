@@ -343,8 +343,8 @@ class NativeDisplayManager:
         return image_path
 
     def display_image(self, image_path):
-        """Display image using fbi (framebuffer image viewer)"""
-        print(f"Displaying image: {image_path}")
+        """Display image using fbi (framebuffer) or window (debug mode)"""
+        self.logger.info(f"🖼️ Displaying image: {image_path}")
         
         # Kill existing display process
         if self.current_display_process:
@@ -358,6 +358,49 @@ class NativeDisplayManager:
                     pass
             self.current_display_process = None
         
+        # Check if debug mode is enabled (environment variable or config)
+        debug_mode = os.environ.get('MESOPHY_DEBUG', '').lower() in ['true', '1', 'yes']
+        use_window = debug_mode or self.config.get('debug', {}).get('use_window', False)
+        
+        if use_window:
+            # Debug mode: Display in a window (visible via VNC)
+            self.logger.info("🐛 Debug mode: Displaying in window for VNC viewing")
+            try:
+                # Try using feh to display in a window
+                cmd = [
+                    'feh',
+                    '--fullscreen',
+                    '--auto-zoom',
+                    '--no-menus',
+                    '--quiet',
+                    image_path
+                ]
+                
+                self.current_display_process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                self.logger.info(f"Image displayed in window with PID: {self.current_display_process.pid}")
+                return
+                
+            except Exception as e:
+                self.logger.warning(f"Failed to use feh for window display: {e}")
+                # Fallback to eog (GNOME image viewer)
+                try:
+                    cmd = ['eog', '--fullscreen', image_path]
+                    self.current_display_process = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
+                    self.logger.info(f"Image displayed in eog with PID: {self.current_display_process.pid}")
+                    return
+                except Exception as e2:
+                    self.logger.warning(f"Failed to use eog: {e2}")
+        
+        # Production mode: Use framebuffer (direct HDMI output)
+        self.logger.info("📺 Production mode: Displaying via framebuffer (HDMI)")
         try:
             # Use fbi to display image directly to framebuffer
             cmd = [
@@ -374,17 +417,17 @@ class NativeDisplayManager:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
-            print(f"Image displayed with PID: {self.current_display_process.pid}")
+            self.logger.info(f"Image displayed via framebuffer with PID: {self.current_display_process.pid}")
             
         except Exception as e:
-            print(f"Error displaying image with fbi: {e}")
+            self.logger.error(f"Error displaying image with fbi: {e}")
             # Fallback: try using convert to write directly to framebuffer
             try:
                 cmd = f"convert '{image_path}' -resize {self.display_width}x{self.display_height}! RGB:- | dd of=/dev/fb0 2>/dev/null"
                 subprocess.run(cmd, shell=True, check=True)
-                print("Image displayed using convert fallback")
+                self.logger.info("Image displayed using convert fallback")
             except Exception as e2:
-                print(f"Error with convert fallback: {e2}")
+                self.logger.error(f"Error with convert fallback: {e2}")
 
     def generate_pairing_code(self):
         """Generate new pairing code from API"""
