@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 /**
@@ -12,26 +11,47 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = await createClient()
     const { id: screen_id } = params
     
     console.log(`🔍 Checking content for screen: ${screen_id}`)
     console.log(`📍 API endpoint is working!`)
 
-    // 1. Verify the screen exists
-    const { data: screen, error: screenError } = await supabase
-      .from('screens')
-      .select('*')
-      .eq('id', screen_id)
-      .single()
+    // Get environment variables
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || 
+                       process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                       process.env.SUPABASE_SERVICE_KEY ||
+                       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
 
-    if (screenError || !screen) {
+    if (!url || !serviceKey) {
+      console.error('Missing environment variables')
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
+    }
+
+    // 1. Verify the screen exists
+    const screenResponse = await fetch(`${url}/rest/v1/screens?id=eq.${screen_id}&select=*`, {
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!screenResponse.ok) {
+      console.error('Screen fetch failed:', screenResponse.status, screenResponse.statusText)
+      return NextResponse.json({ error: 'Failed to fetch screen' }, { status: 500 })
+    }
+
+    const screens = await screenResponse.json()
+    if (!screens || screens.length === 0) {
       console.log(`❌ Screen not found: ${screen_id}`)
       return NextResponse.json(
         { error: 'Screen not found' }, 
         { status: 404 }
       )
     }
+
+    const screen = screens[0]
 
     console.log(`✅ Screen found: ${screen.name} (${screen.screen_type})`)
 
@@ -43,48 +63,36 @@ export async function GET(
     console.log(`🕐 Current time: ${currentTime}, day: ${currentDay}`)
 
     // 3. Find active schedules for this screen
-    const { data: schedules, error: schedulesError } = await supabase
-      .from('schedules')
-      .select(`
-        id,
-        name,
-        start_time,
-        end_time,
-        days_of_week,
-        start_date,
-        end_date,
-        is_active,
-        playlist_id,
-        playlists:playlist_id (
-          id,
-          name,
-          media_assets (
-            id,
-            filename,
-            file_type,
-            file_url,
-            duration,
-            file_size
-          )
-        )
-      `)
-      .or(`screen_ids.cs.{${screen_id}},screen_types.cs.{${screen.screen_type}}`)
-      .eq('is_active', true)
-      .lte('start_date', now.toISOString().split('T')[0])
-      .gte('end_date', now.toISOString().split('T')[0])
+    const todayDate = now.toISOString().split('T')[0]
+    const schedulesResponse = await fetch(`${url}/rest/v1/schedules?is_active=eq.true&start_date=lte.${todayDate}&end_date=gte.${todayDate}&select=*,playlists(*)`, {
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json'
+      }
+    })
 
-    if (schedulesError) {
-      console.error('❌ Error fetching schedules:', schedulesError)
+    if (!schedulesResponse.ok) {
+      console.error('❌ Error fetching schedules:', schedulesResponse.status, schedulesResponse.statusText)
       return NextResponse.json(
         { error: 'Failed to fetch schedules' }, 
         { status: 500 }
       )
     }
 
-    console.log(`📅 Found ${schedules?.length || 0} potential schedules`)
+    const allSchedules = await schedulesResponse.json()
+
+    // Filter schedules that match this screen (by screen_id or screen_type)
+    const screenSchedules = allSchedules.filter(schedule => {
+      const screenIdMatch = schedule.screen_ids && schedule.screen_ids.includes(screen_id)
+      const screenTypeMatch = schedule.screen_types && schedule.screen_types.includes(screen.screen_type)
+      return screenIdMatch || screenTypeMatch
+    })
+
+    console.log(`📅 Found ${screenSchedules?.length || 0} potential schedules for this screen`)
 
     // 4. Filter schedules by current time and day
-    const activeSchedules = schedules?.filter(schedule => {
+    const activeSchedules = screenSchedules?.filter(schedule => {
       // Check if today is in the days_of_week array
       const daysMatch = schedule.days_of_week?.includes(currentDay)
       
@@ -114,14 +122,33 @@ export async function GET(
     
     console.log(`🎬 Using schedule: "${activeSchedule.name}" with playlist: "${activeSchedule.playlists?.name}"`)
 
-    // 7. Return the content
+    // 7. Get media assets for the playlist
+    let mediaAssets = []
+    if (activeSchedule.playlist_id) {
+      const mediaResponse = await fetch(`${url}/rest/v1/media_assets?playlist_id=eq.${activeSchedule.playlist_id}&select=*&order=order_index`, {
+        headers: {
+          'apikey': serviceKey,
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (mediaResponse.ok) {
+        mediaAssets = await mediaResponse.json()
+        console.log(`🎵 Found ${mediaAssets.length} media assets in playlist`)
+      } else {
+        console.warn(`⚠️ Failed to fetch media assets: ${mediaResponse.status}`)
+      }
+    }
+
+    // 8. Return the content
     const response = {
       schedule_id: activeSchedule.id,
       schedule_name: activeSchedule.name,
       screen_id,
       screen_name: screen.name,
       playlist: activeSchedule.playlists,
-      media_assets: activeSchedule.playlists?.media_assets || [],
+      media_assets: mediaAssets,
       current_time: currentTime,
       current_day: currentDay,
       schedule_time_range: `${activeSchedule.start_time}-${activeSchedule.end_time}`
