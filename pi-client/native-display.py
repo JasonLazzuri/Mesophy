@@ -366,39 +366,55 @@ class NativeDisplayManager:
             # Debug mode: Display in a window (visible via VNC)
             self.logger.info("🐛 Debug mode: Displaying in window for VNC viewing")
             
-            # Set DISPLAY environment variable for X11
+            # Set up X11 environment properly
             env = os.environ.copy()
-            if 'DISPLAY' not in env:
-                env['DISPLAY'] = ':0'
-                self.logger.info("Setting DISPLAY=:0 for X11")
+            env['DISPLAY'] = ':0'
             
-            # Try multiple image viewers
+            # Try to fix X11 permissions if running as root
+            if os.geteuid() == 0:
+                self.logger.info("Running as root, attempting X11 permission fixes...")
+                try:
+                    # Allow local connections
+                    subprocess.run(['xhost', '+local:'], env=env, capture_output=True)
+                    # Copy X authority from pi user if it exists
+                    if os.path.exists('/home/pi/.Xauthority'):
+                        env['XAUTHORITY'] = '/home/pi/.Xauthority'
+                        self.logger.info("Using pi user's X authority")
+                except Exception as e:
+                    self.logger.warning(f"X11 permission fix failed: {e}")
+            
+            # Try the most compatible image viewers first
             viewers = [
                 {
-                    'name': 'feh',
-                    'cmd': ['feh', '--fullscreen', '--auto-zoom', '--no-menus', '--quiet', image_path]
-                },
-                {
-                    'name': 'eog',
-                    'cmd': ['eog', '--fullscreen', image_path]
+                    'name': 'eog (simple)',
+                    'cmd': ['eog', image_path],
+                    'reason': 'Most compatible with VNC'
                 },
                 {
                     'name': 'gpicview',
-                    'cmd': ['gpicview', '--fullscreen', image_path]
+                    'cmd': ['gpicview', image_path],
+                    'reason': 'Lightweight, good for Pi'
                 },
                 {
-                    'name': 'xdg-open',
-                    'cmd': ['xdg-open', image_path]
+                    'name': 'feh (windowed)',
+                    'cmd': ['feh', '--geometry', '800x600', image_path],
+                    'reason': 'Fast image viewer'
+                },
+                {
+                    'name': 'pcmanfm (file manager)',
+                    'cmd': ['pcmanfm', image_path],
+                    'reason': 'Default Pi file manager'
                 }
             ]
             
             for viewer in viewers:
                 try:
-                    self.logger.info(f"Trying {viewer['name']} for display...")
-                    # First check if the command exists
+                    self.logger.info(f"Trying {viewer['name']} ({viewer['reason']})...")
+                    
+                    # Check if command exists
                     result = subprocess.run(['which', viewer['cmd'][0]], capture_output=True)
                     if result.returncode != 0:
-                        self.logger.warning(f"{viewer['name']} not found, skipping")
+                        self.logger.warning(f"{viewer['name']} not found")
                         continue
                     
                     # Try to run the viewer
@@ -409,24 +425,34 @@ class NativeDisplayManager:
                         stderr=subprocess.PIPE
                     )
                     
-                    # Give it a moment to start
-                    time.sleep(1)
+                    # Give it time to start
+                    time.sleep(2)
                     
                     # Check if process is still running
                     if self.current_display_process.poll() is None:
-                        self.logger.info(f"✅ Image displayed using {viewer['name']} with PID: {self.current_display_process.pid}")
+                        self.logger.info(f"✅ SUCCESS: {viewer['name']} running with PID {self.current_display_process.pid}")
                         return
                     else:
-                        # Process exited, get the error
+                        # Process exited, log the error
                         stdout, stderr = self.current_display_process.communicate()
-                        self.logger.warning(f"{viewer['name']} exited: {stderr.decode()}")
+                        error_msg = stderr.decode().strip()
+                        self.logger.warning(f"❌ {viewer['name']} failed: {error_msg}")
                         
                 except Exception as e:
-                    self.logger.warning(f"Failed to use {viewer['name']}: {e}")
+                    self.logger.warning(f"❌ Exception with {viewer['name']}: {e}")
                     continue
             
-            # If all viewers failed, fall back to framebuffer
-            self.logger.warning("All window viewers failed, falling back to framebuffer display")
+            # If all X11 viewers failed, try a simple fallback: copy image to desktop
+            self.logger.warning("⚠️  All X11 viewers failed, trying desktop copy fallback...")
+            try:
+                desktop_path = "/home/pi/Desktop/current_pairing_screen.png"
+                subprocess.run(['cp', image_path, desktop_path], check=True)
+                self.logger.info(f"📋 Image copied to desktop: {desktop_path}")
+                self.logger.info("💡 You can open this file manually via VNC to see the pairing code")
+            except Exception as e:
+                self.logger.error(f"❌ Desktop copy failed: {e}")
+            
+            # Still fall back to framebuffer
         
         # Production mode: Use framebuffer (direct HDMI output)
         self.logger.info("📺 Production mode: Displaying via framebuffer (HDMI)")
@@ -436,63 +462,100 @@ class NativeDisplayManager:
             self.logger.error("❌ /dev/fb0 framebuffer not found")
             return
             
+        # Check permissions on framebuffer
         try:
-            # First check if fbi is available
-            result = subprocess.run(['which', 'fbi'], capture_output=True)
+            stat = os.stat('/dev/fb0')
+            perms = oct(stat.st_mode)[-3:]
+            self.logger.info(f"📺 /dev/fb0 permissions: {perms}")
+            
+            # Check if we can write to it
+            with open('/dev/fb0', 'r+b') as fb:
+                self.logger.info("✅ Framebuffer write access confirmed")
+        except PermissionError:
+            self.logger.error("❌ No write permission to /dev/fb0")
+            self.logger.info("💡 Try: sudo usermod -a -G video pi && sudo reboot")
+        except Exception as e:
+            self.logger.warning(f"⚠️  Framebuffer access test failed: {e}")
+            
+        # Try different framebuffer display methods
+        fb_methods = [
+            {
+                'name': 'fbi (direct)',
+                'cmd': ['fbi', '-d', '/dev/fb0', '-T', '1', '--noverbose', '-a', image_path],
+                'reason': 'Direct framebuffer access'
+            },
+            {
+                'name': 'fbi (auto-detect)',
+                'cmd': ['fbi', '-T', '1', '--noverbose', '-a', image_path],
+                'reason': 'Auto-detect display'
+            },
+            {
+                'name': 'fbi (no terminal)',
+                'cmd': ['fbi', '-d', '/dev/fb0', '--noverbose', '-a', image_path],
+                'reason': 'No terminal handling'
+            }
+        ]
+        
+        for method in fb_methods:
+            try:
+                self.logger.info(f"Trying {method['name']} ({method['reason']})...")
+                
+                # Check if fbi exists
+                result = subprocess.run(['which', 'fbi'], capture_output=True)
+                if result.returncode != 0:
+                    self.logger.error("❌ fbi not found - install with: sudo apt install fbi")
+                    break
+                
+                self.logger.info(f"Running: {' '.join(method['cmd'])}")
+                self.current_display_process = subprocess.Popen(
+                    method['cmd'],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+                
+                # Give it time to load the image
+                time.sleep(1)
+                
+                # Check if process is still running or completed successfully
+                if self.current_display_process.poll() is None:
+                    self.logger.info(f"✅ SUCCESS: {method['name']} running with PID {self.current_display_process.pid}")
+                    return
+                else:
+                    # Check if it completed successfully (fbi sometimes exits after displaying)
+                    stdout, stderr = self.current_display_process.communicate()
+                    stderr_text = stderr.decode().strip()
+                    
+                    # Some fbi output is normal (font loading messages)
+                    if 'using "' in stderr_text and 'file=' in stderr_text:
+                        self.logger.info(f"✅ {method['name']} completed (may have displayed successfully)")
+                        self.logger.debug(f"fbi output: {stderr_text}")
+                        return
+                    else:
+                        self.logger.warning(f"❌ {method['name']} failed: {stderr_text}")
+                        
+            except Exception as e:
+                self.logger.warning(f"❌ Exception with {method['name']}: {e}")
+                continue
+        
+        # Final fallback: direct framebuffer write with ImageMagick
+        self.logger.info("Trying direct framebuffer write with convert...")
+        try:
+            result = subprocess.run(['which', 'convert'], capture_output=True)
             if result.returncode != 0:
-                self.logger.error("❌ fbi not found - install with: sudo apt install fbi")
+                self.logger.error("❌ convert not found - install with: sudo apt install imagemagick")
                 return
                 
-            # Use fbi to display image directly to framebuffer
-            cmd = [
-                'fbi',
-                '-d', '/dev/fb0',
-                '-T', '1',
-                '-noverbose',
-                '-a',  # autozoom
-                image_path
-            ]
-            
-            self.logger.info(f"Running: {' '.join(cmd)}")
-            self.current_display_process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            
-            # Give it a moment to start
-            time.sleep(0.5)
-            
-            # Check if process is still running
-            if self.current_display_process.poll() is None:
-                self.logger.info(f"✅ Image displayed via framebuffer with PID: {self.current_display_process.pid}")
+            # Convert and write directly to framebuffer
+            cmd = f"convert '{image_path}' -resize {self.display_width}x{self.display_height}! RGB:- | dd of=/dev/fb0 2>/dev/null"
+            self.logger.info(f"Running: {cmd}")
+            result = subprocess.run(cmd, shell=True, capture_output=True)
+            if result.returncode == 0:
+                self.logger.info("✅ Image written to framebuffer using convert")
             else:
-                # Process exited, get the error
-                stdout, stderr = self.current_display_process.communicate()
-                self.logger.error(f"❌ fbi exited with error: {stderr.decode()}")
-            
+                self.logger.error(f"❌ Convert method failed: {result.stderr.decode()}")
+                
         except Exception as e:
-            self.logger.error(f"❌ Error displaying image with fbi: {e}")
-            
-            # Fallback: try using convert to write directly to framebuffer
-            self.logger.info("Trying convert fallback...")
-            try:
-                # Check if ImageMagick is available
-                result = subprocess.run(['which', 'convert'], capture_output=True)
-                if result.returncode != 0:
-                    self.logger.error("❌ convert not found - install with: sudo apt install imagemagick")
-                    return
-                    
-                cmd = f"convert '{image_path}' -resize {self.display_width}x{self.display_height}! RGB:- | dd of=/dev/fb0 2>/dev/null"
-                self.logger.info(f"Running convert: {cmd}")
-                result = subprocess.run(cmd, shell=True, capture_output=True)
-                if result.returncode == 0:
-                    self.logger.info("✅ Image displayed using convert fallback")
-                else:
-                    self.logger.error(f"❌ Convert failed: {result.stderr.decode()}")
-                    
-            except Exception as e2:
-                self.logger.error(f"❌ Error with convert fallback: {e2}")
+            self.logger.error(f"❌ Direct framebuffer write failed: {e}")
 
     def generate_pairing_code(self):
         """Generate new pairing code from API"""
