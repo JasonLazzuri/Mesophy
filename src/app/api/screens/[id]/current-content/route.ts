@@ -23,9 +23,25 @@ export async function GET(
                        process.env.SUPABASE_SERVICE_KEY ||
                        process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
 
+    console.log('Environment check:', {
+      hasUrl: !!url,
+      hasServiceKey: !!serviceKey,
+      urlLength: url?.length || 0,
+      keyLength: serviceKey?.length || 0
+    })
+
     if (!url || !serviceKey) {
-      console.error('Missing environment variables')
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
+      console.error('Missing environment variables:', {
+        url: !!url,
+        serviceKey: !!serviceKey
+      })
+      return NextResponse.json({ 
+        error: 'Server configuration error',
+        debug: {
+          hasUrl: !!url,
+          hasServiceKey: !!serviceKey
+        }
+      }, { status: 500 })
     }
 
     // 1. Verify the screen exists
@@ -161,7 +177,13 @@ export async function GET(
   } catch (error) {
     console.error('💥 Error fetching current content:', error)
     return NextResponse.json(
-      { error: 'Internal server error' }, 
+      { 
+        error: 'Internal server error',
+        debug: {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined
+        }
+      }, 
       { status: 500 }
     )
   }
