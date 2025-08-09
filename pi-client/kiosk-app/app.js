@@ -234,36 +234,89 @@ class MesophyKioskApp {
      * Check initial state
      */
     async checkInitialState() {
+        // ADD VISIBLE DEBUG IMMEDIATELY
+        const debugDiv = document.createElement('div');
+        debugDiv.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255,0,0,0.9);
+            color: white;
+            padding: 20px;
+            font-family: monospace;
+            font-size: 14px;
+            border-radius: 10px;
+            z-index: 10000;
+            text-align: center;
+        `;
+        debugDiv.innerHTML = '🔍 CHECKING INITIAL STATE...';
+        document.body.appendChild(debugDiv);
+        
         try {
             console.log('🔍 Checking initial state...');
+            debugDiv.innerHTML += '<br>📡 Fetching /api/status...';
+            
             const response = await fetch('/api/status');
             const data = await response.json();
             
             console.log('📊 Initial state data:', data);
+            debugDiv.innerHTML += '<br>📊 Got API response!';
+            debugDiv.innerHTML += `<br>Is Paired: ${data.is_paired}`;
+            debugDiv.innerHTML += `<br>Has Device Config: ${!!data.device_config}`;
             
             if (data.is_paired && data.device_config) {
                 console.log('✅ Device already paired - showing success screen');
+                debugDiv.innerHTML += '<br>✅ Device paired - showing success!';
+                
                 this.deviceConfig = data.device_config;
                 this.setState('success');
-                this.updateSuccessScreenInfo(data.device_config);
+                
+                setTimeout(() => {
+                    this.updateSuccessScreenInfo(data.device_config);
+                }, 500);
                 
                 // Transition to content after showing success
                 setTimeout(() => {
                     console.log('⏭️ Transitioning to content state');
+                    debugDiv.innerHTML += '<br>⏭️ Transitioning to content...';
                     this.setState('content');
                 }, 3000);
+                
+                // Remove this debug div after success screen is shown
+                setTimeout(() => {
+                    if (debugDiv.parentNode) {
+                        debugDiv.parentNode.removeChild(debugDiv);
+                    }
+                }, 2000);
             } else {
                 console.log('📱 Device not paired, starting pairing flow');
+                debugDiv.innerHTML += '<br>📱 Not paired - starting pairing...';
                 this.setState('pairing');
                 if (data.pairing_code) {
                     this.updatePairingCode(data.pairing_code);
                 } else {
                     this.generatePairingCode();
                 }
+                
+                // Remove debug div
+                setTimeout(() => {
+                    if (debugDiv.parentNode) {
+                        debugDiv.parentNode.removeChild(debugDiv);
+                    }
+                }, 2000);
             }
         } catch (error) {
             console.error('❌ Error checking initial state:', error);
+            debugDiv.innerHTML += `<br>❌ ERROR: ${error.message}`;
             this.setState('error', 'Unable to connect to the system. Please check your network connection.');
+            
+            // Remove debug div after error
+            setTimeout(() => {
+                if (debugDiv.parentNode) {
+                    debugDiv.parentNode.removeChild(debugDiv);
+                }
+            }, 5000);
         }
     }
 
@@ -398,6 +451,31 @@ class MesophyKioskApp {
         const screenLocation = document.getElementById('screen-location');
         const screenType = document.getElementById('screen-type');
         
+        // ADD VISIBLE DEBUG INFO TO THE PAGE
+        const debugInfo = document.createElement('div');
+        debugInfo.id = 'debug-info';
+        debugInfo.style.cssText = `
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            border-radius: 5px;
+            z-index: 9999;
+            max-width: 400px;
+        `;
+        debugInfo.innerHTML = `
+            <strong>DEBUG INFO:</strong><br>
+            Device Config: ${JSON.stringify(deviceConfig, null, 2)}<br>
+            Screen Name Element: ${screenName ? 'Found' : 'NOT FOUND'}<br>
+            Screen Location Element: ${screenLocation ? 'Found' : 'NOT FOUND'}<br>
+            Screen Type Element: ${screenType ? 'Found' : 'NOT FOUND'}<br>
+        `;
+        document.body.appendChild(debugInfo);
+        
         // Handle screen name with multiple possible properties
         let displayName = 'Loading...';
         if (deviceConfig.screen_name) {
@@ -438,23 +516,62 @@ class MesophyKioskApp {
             displayType = 'Digital Display';
         }
         
+        // Update debug info with processed values
+        setTimeout(() => {
+            debugInfo.innerHTML += `
+                <br><strong>PROCESSED VALUES:</strong><br>
+                Display Name: "${displayName}"<br>
+                Display Location: "${displayLocation}"<br>
+                Display Type: "${displayType}"<br>
+                <br><strong>ELEMENT UPDATES:</strong><br>
+            `;
+        }, 100);
+        
         // Update the DOM elements
         if (screenName) {
             screenName.textContent = displayName;
             console.log('✅ Updated screen name:', displayName);
+            setTimeout(() => {
+                debugInfo.innerHTML += `Screen Name: UPDATED to "${displayName}"<br>`;
+            }, 200);
+        } else {
+            setTimeout(() => {
+                debugInfo.innerHTML += `Screen Name: ELEMENT NOT FOUND<br>`;
+            }, 200);
         }
         
         if (screenLocation) {
             screenLocation.textContent = displayLocation;
             console.log('✅ Updated screen location:', displayLocation);
+            setTimeout(() => {
+                debugInfo.innerHTML += `Screen Location: UPDATED to "${displayLocation}"<br>`;
+            }, 300);
+        } else {
+            setTimeout(() => {
+                debugInfo.innerHTML += `Screen Location: ELEMENT NOT FOUND<br>`;
+            }, 300);
         }
         
         if (screenType) {
             screenType.textContent = displayType;
             console.log('✅ Updated screen type:', displayType);
+            setTimeout(() => {
+                debugInfo.innerHTML += `Screen Type: UPDATED to "${displayType}"<br>`;
+            }, 400);
+        } else {
+            setTimeout(() => {
+                debugInfo.innerHTML += `Screen Type: ELEMENT NOT FOUND<br>`;
+            }, 400);
         }
         
         console.log('🎯 Success screen info updated successfully');
+        
+        // Remove debug info after 10 seconds
+        setTimeout(() => {
+            if (debugInfo.parentNode) {
+                debugInfo.parentNode.removeChild(debugInfo);
+            }
+        }, 10000);
     }
 
     /**
