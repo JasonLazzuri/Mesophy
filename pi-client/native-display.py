@@ -444,13 +444,14 @@ class NativeDisplayManager:
             url = f"{self.api_base}{self.config['api']['endpoints']['generateCode']}"
             response = requests.post(url, json={'device_info': system_info}, timeout=10)
             
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 data = response.json()
                 self.current_pairing_code = data['pairing_code']
-                print(f"Pairing code generated: {self.current_pairing_code}")
+                self.logger.info(f"✅ Pairing code generated: {self.current_pairing_code}")
                 return self.current_pairing_code
             else:
-                print(f"Failed to generate pairing code: {response.status_code}")
+                self.logger.error(f"❌ Failed to generate pairing code: {response.status_code}")
+                self.logger.error(f"Response: {response.text}")
                 return None
                 
         except Exception as e:
