@@ -365,43 +365,84 @@ class NativeDisplayManager:
         if use_window:
             # Debug mode: Display in a window (visible via VNC)
             self.logger.info("🐛 Debug mode: Displaying in window for VNC viewing")
-            try:
-                # Try using feh to display in a window
-                cmd = [
-                    'feh',
-                    '--fullscreen',
-                    '--auto-zoom',
-                    '--no-menus',
-                    '--quiet',
-                    image_path
-                ]
-                
-                self.current_display_process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-                self.logger.info(f"Image displayed in window with PID: {self.current_display_process.pid}")
-                return
-                
-            except Exception as e:
-                self.logger.warning(f"Failed to use feh for window display: {e}")
-                # Fallback to eog (GNOME image viewer)
+            
+            # Set DISPLAY environment variable for X11
+            env = os.environ.copy()
+            if 'DISPLAY' not in env:
+                env['DISPLAY'] = ':0'
+                self.logger.info("Setting DISPLAY=:0 for X11")
+            
+            # Try multiple image viewers
+            viewers = [
+                {
+                    'name': 'feh',
+                    'cmd': ['feh', '--fullscreen', '--auto-zoom', '--no-menus', '--quiet', image_path]
+                },
+                {
+                    'name': 'eog',
+                    'cmd': ['eog', '--fullscreen', image_path]
+                },
+                {
+                    'name': 'gpicview',
+                    'cmd': ['gpicview', '--fullscreen', image_path]
+                },
+                {
+                    'name': 'xdg-open',
+                    'cmd': ['xdg-open', image_path]
+                }
+            ]
+            
+            for viewer in viewers:
                 try:
-                    cmd = ['eog', '--fullscreen', image_path]
+                    self.logger.info(f"Trying {viewer['name']} for display...")
+                    # First check if the command exists
+                    result = subprocess.run(['which', viewer['cmd'][0]], capture_output=True)
+                    if result.returncode != 0:
+                        self.logger.warning(f"{viewer['name']} not found, skipping")
+                        continue
+                    
+                    # Try to run the viewer
                     self.current_display_process = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL
+                        viewer['cmd'],
+                        env=env,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE
                     )
-                    self.logger.info(f"Image displayed in eog with PID: {self.current_display_process.pid}")
-                    return
-                except Exception as e2:
-                    self.logger.warning(f"Failed to use eog: {e2}")
+                    
+                    # Give it a moment to start
+                    time.sleep(1)
+                    
+                    # Check if process is still running
+                    if self.current_display_process.poll() is None:
+                        self.logger.info(f"✅ Image displayed using {viewer['name']} with PID: {self.current_display_process.pid}")
+                        return
+                    else:
+                        # Process exited, get the error
+                        stdout, stderr = self.current_display_process.communicate()
+                        self.logger.warning(f"{viewer['name']} exited: {stderr.decode()}")
+                        
+                except Exception as e:
+                    self.logger.warning(f"Failed to use {viewer['name']}: {e}")
+                    continue
+            
+            # If all viewers failed, fall back to framebuffer
+            self.logger.warning("All window viewers failed, falling back to framebuffer display")
         
         # Production mode: Use framebuffer (direct HDMI output)
         self.logger.info("📺 Production mode: Displaying via framebuffer (HDMI)")
+        
+        # Check if framebuffer exists
+        if not os.path.exists('/dev/fb0'):
+            self.logger.error("❌ /dev/fb0 framebuffer not found")
+            return
+            
         try:
+            # First check if fbi is available
+            result = subprocess.run(['which', 'fbi'], capture_output=True)
+            if result.returncode != 0:
+                self.logger.error("❌ fbi not found - install with: sudo apt install fbi")
+                return
+                
             # Use fbi to display image directly to framebuffer
             cmd = [
                 'fbi',
@@ -412,22 +453,46 @@ class NativeDisplayManager:
                 image_path
             ]
             
+            self.logger.info(f"Running: {' '.join(cmd)}")
             self.current_display_process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
             )
-            self.logger.info(f"Image displayed via framebuffer with PID: {self.current_display_process.pid}")
+            
+            # Give it a moment to start
+            time.sleep(0.5)
+            
+            # Check if process is still running
+            if self.current_display_process.poll() is None:
+                self.logger.info(f"✅ Image displayed via framebuffer with PID: {self.current_display_process.pid}")
+            else:
+                # Process exited, get the error
+                stdout, stderr = self.current_display_process.communicate()
+                self.logger.error(f"❌ fbi exited with error: {stderr.decode()}")
             
         except Exception as e:
-            self.logger.error(f"Error displaying image with fbi: {e}")
+            self.logger.error(f"❌ Error displaying image with fbi: {e}")
+            
             # Fallback: try using convert to write directly to framebuffer
+            self.logger.info("Trying convert fallback...")
             try:
+                # Check if ImageMagick is available
+                result = subprocess.run(['which', 'convert'], capture_output=True)
+                if result.returncode != 0:
+                    self.logger.error("❌ convert not found - install with: sudo apt install imagemagick")
+                    return
+                    
                 cmd = f"convert '{image_path}' -resize {self.display_width}x{self.display_height}! RGB:- | dd of=/dev/fb0 2>/dev/null"
-                subprocess.run(cmd, shell=True, check=True)
-                self.logger.info("Image displayed using convert fallback")
+                self.logger.info(f"Running convert: {cmd}")
+                result = subprocess.run(cmd, shell=True, capture_output=True)
+                if result.returncode == 0:
+                    self.logger.info("✅ Image displayed using convert fallback")
+                else:
+                    self.logger.error(f"❌ Convert failed: {result.stderr.decode()}")
+                    
             except Exception as e2:
-                self.logger.error(f"Error with convert fallback: {e2}")
+                self.logger.error(f"❌ Error with convert fallback: {e2}")
 
     def generate_pairing_code(self):
         """Generate new pairing code from API"""
