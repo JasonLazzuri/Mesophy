@@ -12,16 +12,10 @@ export async function GET(
     console.log('Simple current-content API called for screen:', screen_id)
 
     // Return a basic "no content" response for now
-    const now = new Date()
-    const currentTime = now.toTimeString().slice(0, 5) // HH:MM format
-    const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() // monday, tuesday, etc.
-
     return NextResponse.json({
       message: 'No content scheduled for current time',
       screen_id,
-      current_time: currentTime,
-      current_day: currentDay,
-      debug: 'Simple endpoint working'
+      debug: 'Basic API working - returning empty content'
     })
 
   } catch (error) {
