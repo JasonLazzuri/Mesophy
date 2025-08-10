@@ -131,11 +131,11 @@ export async function GET(
     
     console.log(`🎬 Using schedule: "${activeSchedule.name}" with playlist: "${activeSchedule.playlists?.name}"`)
 
-    // 7. Get media assets for the playlist via junction table
+    // 7. Get media assets for the playlist via playlist_items junction table
     let mediaAssets = []
     if (activeSchedule.playlist_id) {
-      // Try to get media assets through playlist_media junction table
-      const mediaResponse = await fetch(`${url}/rest/v1/playlist_media?playlist_id=eq.${activeSchedule.playlist_id}&select=*,media_assets(*)&order=order_index`, {
+      // Get media assets through playlist_items junction table (correct table name)
+      const mediaResponse = await fetch(`${url}/rest/v1/playlist_items?playlist_id=eq.${activeSchedule.playlist_id}&select=*,media_assets(*)&order=display_order`, {
         headers: {
           'apikey': serviceKey,
           'Authorization': `Bearer ${serviceKey}`,
@@ -144,23 +144,20 @@ export async function GET(
       })
 
       if (mediaResponse.ok) {
-        const playlistMedia = await mediaResponse.json()
-        mediaAssets = playlistMedia.map(pm => pm.media_assets).filter(Boolean)
-        console.log(`🎵 Found ${mediaAssets.length} media assets in playlist via playlist_media`)
+        const playlistItems = await mediaResponse.json()
+        mediaAssets = playlistItems.map(item => ({
+          ...item.media_assets,
+          display_duration: item.display_duration // Include custom duration from playlist_items
+        })).filter(Boolean)
+        console.log(`🎵 Found ${mediaAssets.length} media assets in playlist via playlist_items`)
       } else {
-        console.warn(`⚠️ Failed to fetch media assets via playlist_media: ${mediaResponse.status}`)
-        // Fallback: try to get all active media assets if junction table doesn't exist
-        const allMediaResponse = await fetch(`${url}/rest/v1/media_assets?is_active=eq.true&select=*&limit=10`, {
-          headers: {
-            'apikey': serviceKey,
-            'Authorization': `Bearer ${serviceKey}`,
-            'Content-Type': 'application/json'
-          }
-        })
-        if (allMediaResponse.ok) {
-          mediaAssets = await allMediaResponse.json()
-          console.log(`🎵 Fallback: using ${mediaAssets.length} active media assets`)
-        }
+        console.error(`❌ Failed to fetch media assets via playlist_items: ${mediaResponse.status} - ${mediaResponse.statusText}`)
+        const errorText = await mediaResponse.text()
+        console.error(`Error details: ${errorText}`)
+        
+        // Return empty response instead of fallback to all media
+        console.log(`📭 No playlist items found - returning empty media list`)
+        mediaAssets = []
       }
     }
 
