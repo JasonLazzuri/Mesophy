@@ -149,7 +149,7 @@ export async function GET(
           ...item.media_assets,
           display_duration: item.display_duration // Include custom duration from playlist_items
         })).filter(Boolean)
-        console.log(`🎵 Found ${mediaAssets.length} media assets in playlist via playlist_items`)
+        console.log(`🎵 Found ${mediaAssets.length} media assets in playlist via playlist_items table`)
       } else {
         console.error(`❌ Failed to fetch media assets via playlist_items: ${mediaResponse.status} - ${mediaResponse.statusText}`)
         const errorText = await mediaResponse.text()
