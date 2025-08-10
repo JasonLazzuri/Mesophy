@@ -133,7 +133,7 @@ fetch_content() {
 download_media_files() {
     log_message "Processing and downloading media files..."
     
-    CACHE_DIR="$CACHE_DIR" python3 << 'EOF'
+    python3 << EOF
 import json
 import requests
 import os
@@ -141,7 +141,7 @@ import sys
 import time
 from urllib.parse import urlparse, unquote
 
-cache_dir = os.environ['CACHE_DIR']
+cache_dir = "$CACHE_DIR"
 
 try:
     with open(f'{cache_dir}/content.json') as f:
@@ -224,7 +224,7 @@ play_slideshow() {
     sudo pkill -f fbi 2>/dev/null || true
     pkill -f vlc 2>/dev/null || true
     
-    CACHE_DIR="$CACHE_DIR" SLIDE_DURATION="$SLIDE_DURATION" python3 << 'EOF'
+    python3 << EOF
 import json
 import subprocess
 import time
@@ -232,8 +232,8 @@ import os
 import signal
 import sys
 
-cache_dir = os.environ['CACHE_DIR']
-slide_duration = int(os.environ['SLIDE_DURATION'])
+cache_dir = "$CACHE_DIR"
+slide_duration = int("$SLIDE_DURATION")
 
 def signal_handler(sig, frame):
     print("\nReceived interrupt signal")
@@ -470,10 +470,10 @@ test_api() {
         success_message "API connection successful"
         
         # Parse and show content summary
-        CACHE_DIR="$CACHE_DIR" python3 << 'EOF'
+        python3 << EOF
 import json
 import os
-cache_dir = os.environ['CACHE_DIR']
+cache_dir = "$CACHE_DIR"
 
 try:
     with open(f'{cache_dir}/test.json') as f:
