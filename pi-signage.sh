@@ -464,16 +464,20 @@ EOF
 test_api() {
     log_message "Testing API connectivity..."
     
+    echo "DEBUG: Script version with variable interpolation fix (v2024-08-09-23:40)"
+    echo "DEBUG: CACHE_DIR = $CACHE_DIR"
     echo "Testing API endpoint: $API_URL"
     
     if curl -s --connect-timeout 10 "$API_URL" > "$CACHE_DIR/test.json"; then
         success_message "API connection successful"
         
         # Parse and show content summary
+        echo "DEBUG: Parsing API response with cache_dir = $CACHE_DIR"
         python3 << EOF
 import json
 import os
 cache_dir = "$CACHE_DIR"
+print(f"DEBUG: Python received cache_dir = {cache_dir}")
 
 try:
     with open(f'{cache_dir}/test.json') as f:
