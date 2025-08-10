@@ -377,6 +377,24 @@ start_daemon() {
         error_message "Failed initial content fetch. Will retry..."
     fi
     
+    # Check if we have a single image playlist
+    local single_image_mode=false
+    if [[ -f "$CACHE_DIR/playlist.json" ]]; then
+        local playlist_count=$(python3 -c "import json; print(len(json.load(open('$CACHE_DIR/playlist.json'))))" 2>/dev/null || echo "0")
+        if [[ "$playlist_count" == "1" ]]; then
+            single_image_mode=true
+            log_message "Single image mode detected - starting continuous display"
+        fi
+    fi
+    
+    # Start initial slideshow
+    log_message "Starting initial slideshow"
+    if single_image_mode; then
+        # For single image, start once and let it run continuously in background
+        play_slideshow &
+        local slideshow_pid=$!
+    fi
+    
     while true; do
         current_time=$(date +%s)
         
@@ -385,20 +403,43 @@ start_daemon() {
             log_message "Refreshing content..."
             if fetch_content; then
                 last_refresh=$current_time
+                
+                # Check if playlist changed
+                local new_playlist_count=$(python3 -c "import json; print(len(json.load(open('$CACHE_DIR/playlist.json'))))" 2>/dev/null || echo "0")
+                
+                if single_image_mode && [[ "$new_playlist_count" != "1" ]]; then
+                    log_message "Playlist changed from single image, restarting slideshow"
+                    kill $slideshow_pid 2>/dev/null || true
+                    single_image_mode=false
+                elif [[ "$new_playlist_count" == "1" ]] && ! $single_image_mode; then
+                    log_message "Playlist changed to single image, switching to continuous mode"
+                    single_image_mode=true
+                    kill $slideshow_pid 2>/dev/null || true
+                    play_slideshow &
+                    slideshow_pid=$!
+                elif single_image_mode; then
+                    # Content refreshed but still single image, restart display
+                    kill $slideshow_pid 2>/dev/null || true
+                    play_slideshow &
+                    slideshow_pid=$!
+                fi
             else
                 warning_message "Content refresh failed, continuing with cached content"
             fi
         fi
         
-        # Play slideshow
-        log_message "Starting slideshow cycle"
-        if ! play_slideshow; then
-            error_message "Slideshow failed, waiting before retry..."
+        if ! single_image_mode; then
+            # Multi-image mode: restart slideshow cycle
+            log_message "Starting slideshow cycle"
+            if ! play_slideshow; then
+                error_message "Slideshow failed, waiting before retry..."
+                sleep 10
+            fi
+            sleep 2
+        else
+            # Single image mode: just wait, slideshow runs continuously
             sleep 10
         fi
-        
-        # Brief pause before next cycle
-        sleep 2
     done
 }
 
