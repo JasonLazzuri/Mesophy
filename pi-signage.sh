@@ -1073,7 +1073,8 @@ main() {
                 echo "Screen ID: $SCREEN_ID"
                 echo "Content URL: $API_URL"
             else
-                echo "Device is not paired. Follow the instructions above to pair."
+                warning_message "Device is not paired. Displaying pairing instructions..."
+                show_pairing_instructions
             fi
             ;;
         device-id)
