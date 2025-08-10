@@ -138,6 +138,7 @@ import json
 import requests
 import os
 import sys
+import time
 from urllib.parse import urlparse, unquote
 
 cache_dir = os.environ['CACHE_DIR']
@@ -471,6 +472,7 @@ test_api() {
         # Parse and show content summary
         python3 << 'EOF'
 import json
+import os
 cache_dir = os.environ['CACHE_DIR']
 
 try:
