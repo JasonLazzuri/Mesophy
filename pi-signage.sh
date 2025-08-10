@@ -312,7 +312,7 @@ try:
                 # Debug: Show FBI process status before starting
                 existing_fbi = subprocess.run(['pgrep', '-f', 'fbi'], capture_output=True, text=True)
                 if existing_fbi.returncode == 0:
-                    print(f\"DEBUG: Found existing FBI processes: {existing_fbi.stdout.strip()}\")
+                    print(f'DEBUG: Found existing FBI processes: {existing_fbi.stdout.strip()}')
                     subprocess.run(['sudo', 'pkill', '-f', 'fbi'], check=False)
                 
                 if media_type == 'image':
@@ -371,7 +371,7 @@ try:
                         actual_time = time.time() - start_time if 'start_time' in locals() else 0
                         if actual_time < item_duration - 1:
                             remaining_time = item_duration - actual_time
-                            print(f\"Fallback: Sleeping {remaining_time:.1f}s to maintain timing after FBI error\")
+                            print(f'Fallback: Sleeping {remaining_time:.1f}s to maintain timing after FBI error')
                             time.sleep(remaining_time)
                         
                 elif media_type == 'video':
