@@ -265,37 +265,60 @@ try:
     
     print(f'Starting slideshow with {len(playlist)} items')
     
-    while True:
-        for i, media in enumerate(playlist):
-            filepath = media['file']
-            media_type = media.get('type', 'image')
-            media_name = media.get('name', 'Unknown')
-            
-            if not os.path.exists(filepath):
-                print(f'File not found: {filepath}')
-                continue
+    # Handle single image differently from multiple images
+    if len(playlist) == 1:
+        # Single image: display continuously
+        media = playlist[0]
+        filepath = media['file']
+        media_name = media.get('name', 'Unknown')
+        print(f'Single image mode: Displaying {media_name} continuously')
+        
+        if media['type'] == 'image':
+            try:
+                subprocess.run([
+                    'sudo', 'fbi', 
+                    '-a',           # Autoscale
+                    '--noverbose',  # Quiet
+                    '-T', '1',      # Console 1
+                    filepath        # No timeout - display continuously
+                ], check=False)
+            except Exception as e:
+                print(f"Error displaying image: {e}")
+        else:
+            print("Single video mode not implemented")
+    else:
+        # Multiple images: cycle through them
+        while True:
+            for i, media in enumerate(playlist):
+                filepath = media['file']
+                media_type = media.get('type', 'image')
+                media_name = media.get('name', 'Unknown')
                 
-            print(f'[{i+1}/{len(playlist)}] Playing: {media_name}')
-            
-            if media_type == 'image':
-                # Use FBI for images (runs in console mode)
-                try:
-                    subprocess.run([
-                        'sudo', 'fbi', 
-                        '-a',           # Autoscale
-                        '--noverbose',  # Quiet
-                        '-T', '1',      # Console 1
-                        '-t', str(slide_duration),  # Display time
-                        '--once',       # Play once
-                        filepath
-                    ], timeout=slide_duration + 5, check=False)
-                except subprocess.TimeoutExpired:
-                    print("FBI timeout, killing process")
-                    subprocess.run(['sudo', 'pkill', '-f', 'fbi'], check=False)
-                except Exception as e:
-                    print(f"Error with FBI: {e}")
+                if not os.path.exists(filepath):
+                    print(f'File not found: {filepath}')
+                    continue
                     
-            elif media_type == 'video':
+                print(f'[{i+1}/{len(playlist)}] Playing: {media_name}')
+                
+                if media_type == 'image':
+                    # Use FBI for images (runs in console mode)
+                    try:
+                        subprocess.run([
+                            'sudo', 'fbi', 
+                            '-a',           # Autoscale
+                            '--noverbose',  # Quiet
+                            '-T', '1',      # Console 1
+                            '-t', str(slide_duration),  # Display time
+                            '--once',       # Play once
+                            filepath
+                        ], timeout=slide_duration + 5, check=False)
+                    except subprocess.TimeoutExpired:
+                        print("FBI timeout, killing process")
+                        subprocess.run(['sudo', 'pkill', '-f', 'fbi'], check=False)
+                    except Exception as e:
+                        print(f"Error with FBI: {e}")
+                        
+                elif media_type == 'video':
                 # Use VLC for videos
                 try:
                     duration = media.get('duration', slide_duration)
