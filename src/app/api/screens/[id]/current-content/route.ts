@@ -87,7 +87,9 @@ export async function GET(
     const screenSchedules = allSchedules.filter(schedule => {
       const screenIdMatch = schedule.screen_ids && schedule.screen_ids.includes(screen_id)
       const screenTypeMatch = schedule.screen_types && schedule.screen_types.includes(screen.screen_type)
-      return screenIdMatch || screenTypeMatch
+      // If no specific screen assignments, assume "All screens"
+      const allScreensMatch = (!schedule.screen_ids || schedule.screen_ids.length === 0) && (!schedule.screen_types || schedule.screen_types.length === 0)
+      return screenIdMatch || screenTypeMatch || allScreensMatch
     })
 
     console.log(`📅 Found ${screenSchedules?.length || 0} potential schedules for this screen`)
