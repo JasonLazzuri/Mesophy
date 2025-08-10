@@ -50,6 +50,13 @@ cleanup() {
     pkill -f vlc 2>/dev/null || true
     pkill -f omxplayer 2>/dev/null || true
     
+    # Clear the framebuffer and return to desktop/console
+    sudo fbi -T 1 --noverbose -a /dev/null 2>/dev/null || true
+    sudo pkill -f fbi 2>/dev/null || true
+    
+    # Alternative: clear framebuffer directly
+    sudo dd if=/dev/zero of=/dev/fb0 bs=1M count=1 2>/dev/null || true
+    
     # Remove PID file
     rm -f "$PID_FILE"
     
