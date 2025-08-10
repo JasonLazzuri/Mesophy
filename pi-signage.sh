@@ -16,6 +16,7 @@ PID_FILE="/tmp/pi-signage.pid"
 
 # Export environment variables for Python scripts
 export CACHE_DIR
+export SLIDE_DURATION
 
 # Colors for output
 RED='\033[0;31m'
