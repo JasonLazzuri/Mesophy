@@ -135,7 +135,7 @@ export async function GET(
     let mediaAssets = []
     if (activeSchedule.playlist_id) {
       // Get media assets through playlist_items junction table (correct table name)
-      const mediaResponse = await fetch(`${url}/rest/v1/playlist_items?playlist_id=eq.${activeSchedule.playlist_id}&select=display_duration,display_order,media_assets(*)&order=display_order`, {
+      const mediaResponse = await fetch(`${url}/rest/v1/playlist_items?playlist_id=eq.${activeSchedule.playlist_id}&select=display_duration,display_order,media_assets!media_asset_id(*)&order=display_order`, {
         headers: {
           'apikey': serviceKey,
           'Authorization': `Bearer ${serviceKey}`,
