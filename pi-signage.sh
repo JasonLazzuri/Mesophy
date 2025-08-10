@@ -305,7 +305,9 @@ try:
                     print(f'File not found: {filepath}')
                     continue
                     
-                print(f'[{i+1}/{len(playlist)}] Playing: {media_name}')
+                # Get the specific duration for this media item
+                item_duration = media.get('display_duration', slide_duration)
+                print(f'[{i+1}/{len(playlist)}] Playing: {media_name} for {item_duration} seconds')
                 
                 if media_type == 'image':
                     # Use FBI for images (runs in console mode)
@@ -315,10 +317,10 @@ try:
                             '-a',           # Autoscale
                             '--noverbose',  # Quiet
                             '-T', '1',      # Console 1
-                            '-t', str(slide_duration),  # Display time
+                            '-t', str(item_duration),  # Use specific duration from playlist
                             '--once',       # Play once
                             filepath
-                        ], timeout=slide_duration + 5, check=False)
+                        ], timeout=item_duration + 5, check=False)
                     except subprocess.TimeoutExpired:
                         print("FBI timeout, killing process")
                         subprocess.run(['sudo', 'pkill', '-f', 'fbi'], check=False)
