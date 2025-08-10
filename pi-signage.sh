@@ -14,7 +14,7 @@ REFRESH_INTERVAL=30
 LOG_FILE="/tmp/pi-signage.log"
 PID_FILE="/tmp/pi-signage.pid"
 
-# Export environment variables for Python scripts
+# Export environment variables for Python scripts  
 export CACHE_DIR
 export SLIDE_DURATION
 
@@ -137,6 +137,9 @@ fetch_content() {
 download_media_files() {
     log_message "Processing and downloading media files..."
     
+    # Ensure CACHE_DIR is set for this function
+    CACHE_DIR="${CACHE_DIR:-/tmp/pi-signage}"
+    
     python3 << EOF
 import json
 import requests
@@ -215,6 +218,10 @@ EOF
 }
 
 play_slideshow() {
+    # Ensure variables are set for this function
+    CACHE_DIR="${CACHE_DIR:-/tmp/pi-signage}"
+    SLIDE_DURATION="${SLIDE_DURATION:-10}"
+    
     if [[ ! -f "$CACHE_DIR/playlist.json" ]]; then
         error_message "No playlist found. Fetching content first..."
         if ! fetch_content; then
