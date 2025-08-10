@@ -92,21 +92,23 @@ export async function GET(
       const allScreensMatch = (!schedule.screen_ids || schedule.screen_ids.length === 0) && 
                              (!schedule.screen_types || schedule.screen_types.length === 0) &&
                              (!schedule.target_screen_types || schedule.target_screen_types.length === 0)
-      console.log(`🔍 Schedule "${schedule.name}": target_screen_types=${JSON.stringify(schedule.target_screen_types)}, matches employee_board=${schedule.target_screen_types?.includes('employee_board')}`)
-      return screenIdMatch || screenTypeMatch || allScreensMatch
+      const matches = screenIdMatch || screenTypeMatch || allScreensMatch
+      console.log(`🔍 Schedule "${schedule.name}": target_screen_types=${JSON.stringify(schedule.target_screen_types)}, matches employee_board=${schedule.target_screen_types?.includes('employee_board')}, final_match=${matches}`)
+      return matches
     })
 
     console.log(`📅 Found ${screenSchedules?.length || 0} potential schedules for this screen`)
 
     // 4. Filter schedules by current time and day
     const activeSchedules = screenSchedules?.filter(schedule => {
-      // Check if today is in the days_of_week array
-      const daysMatch = schedule.days_of_week?.includes(currentDay)
+      // Check if today is in the days_of_week array (0=Sunday, 6=Saturday)
+      const currentDayNum = pdtTime.getDay() // 0=Sunday, 6=Saturday
+      const daysMatch = schedule.days_of_week?.includes(currentDayNum)
       
       // Check if current time is within schedule time range
       const timeInRange = currentTime >= schedule.start_time && currentTime <= schedule.end_time
       
-      console.log(`📋 Schedule "${schedule.name}": days=${daysMatch}, time=${timeInRange} (${schedule.start_time}-${schedule.end_time})`)
+      console.log(`📋 Schedule "${schedule.name}": currentDay=${currentDay}(${currentDayNum}), daysOfWeek=${JSON.stringify(schedule.days_of_week)}, daysMatch=${daysMatch}, currentTime=${currentTime}, timeRange=${schedule.start_time}-${schedule.end_time}, timeInRange=${timeInRange}`)
       
       return daysMatch && timeInRange
     }) || []
