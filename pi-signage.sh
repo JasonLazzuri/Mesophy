@@ -425,10 +425,9 @@ start_daemon() {
                     play_slideshow &
                     slideshow_pid=$!
                 elif [[ "$single_image_mode" == "true" ]]; then
-                    # Content refreshed but still single image, restart display
-                    kill $slideshow_pid 2>/dev/null || true
-                    play_slideshow &
-                    slideshow_pid=$!
+                    # Content refreshed but still single image - only restart if content actually changed
+                    # For now, let's not restart automatically - single image should display continuously
+                    log_message "Content refresh - single image mode continues without restart"
                 fi
             else
                 warning_message "Content refresh failed, continuing with cached content"
