@@ -290,9 +290,9 @@ def display_image_method_manual_control(image_path, duration, name):
         # Wait for specified duration
         time.sleep(duration)
         
-        # Graceful termination
-        process.terminate()
+        # Graceful termination using sudo kill
         try:
+            subprocess.run(['sudo', 'kill', str(process.pid)], check=False)
             stdout, stderr = process.communicate(timeout=3)
             elapsed = time.time() - start_time
             print(f"FBI terminated after {elapsed:.1f}s for {name}")
@@ -306,7 +306,7 @@ def display_image_method_manual_control(image_path, duration, name):
             
         except subprocess.TimeoutExpired:
             print("FBI didn't terminate gracefully, force killing...")
-            process.kill()
+            subprocess.run(['sudo', 'kill', '-9', str(process.pid)], check=False)
             process.wait()
             return True
             
@@ -344,15 +344,15 @@ def display_image_method_enhanced_env(image_path, duration, name):
         # Wait for duration
         time.sleep(duration)
         
-        # Send SIGTERM
-        process.terminate()
+        # Send SIGTERM using sudo kill
         try:
+            subprocess.run(['sudo', 'kill', str(process.pid)], check=False)
             stdout, stderr = process.communicate(timeout=3)
             elapsed = time.time() - start_time
             print(f"Enhanced FBI completed in {elapsed:.1f}s for {name}")
             return True
         except subprocess.TimeoutExpired:
-            process.kill()
+            subprocess.run(['sudo', 'kill', '-9', str(process.pid)], check=False)
             process.wait()
             return True
             
