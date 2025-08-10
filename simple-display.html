@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mesophy Digital Signage</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: black;
+            color: white;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        #content-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        #media-display {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+        }
+        
+        #status-message {
+            font-size: 2rem;
+            text-align: center;
+        }
+        
+        .debug-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-width: 300px;
+        }
+        
+        .fade-transition {
+            transition: opacity 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <div id="content-container">
+        <div id="status-message">Loading content...</div>
+        <img id="media-display" style="display: none;" />
+        <video id="video-display" style="display: none;" controls muted autoplay loop></video>
+    </div>
+    
+    <div class="debug-info" id="debug-info">
+        <div>Screen ID: d732c7ac-076d-471c-b656-f40f8d1857e5</div>
+        <div>Status: <span id="debug-status">Initializing...</span></div>
+        <div>Assets: <span id="debug-assets">0</span></div>
+        <div>Current: <span id="debug-current">None</span></div>
+        <div>Time: <span id="debug-time">--:--</span></div>
+    </div>
+
+    <script>
+        const SCREEN_ID = 'd732c7ac-076d-471c-b656-f40f8d1857e5';
+        const API_URL = `https://mesophy.vercel.app/api/screens/${SCREEN_ID}/current-content`;
+        const REFRESH_INTERVAL = 30000; // 30 seconds
+        const MEDIA_DURATION = 10000; // 10 seconds per media item
+        
+        let currentPlaylist = [];
+        let currentIndex = 0;
+        let mediaTimer = null;
+        
+        // Debug elements
+        const debugStatus = document.getElementById('debug-status');
+        const debugAssets = document.getElementById('debug-assets');
+        const debugCurrent = document.getElementById('debug-current');
+        const debugTime = document.getElementById('debug-time');
+        const statusMessage = document.getElementById('status-message');
+        const mediaDisplay = document.getElementById('media-display');
+        const videoDisplay = document.getElementById('video-display');
+        
+        function updateDebugInfo(status, assets = 0, current = 'None') {
+            debugStatus.textContent = status;
+            debugAssets.textContent = assets;
+            debugCurrent.textContent = current;
+            debugTime.textContent = new Date().toLocaleTimeString();
+            console.log(`[${new Date().toISOString()}] ${status} - Assets: ${assets}, Current: ${current}`);
+        }
+        
+        async function fetchContent() {
+            try {
+                updateDebugInfo('Fetching content...');
+                const response = await fetch(API_URL);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('API Response:', data);
+                
+                if (data.media_assets && data.media_assets.length > 0) {
+                    currentPlaylist = data.media_assets;
+                    updateDebugInfo(`Content loaded (${data.schedule_name})`, currentPlaylist.length);
+                    startSlideshow();
+                } else {
+                    updateDebugInfo('No content scheduled');
+                    showMessage(`No content scheduled for current time<br><small>Schedule: ${data.schedule_time_range || 'Unknown'}<br>Day: ${data.current_day}, Time: ${data.current_time}</small>`);
+                }
+                
+            } catch (error) {
+                console.error('Error fetching content:', error);
+                updateDebugInfo(`Error: ${error.message}`);
+                showMessage(`Failed to load content<br><small>${error.message}</small>`);
+            }
+        }
+        
+        function showMessage(message) {
+            statusMessage.innerHTML = message;
+            statusMessage.style.display = 'block';
+            mediaDisplay.style.display = 'none';
+            videoDisplay.style.display = 'none';
+        }
+        
+        function hideMessage() {
+            statusMessage.style.display = 'none';
+        }
+        
+        function startSlideshow() {
+            if (currentPlaylist.length === 0) return;
+            
+            currentIndex = 0;
+            showNextMedia();
+        }
+        
+        function showNextMedia() {
+            if (currentPlaylist.length === 0) return;
+            
+            const media = currentPlaylist[currentIndex];
+            updateDebugInfo('Displaying media', currentPlaylist.length, `${currentIndex + 1}/${currentPlaylist.length}: ${media.name}`);
+            
+            hideMessage();
+            
+            if (media.media_type === 'video') {
+                showVideo(media);
+            } else {
+                showImage(media);
+            }
+            
+            // Schedule next media
+            if (mediaTimer) clearTimeout(mediaTimer);
+            mediaTimer = setTimeout(() => {
+                currentIndex = (currentIndex + 1) % currentPlaylist.length;
+                showNextMedia();
+            }, MEDIA_DURATION);
+        }
+        
+        function showImage(media) {
+            videoDisplay.style.display = 'none';
+            mediaDisplay.src = media.optimized_url || media.file_url;
+            mediaDisplay.style.display = 'block';
+        }
+        
+        function showVideo(media) {
+            mediaDisplay.style.display = 'none';
+            videoDisplay.src = media.file_url;
+            videoDisplay.style.display = 'block';
+            
+            // Auto-advance when video ends
+            videoDisplay.onended = () => {
+                if (mediaTimer) clearTimeout(mediaTimer);
+                currentIndex = (currentIndex + 1) % currentPlaylist.length;
+                showNextMedia();
+            };
+        }
+        
+        // Initialize
+        updateDebugInfo('Starting...');
+        fetchContent();
+        
+        // Refresh content periodically
+        setInterval(fetchContent, REFRESH_INTERVAL);
+        
+        // Error handlers
+        mediaDisplay.onerror = () => {
+            console.error('Image failed to load:', mediaDisplay.src);
+            updateDebugInfo('Image load error');
+            // Skip to next media
+            currentIndex = (currentIndex + 1) % currentPlaylist.length;
+            showNextMedia();
+        };
+        
+        videoDisplay.onerror = () => {
+            console.error('Video failed to load:', videoDisplay.src);
+            updateDebugInfo('Video load error');
+            // Skip to next media
+            currentIndex = (currentIndex + 1) % currentPlaylist.length;
+            showNextMedia();
+        };
+        
+        console.log('Mesophy Digital Signage initialized');
+    </script>
+</body>
+</html>
