@@ -133,7 +133,7 @@ fetch_content() {
 download_media_files() {
     log_message "Processing and downloading media files..."
     
-    python3 << 'EOF'
+    CACHE_DIR="$CACHE_DIR" python3 << 'EOF'
 import json
 import requests
 import os
@@ -224,7 +224,7 @@ play_slideshow() {
     sudo pkill -f fbi 2>/dev/null || true
     pkill -f vlc 2>/dev/null || true
     
-    python3 << 'EOF'
+    CACHE_DIR="$CACHE_DIR" SLIDE_DURATION="$SLIDE_DURATION" python3 << 'EOF'
 import json
 import subprocess
 import time
@@ -470,7 +470,7 @@ test_api() {
         success_message "API connection successful"
         
         # Parse and show content summary
-        python3 << 'EOF'
+        CACHE_DIR="$CACHE_DIR" python3 << 'EOF'
 import json
 import os
 cache_dir = os.environ['CACHE_DIR']
