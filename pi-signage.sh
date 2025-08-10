@@ -318,7 +318,6 @@ try:
                             '--noverbose',  # Quiet
                             '-T', '1',      # Console 1
                             '-t', str(item_duration),  # Use specific duration from playlist
-                            '--once',       # Play once
                             filepath
                         ], timeout=item_duration + 5, check=False)
                     except subprocess.TimeoutExpired:
