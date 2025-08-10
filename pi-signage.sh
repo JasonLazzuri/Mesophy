@@ -262,6 +262,216 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
+def kill_existing_fbi():
+    """Kill any existing FBI processes"""
+    try:
+        subprocess.run(['sudo', 'pkill', '-f', 'fbi'], capture_output=True, check=False)
+        time.sleep(0.5)  # Brief pause to ensure cleanup
+    except:
+        pass
+
+def display_image_method_manual_control(image_path, duration, name):
+    """FBI without timeout, manual process control - most reliable method"""
+    print(f"Method: FBI with manual timing control for {duration}s")
+    
+    kill_existing_fbi()
+    start_time = time.time()
+    
+    try:
+        # Start FBI without timeout parameter
+        process = subprocess.Popen([
+            'sudo', 'fbi', 
+            '-a',                    # Autoscale
+            '--noverbose',           # Quiet
+            '-T', '1',               # Console 1
+            image_path               # No timeout parameter
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        
+        # Wait for specified duration
+        time.sleep(duration)
+        
+        # Graceful termination
+        process.terminate()
+        try:
+            stdout, stderr = process.communicate(timeout=3)
+            elapsed = time.time() - start_time
+            print(f"FBI terminated after {elapsed:.1f}s for {name}")
+            
+            if stderr:
+                stderr_text = stderr.decode().strip()
+                if stderr_text and "error" in stderr_text.lower():
+                    print(f"FBI stderr: {stderr_text}")
+            
+            return True
+            
+        except subprocess.TimeoutExpired:
+            print("FBI didn't terminate gracefully, force killing...")
+            process.kill()
+            process.wait()
+            return True
+            
+    except Exception as e:
+        elapsed = time.time() - start_time
+        print(f"FBI error after {elapsed:.1f}s: {e}")
+        return False
+
+def display_image_method_enhanced_env(image_path, duration, name):
+    """FBI with enhanced environment and TTY handling"""
+    print(f"Method: FBI with enhanced environment for {duration}s")
+    
+    kill_existing_fbi()
+    
+    # Set up environment for framebuffer access
+    env = os.environ.copy()
+    env['TERM'] = 'linux'
+    env['FRAMEBUFFER'] = '/dev/fb0'
+    env.pop('DISPLAY', None)  # Remove X11 display
+    env.pop('WAYLAND_DISPLAY', None)  # Remove Wayland display
+    
+    start_time = time.time()
+    
+    try:
+        # Use sudo with preserved environment
+        process = subprocess.Popen([
+            'sudo', '-E', 'fbi',     # -E preserves environment
+            '-a',                    # Autoscale
+            '--noverbose',           # Quiet
+            '-T', '1',               # Console 1
+            '--vt', '1',             # Force VT 1
+            image_path
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        
+        # Wait for duration
+        time.sleep(duration)
+        
+        # Send SIGTERM
+        process.terminate()
+        try:
+            stdout, stderr = process.communicate(timeout=3)
+            elapsed = time.time() - start_time
+            print(f"Enhanced FBI completed in {elapsed:.1f}s for {name}")
+            return True
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+            return True
+            
+    except Exception as e:
+        elapsed = time.time() - start_time
+        print(f"Enhanced FBI error after {elapsed:.1f}s: {e}")
+        return False
+
+def display_image_method_timeout_fallback(image_path, duration, name):
+    """FBI with built-in timeout and fallback timing"""
+    print(f"Method: FBI with -t {duration} timeout plus fallback")
+    
+    kill_existing_fbi()
+    start_time = time.time()
+    
+    try:
+        result = subprocess.run([
+            'sudo', 'fbi', 
+            '-a',                    # Autoscale
+            '--noverbose',           # Quiet
+            '-T', '1',               # Console 1
+            '-t', str(duration),     # Built-in timeout
+            image_path
+        ], capture_output=True, text=True, timeout=duration + 5)
+        
+        elapsed = time.time() - start_time
+        print(f"FBI completed in {elapsed:.1f}s for {name} (return code: {result.returncode})")
+        
+        if elapsed < duration - 2:  # FBI exited too early
+            remaining = duration - elapsed
+            print(f"FBI exited early, sleeping additional {remaining:.1f}s")
+            time.sleep(remaining)
+        
+        return True
+        
+    except subprocess.TimeoutExpired:
+        elapsed = time.time() - start_time
+        print(f"FBI timeout after {elapsed:.1f}s for {name}")
+        return True
+    except Exception as e:
+        elapsed = time.time() - start_time
+        print(f"FBI error after {elapsed:.1f}s: {e}")
+        return False
+
+def display_image_direct_framebuffer(image_path, duration, name):
+    """Direct framebuffer method using ImageMagick"""
+    print(f"Method: Direct framebuffer with ImageMagick for {duration}s")
+    
+    try:
+        # Check if ImageMagick convert is available
+        if subprocess.run(['which', 'convert'], capture_output=True).returncode != 0:
+            print("ImageMagick convert not available")
+            return False
+        
+        start_time = time.time()
+        
+        # Convert and display to framebuffer
+        result = subprocess.run([
+            'sudo', 'convert',
+            image_path,
+            '-resize', '1920x1080',   # Adjust to your screen resolution
+            '-gravity', 'center',
+            '-background', 'black',
+            '-extent', '1920x1080',
+            'rgb:/dev/fb0'
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print(f"Image written to framebuffer successfully for {name}")
+            time.sleep(duration)  # Just wait
+            
+            # Clear framebuffer
+            subprocess.run(['sudo', 'dd', 'if=/dev/zero', 'of=/dev/fb0', 'bs=1M', 'count=1'],
+                          capture_output=True, check=False)
+            
+            elapsed = time.time() - start_time
+            print(f"Direct FB completed in {elapsed:.1f}s for {name}")
+            return True
+        else:
+            print(f"Convert failed: {result.stderr}")
+            return False
+            
+    except Exception as e:
+        print(f"Direct FB error: {e}")
+        return False
+
+def display_image_robust(image_path, duration, name):
+    """Try multiple methods in order until one works reliably"""
+    if not os.path.exists(image_path):
+        print(f"ERROR: Image file not found: {image_path}")
+        return False
+    
+    print(f"Displaying {name} ({image_path}) for {duration} seconds")
+    
+    # Method priority order - most reliable first
+    methods = [
+        display_image_method_manual_control,      # Usually most reliable
+        display_image_method_enhanced_env,        # Better environment handling  
+        display_image_method_timeout_fallback,    # Original method with fallback
+        display_image_direct_framebuffer          # Last resort
+    ]
+    
+    for i, method in enumerate(methods, 1):
+        try:
+            print(f"Trying method {i}...")
+            if method(image_path, duration, name):
+                print(f"✓ Method {i} succeeded for {name}")
+                return True
+            else:
+                print(f"✗ Method {i} failed for {name}")
+        except Exception as e:
+            print(f"✗ Method {i} exception for {name}: {e}")
+        
+        # Small pause between methods
+        time.sleep(0.5)
+    
+    print(f"❌ All methods failed for {name}!")
+    return False
+
 try:
     with open(f'{cache_dir}/playlist.json') as f:
         playlist = json.load(f)
@@ -309,70 +519,9 @@ try:
                 item_duration = media.get('duration', slide_duration)
                 print(f'[{i+1}/{len(playlist)}] Playing: {media_name} for {item_duration} seconds')
                 
-                # Debug: Show FBI process status before starting
-                existing_fbi = subprocess.run(['pgrep', '-f', 'fbi'], capture_output=True, text=True)
-                if existing_fbi.returncode == 0:
-                    print(f'DEBUG: Found existing FBI processes: {existing_fbi.stdout.strip()}')
-                    subprocess.run(['sudo', 'pkill', '-f', 'fbi'], check=False)
-                
                 if media_type == 'image':
-                    # Use FBI for images (runs in console mode)
-                    # FIXED: Improved FBI timing mechanism with proper process management
-                    try:
-                        print(f"Starting FBI with {item_duration}s timeout...")
-                        start_time = time.time()  # Track actual timing
-                        
-                        # Start FBI process without subprocess timeout to avoid conflicts
-                        fbi_process = subprocess.Popen([
-                            'sudo', 'fbi', 
-                            '-a',           # Autoscale
-                            '--noverbose',  # Quiet
-                            '-T', '1',      # Console 1
-                            '-t', str(item_duration),  # Use specific duration from playlist
-                            filepath
-                        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                        
-                        # Wait for the specific duration, giving FBI control over timing
-                        try:
-                            # Wait for FBI to finish naturally or timeout
-                            stdout, stderr = fbi_process.communicate(timeout=item_duration + 10)
-                            if fbi_process.returncode != 0 and fbi_process.returncode is not None:
-                                print(f"FBI exited with code {fbi_process.returncode}")
-                                if stderr:
-                                    print(f"FBI stderr: {stderr.decode().strip()}")
-                        except subprocess.TimeoutExpired:
-                            print(f"FBI process exceeded {item_duration + 10}s, terminating gracefully")
-                            # Try graceful termination first
-                            fbi_process.terminate()
-                            try:
-                                fbi_process.wait(timeout=3)
-                            except subprocess.TimeoutExpired:
-                                print("Force killing FBI process")
-                                fbi_process.kill()
-                                fbi_process.wait()
-                        
-                        # Calculate actual display time and add fallback if needed
-                        actual_time = time.time() - start_time
-                        print(f"FBI display completed for {media_name} (actual time: {actual_time:.1f}s)")
-                        
-                        # Fallback: If FBI exited too early, add sleep to maintain timing
-                        if actual_time < item_duration - 2:  # Allow 2s tolerance
-                            remaining_time = item_duration - actual_time
-                            print(f"WARNING: FBI exited early, sleeping additional {remaining_time:.1f}s to maintain {item_duration}s timing")
-                            time.sleep(remaining_time)
-                        
-                    except Exception as e:
-                        print(f"Error with FBI process management: {e}")
-                        # Cleanup any remaining FBI processes
-                        subprocess.run(['sudo', 'pkill', '-f', 'fbi'], check=False, 
-                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        
-                        # Still maintain timing even if FBI failed
-                        actual_time = time.time() - start_time if 'start_time' in locals() else 0
-                        if actual_time < item_duration - 1:
-                            remaining_time = item_duration - actual_time
-                            print(f'Fallback: Sleeping {remaining_time:.1f}s to maintain timing after FBI error')
-                            time.sleep(remaining_time)
+                    # Robust FBI implementation with multiple fallback strategies
+                    success = display_image_robust(filepath, item_duration, media_name)
                         
                 elif media_type == 'video':
                     # Use VLC for videos
