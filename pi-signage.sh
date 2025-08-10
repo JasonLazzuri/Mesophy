@@ -309,22 +309,70 @@ try:
                 item_duration = media.get('duration', slide_duration)
                 print(f'[{i+1}/{len(playlist)}] Playing: {media_name} for {item_duration} seconds')
                 
+                # Debug: Show FBI process status before starting
+                existing_fbi = subprocess.run(['pgrep', '-f', 'fbi'], capture_output=True, text=True)
+                if existing_fbi.returncode == 0:
+                    print(f\"DEBUG: Found existing FBI processes: {existing_fbi.stdout.strip()}\")
+                    subprocess.run(['sudo', 'pkill', '-f', 'fbi'], check=False)
+                
                 if media_type == 'image':
                     # Use FBI for images (runs in console mode)
+                    # FIXED: Improved FBI timing mechanism with proper process management
                     try:
-                        subprocess.run([
+                        print(f"Starting FBI with {item_duration}s timeout...")
+                        start_time = time.time()  # Track actual timing
+                        
+                        # Start FBI process without subprocess timeout to avoid conflicts
+                        fbi_process = subprocess.Popen([
                             'sudo', 'fbi', 
                             '-a',           # Autoscale
                             '--noverbose',  # Quiet
                             '-T', '1',      # Console 1
                             '-t', str(item_duration),  # Use specific duration from playlist
                             filepath
-                        ], timeout=item_duration + 5, check=False)
-                    except subprocess.TimeoutExpired:
-                        print("FBI timeout, killing process")
-                        subprocess.run(['sudo', 'pkill', '-f', 'fbi'], check=False)
+                        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        
+                        # Wait for the specific duration, giving FBI control over timing
+                        try:
+                            # Wait for FBI to finish naturally or timeout
+                            stdout, stderr = fbi_process.communicate(timeout=item_duration + 10)
+                            if fbi_process.returncode != 0 and fbi_process.returncode is not None:
+                                print(f"FBI exited with code {fbi_process.returncode}")
+                                if stderr:
+                                    print(f"FBI stderr: {stderr.decode().strip()}")
+                        except subprocess.TimeoutExpired:
+                            print(f"FBI process exceeded {item_duration + 10}s, terminating gracefully")
+                            # Try graceful termination first
+                            fbi_process.terminate()
+                            try:
+                                fbi_process.wait(timeout=3)
+                            except subprocess.TimeoutExpired:
+                                print("Force killing FBI process")
+                                fbi_process.kill()
+                                fbi_process.wait()
+                        
+                        # Calculate actual display time and add fallback if needed
+                        actual_time = time.time() - start_time
+                        print(f"FBI display completed for {media_name} (actual time: {actual_time:.1f}s)")
+                        
+                        # Fallback: If FBI exited too early, add sleep to maintain timing
+                        if actual_time < item_duration - 2:  # Allow 2s tolerance
+                            remaining_time = item_duration - actual_time
+                            print(f"WARNING: FBI exited early, sleeping additional {remaining_time:.1f}s to maintain {item_duration}s timing")
+                            time.sleep(remaining_time)
+                        
                     except Exception as e:
-                        print(f"Error with FBI: {e}")
+                        print(f"Error with FBI process management: {e}")
+                        # Cleanup any remaining FBI processes
+                        subprocess.run(['sudo', 'pkill', '-f', 'fbi'], check=False, 
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        
+                        # Still maintain timing even if FBI failed
+                        actual_time = time.time() - start_time if 'start_time' in locals() else 0
+                        if actual_time < item_duration - 1:
+                            remaining_time = item_duration - actual_time
+                            print(f\"Fallback: Sleeping {remaining_time:.1f}s to maintain timing after FBI error\")
+                            time.sleep(remaining_time)
                         
                 elif media_type == 'video':
                     # Use VLC for videos
