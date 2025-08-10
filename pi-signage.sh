@@ -7,12 +7,19 @@
 set -euo pipefail
 
 # Configuration
-API_URL="https://mesophy.vercel.app/api/screens/d732c7ac-076d-471c-b656-f40f8d1857e5/current-content"
+API_BASE_URL="https://mesophy.vercel.app"
 CACHE_DIR="/tmp/pi-signage"
+CONFIG_DIR="/opt/mesophy/config"
 SLIDE_DURATION=10
 REFRESH_INTERVAL=30
 LOG_FILE="/tmp/pi-signage.log"
 PID_FILE="/tmp/pi-signage.pid"
+
+# Dynamic configuration (will be set after pairing check)
+API_URL=""
+SCREEN_ID=""
+DEVICE_ID=""
+DEVICE_TOKEN=""
 
 # Export environment variables for Python scripts  
 export CACHE_DIR
@@ -66,6 +73,193 @@ cleanup() {
 
 # Set up signal handlers
 trap cleanup EXIT INT TERM
+
+get_device_id() {
+    # Get or generate device ID using the device ID script
+    local script_path="$(dirname "$0")/pi-device-id.sh"
+    
+    if [[ -f "$script_path" ]]; then
+        "$script_path" get 2>/dev/null || echo "unknown"
+    else
+        # Fallback: use MAC address if script not available
+        local mac=$(ip link show | grep -E "link/ether" | head -1 | awk '{print $2}' 2>/dev/null || true)
+        if [[ -n "$mac" ]]; then
+            echo "pi-$(echo $mac | tr -d ':')"
+        else
+            echo "pi-$(hostname)-$(date +%s)"
+        fi
+    fi
+}
+
+check_device_pairing() {
+    log_message "Checking device pairing status..."
+    
+    # Get device ID
+    DEVICE_ID=$(get_device_id)
+    if [[ -z "$DEVICE_ID" || "$DEVICE_ID" == "unknown" ]]; then
+        error_message "Could not determine device ID"
+        return 1
+    fi
+    
+    log_message "Device ID: $DEVICE_ID"
+    
+    # Check pairing status with API
+    local lookup_url="$API_BASE_URL/api/devices/lookup?device_id=$DEVICE_ID"
+    local response_file="$CACHE_DIR/pairing-response.json"
+    
+    mkdir -p "$CACHE_DIR"
+    
+    if curl -s --connect-timeout 10 --max-time 30 "$lookup_url" > "$response_file"; then
+        # Parse response to check if paired
+        local paired=$(python3 -c "
+import json, sys
+try:
+    with open('$response_file') as f:
+        data = json.load(f)
+    print('true' if data.get('paired', False) else 'false')
+except:
+    print('false')
+")
+        
+        if [[ "$paired" == "true" ]]; then
+            # Device is paired, extract configuration
+            success_message "Device is paired!"
+            
+            # Extract screen configuration
+            SCREEN_ID=$(python3 -c "
+import json
+try:
+    with open('$response_file') as f:
+        data = json.load(f)
+    print(data.get('device', {}).get('screen_id', ''))
+except:
+    pass
+")
+            
+            DEVICE_TOKEN=$(python3 -c "
+import json
+try:
+    with open('$response_file') as f:
+        data = json.load(f)
+    print(data.get('device', {}).get('device_token', ''))
+except:
+    pass
+")
+            
+            if [[ -n "$SCREEN_ID" ]]; then
+                API_URL="$API_BASE_URL/api/screens/$SCREEN_ID/current-content"
+                success_message "Screen ID: $SCREEN_ID"
+                success_message "Content URL: $API_URL"
+                
+                # Save configuration locally
+                save_device_config
+                return 0
+            else
+                error_message "Invalid pairing response - no screen ID"
+                return 1
+            fi
+        else
+            # Device is not paired
+            warning_message "Device is not paired"
+            
+            # Show pairing instructions
+            show_pairing_instructions
+            return 1
+        fi
+    else
+        error_message "Failed to check pairing status - no internet connection"
+        
+        # Try to load cached configuration
+        if load_cached_config; then
+            warning_message "Using cached configuration (offline mode)"
+            return 0
+        else
+            error_message "No cached configuration available"
+            return 1
+        fi
+    fi
+}
+
+save_device_config() {
+    mkdir -p "$CONFIG_DIR"
+    
+    cat > "$CONFIG_DIR/signage.conf" << EOF
+# Mesophy Digital Signage Configuration
+# Generated on $(date)
+DEVICE_ID="$DEVICE_ID"
+SCREEN_ID="$SCREEN_ID"
+DEVICE_TOKEN="$DEVICE_TOKEN"
+API_URL="$API_URL"
+API_BASE_URL="$API_BASE_URL"
+LAST_UPDATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+EOF
+    
+    # Make readable by pi user
+    chown -R pi:pi "$CONFIG_DIR" 2>/dev/null || true
+    chmod -R 755 "$CONFIG_DIR" 2>/dev/null || true
+    
+    log_message "Device configuration saved"
+}
+
+load_cached_config() {
+    local config_file="$CONFIG_DIR/signage.conf"
+    
+    if [[ -f "$config_file" ]]; then
+        source "$config_file"
+        
+        # Validate required variables
+        if [[ -n "${DEVICE_ID:-}" && -n "${SCREEN_ID:-}" && -n "${API_URL:-}" ]]; then
+            log_message "Loaded cached configuration for device: $DEVICE_ID"
+            return 0
+        fi
+    fi
+    
+    return 1
+}
+
+show_pairing_instructions() {
+    log_message "Displaying pairing instructions..."
+    
+    # Use the pairing instructions script
+    local script_path="$(dirname "$0")/show-pairing-instructions.sh"
+    
+    if [[ -f "$script_path" ]]; then
+        "$script_path" "$DEVICE_ID" "$API_BASE_URL" &
+    else
+        # Fallback: simple text display
+        clear
+        echo ""
+        echo "================================================"
+        echo "  🔗 DEVICE PAIRING REQUIRED"
+        echo "================================================"
+        echo ""
+        echo "Device ID: $DEVICE_ID"
+        echo ""
+        echo "To pair this device:"
+        echo "1. Open $API_BASE_URL"
+        echo "2. Go to Dashboard → Screens"
+        echo "3. Add new screen with Device ID: $DEVICE_ID"
+        echo "4. Device will start automatically after pairing"
+        echo ""
+        echo "Checking for pairing every 30 seconds..."
+        echo "================================================"
+        echo ""
+    fi
+}
+
+wait_for_pairing() {
+    log_message "Waiting for device pairing..."
+    
+    while true; do
+        if check_device_pairing; then
+            success_message "Device paired successfully!"
+            return 0
+        fi
+        
+        log_message "Still not paired, checking again in 30 seconds..."
+        sleep 30
+    done
+}
 
 check_dependencies() {
     log_message "Checking dependencies..."
@@ -570,7 +764,16 @@ start_daemon() {
     echo $$ > "$PID_FILE"
     
     log_message "Starting pi-signage daemon"
+    
+    # Check device pairing status
+    if ! check_device_pairing; then
+        log_message "Device not paired, waiting for pairing..."
+        wait_for_pairing
+    fi
+    
     success_message "Pi Digital Signage Player started"
+    success_message "Device ID: $DEVICE_ID"
+    success_message "Screen ID: $SCREEN_ID"
     success_message "API: $API_URL"
     success_message "Cache: $CACHE_DIR"
     success_message "Log: $LOG_FILE"
@@ -655,14 +858,30 @@ show_status() {
     echo "Pi Digital Signage Status"
     echo "========================="
     
+    # Load configuration if available
+    load_cached_config 2>/dev/null || true
+    
     if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
         echo -e "Status: ${GREEN}Running${NC} (PID: $(cat "$PID_FILE"))"
     else
         echo -e "Status: ${RED}Stopped${NC}"
     fi
     
-    echo "API URL: $API_URL"
+    # Show device information
+    local current_device_id=$(get_device_id)
+    echo "Device ID: ${current_device_id:-Unknown}"
+    
+    if [[ -n "${SCREEN_ID:-}" ]]; then
+        echo -e "Pairing Status: ${GREEN}Paired${NC}"
+        echo "Screen ID: $SCREEN_ID"
+        echo "API URL: ${API_URL:-Not configured}"
+    else
+        echo -e "Pairing Status: ${YELLOW}Not Paired${NC}"
+        echo "API Base URL: $API_BASE_URL"
+    fi
+    
     echo "Cache Directory: $CACHE_DIR"
+    echo "Config Directory: $CONFIG_DIR"
     echo "Log File: $LOG_FILE"
     
     if [[ -f "$CACHE_DIR/playlist.json" ]]; then
@@ -713,44 +932,66 @@ show_help() {
 Pi Digital Signage Player
 ========================
 
-A browser-free digital signage solution for Raspberry Pi using native Linux tools.
+A browser-free digital signage solution for Raspberry Pi with device pairing.
 
 Usage: $0 [COMMAND]
 
 Commands:
-    start       Start the digital signage player
+    start       Start the digital signage player (will wait for pairing if needed)
     stop        Stop the digital signage player
     restart     Restart the digital signage player
-    status      Show current status and recent logs
-    test        Test API connectivity and download sample content
+    status      Show current status, pairing info, and recent logs
+    test        Test API connectivity (requires device to be paired)
+    pair        Check current pairing status and show instructions if unpaired
     install     Check and install required dependencies
     logs        Show recent log entries
+    device-id   Show device ID for pairing
     help        Show this help message
 
 Configuration:
-    API_URL: $API_URL
+    API Base URL: $API_BASE_URL
     SLIDE_DURATION: $SLIDE_DURATION seconds
     REFRESH_INTERVAL: $REFRESH_INTERVAL seconds
 
 Files:
     Cache: $CACHE_DIR
+    Config: $CONFIG_DIR
     Logs: $LOG_FILE
     PID: $PID_FILE
 
+Pairing Process:
+    1. Run '$0 device-id' to get your device ID
+    2. Open $API_BASE_URL in a web browser
+    3. Go to Dashboard → Screens → Add New Screen
+    4. Enter the device ID and configure the screen
+    5. The Pi will automatically detect pairing and start displaying content
+
 Examples:
     $0 start        # Start the signage player
-    $0 status       # Check if running
+    $0 status       # Check running status and pairing info
+    $0 pair         # Check pairing status
+    $0 device-id    # Show device ID for pairing
     $0 logs         # View recent activity
-    $0 test         # Test API connection
+    $0 test         # Test API connection (post-pairing)
 
 EOF
 }
 
 test_api() {
-    log_message "Testing API connectivity..."
+    log_message "Testing API connectivity and device pairing..."
     
-    echo "DEBUG: Script version with variable interpolation fix (v2024-08-09-23:40)"
+    echo "DEBUG: Script version with dynamic pairing (v2024-08-10)"
     echo "DEBUG: CACHE_DIR = $CACHE_DIR"
+    
+    # First check device pairing
+    if ! check_device_pairing; then
+        error_message "Device is not paired. Cannot test API without valid screen configuration."
+        echo "Please pair this device first using the admin portal."
+        echo "Device ID: $(get_device_id)"
+        echo "Portal URL: $API_BASE_URL"
+        return 1
+    fi
+    
     echo "Testing API endpoint: $API_URL"
     
     if curl -s --connect-timeout 10 "$API_URL" > "$CACHE_DIR/test.json"; then
@@ -822,6 +1063,25 @@ main() {
             check_dependencies
             setup_cache
             test_api
+            ;;
+        pair)
+            check_dependencies
+            setup_cache
+            log_message "Checking device pairing status..."
+            if check_device_pairing; then
+                success_message "Device is paired!"
+                echo "Screen ID: $SCREEN_ID"
+                echo "Content URL: $API_URL"
+            else
+                echo "Device is not paired. Follow the instructions above to pair."
+            fi
+            ;;
+        device-id)
+            local device_id=$(get_device_id)
+            echo "Device ID: $device_id"
+            echo ""
+            echo "Use this Device ID to pair in the admin portal:"
+            echo "$API_BASE_URL"
             ;;
         install)
             echo "Checking dependencies..."
