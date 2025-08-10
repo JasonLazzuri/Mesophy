@@ -200,7 +200,7 @@ try:
                 'type': asset.get('media_type', 'image'),
                 'mime': asset.get('mime_type', 'image/jpeg'),
                 'name': asset.get('name', filename),
-                'duration': asset.get('duration', 10)
+                'duration': asset.get('display_duration', 10)
             })
             
         except Exception as e:
@@ -306,7 +306,7 @@ try:
                     continue
                     
                 # Get the specific duration for this media item
-                item_duration = media.get('display_duration', slide_duration)
+                item_duration = media.get('duration', slide_duration)
                 print(f'[{i+1}/{len(playlist)}] Playing: {media_name} for {item_duration} seconds')
                 
                 if media_type == 'image':
