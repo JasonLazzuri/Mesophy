@@ -135,7 +135,7 @@ export async function GET(
     let mediaAssets = []
     if (activeSchedule.playlist_id) {
       // Step 1: Get playlist_items for this playlist
-      const playlistItemsResponse = await fetch(`${url}/rest/v1/playlist_items?playlist_id=eq.${activeSchedule.playlist_id}&select=display_duration,display_order,media_asset_id&order=display_order`, {
+      const playlistItemsResponse = await fetch(`${url}/rest/v1/playlist_items?playlist_id=eq.${activeSchedule.playlist_id}&select=duration_override,order_index,media_asset_id&order=order_index`, {
         headers: {
           'apikey': serviceKey,
           'Authorization': `Bearer ${serviceKey}`,
@@ -171,8 +171,8 @@ export async function GET(
                 if (asset) {
                   return {
                     ...asset,
-                    display_duration: playlistItem.display_duration,
-                    display_order: playlistItem.display_order
+                    display_duration: playlistItem.duration_override || asset.duration || 10, // Use override or default
+                    display_order: playlistItem.order_index
                   }
                 }
                 return null
