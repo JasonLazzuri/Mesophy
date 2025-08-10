@@ -131,10 +131,11 @@ export async function GET(
     
     console.log(`🎬 Using schedule: "${activeSchedule.name}" with playlist: "${activeSchedule.playlists?.name}"`)
 
-    // 7. Get media assets for the playlist
+    // 7. Get media assets for the playlist via junction table
     let mediaAssets = []
     if (activeSchedule.playlist_id) {
-      const mediaResponse = await fetch(`${url}/rest/v1/media_assets?playlist_id=eq.${activeSchedule.playlist_id}&select=*&order=order_index`, {
+      // Try to get media assets through playlist_media junction table
+      const mediaResponse = await fetch(`${url}/rest/v1/playlist_media?playlist_id=eq.${activeSchedule.playlist_id}&select=*,media_assets(*)&order=order_index`, {
         headers: {
           'apikey': serviceKey,
           'Authorization': `Bearer ${serviceKey}`,
@@ -143,10 +144,23 @@ export async function GET(
       })
 
       if (mediaResponse.ok) {
-        mediaAssets = await mediaResponse.json()
-        console.log(`🎵 Found ${mediaAssets.length} media assets in playlist`)
+        const playlistMedia = await mediaResponse.json()
+        mediaAssets = playlistMedia.map(pm => pm.media_assets).filter(Boolean)
+        console.log(`🎵 Found ${mediaAssets.length} media assets in playlist via playlist_media`)
       } else {
-        console.warn(`⚠️ Failed to fetch media assets: ${mediaResponse.status}`)
+        console.warn(`⚠️ Failed to fetch media assets via playlist_media: ${mediaResponse.status}`)
+        // Fallback: try to get all active media assets if junction table doesn't exist
+        const allMediaResponse = await fetch(`${url}/rest/v1/media_assets?is_active=eq.true&select=*&limit=10`, {
+          headers: {
+            'apikey': serviceKey,
+            'Authorization': `Bearer ${serviceKey}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        if (allMediaResponse.ok) {
+          mediaAssets = await allMediaResponse.json()
+          console.log(`🎵 Fallback: using ${mediaAssets.length} active media assets`)
+        }
       }
     }
 
