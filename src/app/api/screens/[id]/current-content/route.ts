@@ -86,10 +86,13 @@ export async function GET(
     // Filter schedules that match this screen (by screen_id or screen_type)
     const screenSchedules = allSchedules.filter(schedule => {
       const screenIdMatch = schedule.screen_ids && schedule.screen_ids.includes(screen_id)
-      const screenTypeMatch = schedule.screen_types && schedule.screen_types.includes(screen.screen_type)
+      const screenTypeMatch = (schedule.screen_types && schedule.screen_types.includes(screen.screen_type)) || 
+                             (schedule.target_screen_types && schedule.target_screen_types.includes(screen.screen_type))
       // If no specific screen assignments, assume "All screens"
-      const allScreensMatch = (!schedule.screen_ids || schedule.screen_ids.length === 0) && (!schedule.screen_types || schedule.screen_types.length === 0)
-      console.log(`🔍 Schedule "${schedule.name}": screenIds=${JSON.stringify(schedule.screen_ids)}, screenTypes=${JSON.stringify(schedule.screen_types)}, allScreensMatch=${allScreensMatch}`)
+      const allScreensMatch = (!schedule.screen_ids || schedule.screen_ids.length === 0) && 
+                             (!schedule.screen_types || schedule.screen_types.length === 0) &&
+                             (!schedule.target_screen_types || schedule.target_screen_types.length === 0)
+      console.log(`🔍 Schedule "${schedule.name}": target_screen_types=${JSON.stringify(schedule.target_screen_types)}, matches employee_board=${schedule.target_screen_types?.includes('employee_board')}`)
       return screenIdMatch || screenTypeMatch || allScreensMatch
     })
 
