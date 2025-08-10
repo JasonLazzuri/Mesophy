@@ -635,7 +635,7 @@ start_daemon() {
         if [[ "$single_image_mode" != "true" ]]; then
             # Multi-image mode: start slideshow and let it run continuously
             # Only start if not already running
-            if ! pgrep -f "python3.*slideshow" > /dev/null; then
+            if ! pgrep -f "fbi" > /dev/null; then
                 log_message "Starting slideshow cycle"
                 play_slideshow &
                 slideshow_pid=$!
