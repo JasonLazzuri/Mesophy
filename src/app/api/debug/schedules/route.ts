@@ -30,6 +30,7 @@ export async function GET() {
     
     return NextResponse.json({
       total_schedules: schedules.length,
+      raw_schedules: schedules,
       schedules: schedules.map(s => ({
         id: s.id,
         name: s.name,
@@ -38,7 +39,11 @@ export async function GET() {
         days_of_week: s.days_of_week,
         screen_ids: s.screen_ids,
         screen_types: s.screen_types,
-        playlist_name: s.playlists?.name
+        playlist_name: s.playlists?.name,
+        has_screen_ids: !!s.screen_ids,
+        has_screen_types: !!s.screen_types,
+        screen_ids_length: s.screen_ids?.length || 0,
+        screen_types_length: s.screen_types?.length || 0
       }))
     })
   } catch (error) {
