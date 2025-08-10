@@ -54,15 +54,17 @@ export async function GET(
     const screen = screens[0]
     console.log(`✅ Screen found: ${screen.name} (${screen.screen_type})`)
 
-    // 2. Get current time in the screen's timezone (fixed date formatting)
+    // 2. Get current time in the screen's timezone (PDT/PST for Pi devices)
     const now = new Date()
-    const currentTime = now.toTimeString().slice(0, 5) // HH:MM format
-    const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() // monday, tuesday, etc.
+    // Convert to PDT timezone for Pi devices
+    const pdtTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Los_Angeles"}))
+    const currentTime = pdtTime.toTimeString().slice(0, 5) // HH:MM format
+    const currentDay = pdtTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() // monday, tuesday, etc.
 
     console.log(`🕐 Current time: ${currentTime}, day: ${currentDay}`)
 
     // 3. Find active schedules for this screen
-    const todayDate = now.toISOString().split('T')[0]
+    const todayDate = pdtTime.toISOString().split('T')[0]
     const schedulesResponse = await fetch(`${url}/rest/v1/schedules?is_active=eq.true&start_date=lte.${todayDate}&end_date=gte.${todayDate}&select=*,playlists(*)`, {
       headers: {
         'apikey': serviceKey,
