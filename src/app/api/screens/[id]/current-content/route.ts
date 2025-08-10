@@ -89,6 +89,7 @@ export async function GET(
       const screenTypeMatch = schedule.screen_types && schedule.screen_types.includes(screen.screen_type)
       // If no specific screen assignments, assume "All screens"
       const allScreensMatch = (!schedule.screen_ids || schedule.screen_ids.length === 0) && (!schedule.screen_types || schedule.screen_types.length === 0)
+      console.log(`🔍 Schedule "${schedule.name}": screenIds=${JSON.stringify(schedule.screen_ids)}, screenTypes=${JSON.stringify(schedule.screen_types)}, allScreensMatch=${allScreensMatch}`)
       return screenIdMatch || screenTypeMatch || allScreensMatch
     })
 
