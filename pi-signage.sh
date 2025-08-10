@@ -14,6 +14,9 @@ REFRESH_INTERVAL=30
 LOG_FILE="/tmp/pi-signage.log"
 PID_FILE="/tmp/pi-signage.pid"
 
+# Export environment variables for Python scripts
+export CACHE_DIR
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
