@@ -319,29 +319,29 @@ try:
                         print(f"Error with FBI: {e}")
                         
                 elif media_type == 'video':
-                # Use VLC for videos
-                try:
-                    duration = media.get('duration', slide_duration)
-                    if isinstance(duration, (int, float)) and duration > 0:
-                        video_duration = min(duration, slide_duration)
-                    else:
-                        video_duration = slide_duration
-                    
-                    subprocess.run([
-                        'vlc', 
-                        '--intf', 'dummy',     # No interface
-                        '--play-and-exit',     # Exit after playing
-                        '--fullscreen',        # Fullscreen mode
-                        '--no-video-title',    # No title overlay
-                        '--quiet',             # Quiet mode
-                        '--run-time', str(int(video_duration)),  # Max runtime
-                        filepath
-                    ], timeout=video_duration + 10, check=False)
-                except subprocess.TimeoutExpired:
-                    print("VLC timeout, killing process")
-                    subprocess.run(['pkill', '-f', 'vlc'], check=False)
-                except Exception as e:
-                    print(f"Error with VLC: {e}")
+                    # Use VLC for videos
+                    try:
+                        duration = media.get('duration', slide_duration)
+                        if isinstance(duration, (int, float)) and duration > 0:
+                            video_duration = min(duration, slide_duration)
+                        else:
+                            video_duration = slide_duration
+                        
+                        subprocess.run([
+                            'vlc', 
+                            '--intf', 'dummy',     # No interface
+                            '--play-and-exit',     # Exit after playing
+                            '--fullscreen',        # Fullscreen mode
+                            '--no-video-title',    # No title overlay
+                            '--quiet',             # Quiet mode
+                            '--run-time', str(int(video_duration)),  # Max runtime
+                            filepath
+                        ], timeout=video_duration + 10, check=False)
+                    except subprocess.TimeoutExpired:
+                        print("VLC timeout, killing process")
+                        subprocess.run(['pkill', '-f', 'vlc'], check=False)
+                    except Exception as e:
+                        print(f"Error with VLC: {e}")
             
             # Small pause between slides
             time.sleep(1)
