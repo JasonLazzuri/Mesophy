@@ -437,13 +437,17 @@ start_daemon() {
         fi
         
         if [[ "$single_image_mode" != "true" ]]; then
-            # Multi-image mode: restart slideshow cycle
-            log_message "Starting slideshow cycle"
-            if ! play_slideshow; then
-                error_message "Slideshow failed, waiting before retry..."
-                sleep 10
+            # Multi-image mode: start slideshow and let it run continuously
+            # Only start if not already running
+            if ! pgrep -f "python3.*slideshow" > /dev/null; then
+                log_message "Starting slideshow cycle"
+                play_slideshow &
+                slideshow_pid=$!
+                log_message "Slideshow started with PID: $slideshow_pid"
             fi
-            sleep 2
+            
+            # Wait longer to avoid interfering with running slideshow
+            sleep 30
         else
             # Single image mode: just wait, slideshow runs continuously
             sleep 10
