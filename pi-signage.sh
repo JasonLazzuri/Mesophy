@@ -148,7 +148,9 @@ import sys
 import time
 from urllib.parse import urlparse, unquote
 
+print("DEBUG: About to set cache_dir")
 cache_dir = "$CACHE_DIR"
+print(f"DEBUG: cache_dir set to '{cache_dir}'")
 
 try:
     with open(f'{cache_dir}/content.json') as f:
