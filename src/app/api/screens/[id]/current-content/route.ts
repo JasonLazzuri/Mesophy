@@ -134,8 +134,8 @@ export async function GET(
     // 7. Get media assets for the playlist via playlist_items junction table
     let mediaAssets = []
     if (activeSchedule.playlist_id) {
-      // Get media assets through playlist_items junction table (correct table name)
-      const mediaResponse = await fetch(`${url}/rest/v1/playlist_items?playlist_id=eq.${activeSchedule.playlist_id}&select=display_duration,display_order,media_assets!media_asset_id(*)&order=display_order`, {
+      // Step 1: Get playlist_items for this playlist
+      const playlistItemsResponse = await fetch(`${url}/rest/v1/playlist_items?playlist_id=eq.${activeSchedule.playlist_id}&select=display_duration,display_order,media_asset_id&order=display_order`, {
         headers: {
           'apikey': serviceKey,
           'Authorization': `Bearer ${serviceKey}`,
@@ -143,27 +143,55 @@ export async function GET(
         }
       })
 
-      if (mediaResponse.ok) {
-        const playlistItems = await mediaResponse.json()
-        console.log(`🔍 Raw playlist_items response:`, JSON.stringify(playlistItems, null, 2))
-        mediaAssets = playlistItems.map(item => {
-          if (!item.media_assets) {
-            console.warn(`⚠️ Playlist item missing media_assets:`, item)
-            return null
-          }
-          return {
-            ...item.media_assets,
-            display_duration: item.display_duration // Include custom duration from playlist_items
-          }
-        }).filter(Boolean)
-        console.log(`🎵 Found ${mediaAssets.length} media assets in playlist via playlist_items table`)
-      } else {
-        console.error(`❌ Failed to fetch media assets via playlist_items: ${mediaResponse.status} - ${mediaResponse.statusText}`)
-        const errorText = await mediaResponse.text()
-        console.error(`Error details: ${errorText}`)
+      if (playlistItemsResponse.ok) {
+        const playlistItems = await playlistItemsResponse.json()
+        console.log(`🔍 Found ${playlistItems.length} playlist items:`, JSON.stringify(playlistItems, null, 2))
         
-        // Return empty response instead of fallback to all media
-        console.log(`📭 No playlist items found - returning empty media list`)
+        if (playlistItems.length > 0) {
+          // Step 2: Get the actual media assets for these items
+          const mediaAssetIds = playlistItems.map(item => item.media_asset_id).filter(Boolean)
+          console.log(`📋 Media asset IDs to fetch:`, mediaAssetIds)
+          
+          if (mediaAssetIds.length > 0) {
+            const mediaAssetsResponse = await fetch(`${url}/rest/v1/media_assets?id=in.(${mediaAssetIds.join(',')})&select=*`, {
+              headers: {
+                'apikey': serviceKey,
+                'Authorization': `Bearer ${serviceKey}`,
+                'Content-Type': 'application/json'
+              }
+            })
+            
+            if (mediaAssetsResponse.ok) {
+              const fetchedAssets = await mediaAssetsResponse.json()
+              console.log(`🎵 Fetched ${fetchedAssets.length} media assets`)
+              
+              // Combine with playlist item data (duration, order)
+              mediaAssets = playlistItems.map(playlistItem => {
+                const asset = fetchedAssets.find(a => a.id === playlistItem.media_asset_id)
+                if (asset) {
+                  return {
+                    ...asset,
+                    display_duration: playlistItem.display_duration,
+                    display_order: playlistItem.display_order
+                  }
+                }
+                return null
+              }).filter(Boolean)
+              
+              console.log(`✅ Successfully mapped ${mediaAssets.length} playlist media assets`)
+            } else {
+              console.error(`❌ Failed to fetch media assets: ${mediaAssetsResponse.status}`)
+              mediaAssets = []
+            }
+          }
+        } else {
+          console.log(`📭 No playlist items found for playlist ${activeSchedule.playlist_id}`)
+          mediaAssets = []
+        }
+      } else {
+        console.error(`❌ Failed to fetch playlist items: ${playlistItemsResponse.status} - ${playlistItemsResponse.statusText}`)
+        const errorText = await playlistItemsResponse.text()
+        console.error(`Error details: ${errorText}`)
         mediaAssets = []
       }
     }
