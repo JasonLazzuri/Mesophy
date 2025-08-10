@@ -389,7 +389,7 @@ start_daemon() {
     
     # Start initial slideshow
     log_message "Starting initial slideshow"
-    if single_image_mode; then
+    if [[ "$single_image_mode" == "true" ]]; then
         # For single image, start once and let it run continuously in background
         play_slideshow &
         local slideshow_pid=$!
@@ -407,17 +407,17 @@ start_daemon() {
                 # Check if playlist changed
                 local new_playlist_count=$(python3 -c "import json; print(len(json.load(open('$CACHE_DIR/playlist.json'))))" 2>/dev/null || echo "0")
                 
-                if single_image_mode && [[ "$new_playlist_count" != "1" ]]; then
+                if [[ "$single_image_mode" == "true" ]] && [[ "$new_playlist_count" != "1" ]]; then
                     log_message "Playlist changed from single image, restarting slideshow"
                     kill $slideshow_pid 2>/dev/null || true
                     single_image_mode=false
-                elif [[ "$new_playlist_count" == "1" ]] && ! $single_image_mode; then
+                elif [[ "$new_playlist_count" == "1" ]] && [[ "$single_image_mode" == "false" ]]; then
                     log_message "Playlist changed to single image, switching to continuous mode"
                     single_image_mode=true
                     kill $slideshow_pid 2>/dev/null || true
                     play_slideshow &
                     slideshow_pid=$!
-                elif single_image_mode; then
+                elif [[ "$single_image_mode" == "true" ]]; then
                     # Content refreshed but still single image, restart display
                     kill $slideshow_pid 2>/dev/null || true
                     play_slideshow &
@@ -428,7 +428,7 @@ start_daemon() {
             fi
         fi
         
-        if ! single_image_mode; then
+        if [[ "$single_image_mode" != "true" ]]; then
             # Multi-image mode: restart slideshow cycle
             log_message "Starting slideshow cycle"
             if ! play_slideshow; then
