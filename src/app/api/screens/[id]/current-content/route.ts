@@ -135,7 +135,7 @@ export async function GET(
     let mediaAssets = []
     if (activeSchedule.playlist_id) {
       // Get media assets through playlist_items junction table (correct table name)
-      const mediaResponse = await fetch(`${url}/rest/v1/playlist_items?playlist_id=eq.${activeSchedule.playlist_id}&select=*,media_assets(*)&order=display_order`, {
+      const mediaResponse = await fetch(`${url}/rest/v1/playlist_items?playlist_id=eq.${activeSchedule.playlist_id}&select=display_duration,display_order,media_assets(*)&order=display_order`, {
         headers: {
           'apikey': serviceKey,
           'Authorization': `Bearer ${serviceKey}`,
@@ -145,10 +145,17 @@ export async function GET(
 
       if (mediaResponse.ok) {
         const playlistItems = await mediaResponse.json()
-        mediaAssets = playlistItems.map(item => ({
-          ...item.media_assets,
-          display_duration: item.display_duration // Include custom duration from playlist_items
-        })).filter(Boolean)
+        console.log(`🔍 Raw playlist_items response:`, JSON.stringify(playlistItems, null, 2))
+        mediaAssets = playlistItems.map(item => {
+          if (!item.media_assets) {
+            console.warn(`⚠️ Playlist item missing media_assets:`, item)
+            return null
+          }
+          return {
+            ...item.media_assets,
+            display_duration: item.display_duration // Include custom duration from playlist_items
+          }
+        }).filter(Boolean)
         console.log(`🎵 Found ${mediaAssets.length} media assets in playlist via playlist_items table`)
       } else {
         console.error(`❌ Failed to fetch media assets via playlist_items: ${mediaResponse.status} - ${mediaResponse.statusText}`)
