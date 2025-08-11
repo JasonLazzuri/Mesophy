@@ -1,0 +1,31 @@
+[Unit]
+Description=Mesophy Digital Signage System
+Documentation=https://github.com/JasonLazzuri/Mesophy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/opt/mesophy
+ExecStart=/opt/mesophy/mesophy-signage
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment
+Environment=HOME=/home/pi
+Environment=USER=pi
+Environment=DISPLAY=:0
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Allow access to framebuffer and video devices
+SupplementaryGroups=video audio
+
+[Install]
+WantedBy=multi-user.target
