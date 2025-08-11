@@ -137,34 +137,121 @@ check_network_status() {
 check_pairing_status() {
     log_message "Checking device pairing status..."
     
-    # Get device ID
-    DEVICE_ID=$(get_device_id)
+    # Check if we have a cached pairing code
+    local pairing_code=""
+    if [[ -f "$PAIRING_CONFIG_FILE" ]]; then
+        pairing_code=$(grep "PAIRING_CODE=" "$PAIRING_CONFIG_FILE" | cut -d'=' -f2 2>/dev/null || echo "")
+    fi
     
-    # Check with API
-    local response=$(curl -s --connect-timeout 10 "$API_BASE_URL/api/devices/lookup?device_id=$DEVICE_ID" || echo "")
+    # If no cached code, we're not paired
+    if [[ -z "$pairing_code" ]]; then
+        warning_message "No pairing code found - device not paired"
+        return 1
+    fi
+    
+    # Check pairing status with API
+    local response=$(curl -s --connect-timeout 10 "$API_BASE_URL/api/devices/check-pairing/$pairing_code" || echo "")
     
     if [[ -z "$response" ]]; then
         warning_message "Cannot check pairing status - API unavailable"
+        # Try to use cached pairing info if available
+        if [[ -f "$PAIRING_CONFIG_FILE" ]] && grep -q "SCREEN_ID=" "$PAIRING_CONFIG_FILE"; then
+            source "$PAIRING_CONFIG_FILE"
+            if [[ -n "$SCREEN_ID" ]]; then
+                API_URL="$API_BASE_URL/api/screens/$SCREEN_ID/current-content"
+                warning_message "Using cached pairing info (Screen ID: $SCREEN_ID)"
+                return 0
+            fi
+        fi
         return 1
     fi
     
     # Parse JSON response
     local paired=$(echo "$response" | python3 -c "import sys, json; data=json.load(sys.stdin); print('true' if data.get('paired', False) else 'false')" 2>/dev/null || echo "false")
+    local status=$(echo "$response" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('status', ''))" 2>/dev/null || echo "")
     
-    if [[ "$paired" == "true" ]]; then
-        SCREEN_ID=$(echo "$response" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('screen_id', ''))" 2>/dev/null || echo "")
-        API_URL="$API_BASE_URL/api/screens/$SCREEN_ID/current-content"
+    if [[ "$paired" == "true" && "$status" == "paired" ]]; then
+        # Extract device configuration
+        SCREEN_ID=$(echo "$response" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('device_config', {}).get('screen_id', ''))" 2>/dev/null || echo "")
+        local device_token=$(echo "$response" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('device_config', {}).get('device_token', ''))" 2>/dev/null || echo "")
         
-        # Cache pairing info
-        echo "SCREEN_ID=$SCREEN_ID" > "$PAIRING_CONFIG_FILE"
-        echo "API_URL=$API_URL" >> "$PAIRING_CONFIG_FILE"
-        
-        success_message "Device is paired (Screen ID: $SCREEN_ID)"
-        return 0
-    else
-        warning_message "Device is not paired"
+        if [[ -n "$SCREEN_ID" ]]; then
+            API_URL="$API_BASE_URL/api/screens/$SCREEN_ID/current-content"
+            
+            # Cache pairing info
+            echo "PAIRING_CODE=$pairing_code" > "$PAIRING_CONFIG_FILE"
+            echo "SCREEN_ID=$SCREEN_ID" >> "$PAIRING_CONFIG_FILE"
+            echo "API_URL=$API_URL" >> "$PAIRING_CONFIG_FILE"
+            echo "DEVICE_TOKEN=$device_token" >> "$PAIRING_CONFIG_FILE"
+            echo "PAIRED_AT=$(date)" >> "$PAIRING_CONFIG_FILE"
+            
+            success_message "Device is paired (Screen ID: $SCREEN_ID)"
+            return 0
+        fi
+    elif [[ "$status" == "expired" || "$status" == "code_not_found" ]]; then
+        warning_message "Pairing code expired or invalid - need new pairing"
+        rm -f "$PAIRING_CONFIG_FILE"
+        return 1
+    elif [[ "$status" == "waiting" ]]; then
+        warning_message "Pairing code valid but not yet paired by admin"
         return 1
     fi
+    
+    warning_message "Device is not paired"
+    return 1
+}
+
+generate_pairing_code() {
+    log_message "Generating new pairing code..."
+    
+    # Get device info for pairing request
+    local device_info="{\"device_id\":\"$(get_device_id)\",\"hostname\":\"$(hostname)\",\"mac_address\":\"$(get_primary_mac)\",\"ip_address\":\"$(get_local_ip)\"}"
+    
+    # Request pairing code from API
+    local response=$(curl -s --connect-timeout 10 -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"device_info\":$device_info,\"device_ip\":\"$(get_local_ip)\"}" \
+        "$API_BASE_URL/api/devices/generate-code" || echo "")
+    
+    if [[ -z "$response" ]]; then
+        error_message "Failed to generate pairing code - API unavailable"
+        return 1
+    fi
+    
+    # Parse response
+    local success=$(echo "$response" | python3 -c "import sys, json; data=json.load(sys.stdin); print('true' if data.get('success', False) else 'false')" 2>/dev/null || echo "false")
+    
+    if [[ "$success" == "true" ]]; then
+        local pairing_code=$(echo "$response" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('pairing_code', ''))" 2>/dev/null || echo "")
+        local expires_at=$(echo "$response" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('expires_at', ''))" 2>/dev/null || echo "")
+        
+        if [[ -n "$pairing_code" ]]; then
+            # Cache pairing code
+            echo "PAIRING_CODE=$pairing_code" > "$PAIRING_CONFIG_FILE"
+            echo "GENERATED_AT=$(date)" >> "$PAIRING_CONFIG_FILE"
+            echo "EXPIRES_AT=$expires_at" >> "$PAIRING_CONFIG_FILE"
+            
+            success_message "Generated pairing code: $pairing_code"
+            echo "$pairing_code"
+            return 0
+        fi
+    fi
+    
+    error_message "Failed to generate pairing code"
+    return 1
+}
+
+get_primary_mac() {
+    local interface=$(ip route show default | awk '/default/ { print $5 }' | head -n1)
+    if [[ -n "$interface" ]]; then
+        cat "/sys/class/net/$interface/address" 2>/dev/null || echo "unknown"
+    else
+        echo "unknown"
+    fi
+}
+
+get_local_ip() {
+    ip route get 1.1.1.1 | awk '{print $7; exit}' 2>/dev/null || echo "unknown"
 }
 
 check_content_availability() {
@@ -346,30 +433,68 @@ EOF
 }
 
 show_pairing_instructions() {
-    local device_id="$1"
+    # Generate or get existing pairing code
+    local pairing_code=""
+    if [[ -f "$PAIRING_CONFIG_FILE" ]]; then
+        pairing_code=$(grep "PAIRING_CODE=" "$PAIRING_CONFIG_FILE" | cut -d'=' -f2 2>/dev/null || echo "")
+        
+        # Check if code is expired
+        local expires_at=$(grep "EXPIRES_AT=" "$PAIRING_CONFIG_FILE" | cut -d'=' -f2 2>/dev/null || echo "")
+        if [[ -n "$expires_at" ]]; then
+            local expires_timestamp=$(date -d "$expires_at" +%s 2>/dev/null || echo "0")
+            local current_timestamp=$(date +%s)
+            if (( current_timestamp > expires_timestamp )); then
+                log_message "Pairing code expired, generating new one"
+                pairing_code=""
+            fi
+        fi
+    fi
+    
+    # Generate new code if needed
+    if [[ -z "$pairing_code" ]]; then
+        pairing_code=$(generate_pairing_code)
+        if [[ -z "$pairing_code" ]]; then
+            pairing_code="ERROR"
+        fi
+    fi
+    
+    # Calculate time remaining
+    local time_remaining="15 minutes"
+    if [[ -f "$PAIRING_CONFIG_FILE" ]]; then
+        local expires_at=$(grep "EXPIRES_AT=" "$PAIRING_CONFIG_FILE" | cut -d'=' -f2 2>/dev/null || echo "")
+        if [[ -n "$expires_at" ]]; then
+            local expires_timestamp=$(date -d "$expires_at" +%s 2>/dev/null || echo "0")
+            local current_timestamp=$(date +%s)
+            local remaining_seconds=$((expires_timestamp - current_timestamp))
+            if (( remaining_seconds > 0 )); then
+                time_remaining="$((remaining_seconds / 60)) minutes"
+            fi
+        fi
+    fi
     
     local instructions="
 DEVICE PAIRING REQUIRED
 
-Your Device ID: $device_id
+PAIRING CODE: $pairing_code
+Expires in: $time_remaining
 
 To connect this device:
 
 1. Open your web browser
 2. Go to: $API_BASE_URL
 3. Login to the admin portal  
-4. Navigate to Screens management
-5. Edit or create a screen
-6. Enter this Device ID: $device_id
-7. Save the configuration
+4. Navigate to 'Screens' → 'Pair Device'
+5. Enter this code: $pairing_code
+6. Select the screen for this device
+7. Click 'Pair Device'
 
 This screen will automatically start displaying
-content once the device is paired.
+content once pairing is completed.
 
-Waiting for pairing...
+Code refreshes every 15 minutes...
 "
     
-    show_full_screen_message "DEVICE NOT PAIRED" "$instructions" "yellow"
+    show_full_screen_message "DEVICE PAIRING" "$instructions" "cyan"
 }
 
 show_network_instructions() {
@@ -923,7 +1048,7 @@ run_state_machine() {
                 
             "NOT_PAIRED")
                 log_message "State: NOT_PAIRED - Showing pairing instructions"
-                show_pairing_instructions "$DEVICE_ID"
+                show_pairing_instructions
                 sleep 10  # Check pairing status more frequently
                 ;;
                 
@@ -1003,14 +1128,21 @@ Commands:
     install         Force system installation/reinstallation  
     logs            Show recent log entries
     device-id       Show device identifier
+    pairing-code    Show current pairing code (alias: code)
     help            Show this help message
 
 Auto-Mode Behavior:
 - Fresh system: Automatically installs dependencies
 - No network: Shows connection instructions
-- Not paired: Displays pairing screen with device ID
-- No content: Shows waiting message
+- Not paired: Displays pairing screen with 6-digit code
+- No content: Shows waiting message  
 - Ready: Starts content slideshow
+
+Pairing Process:
+1. Pi shows 6-digit pairing code on screen
+2. Admin enters code in portal: Screens → Pair Device
+3. Pi automatically detects pairing and starts content
+4. Codes expire after 15 minutes for security
 
 The system automatically transitions between states and requires
 no manual intervention after initial device pairing.
@@ -1045,6 +1177,18 @@ main() {
             ;;
         "device-id")
             echo "Device ID: $(get_device_id)"
+            ;;
+        "pairing-code"|"code")
+            if [[ -f "$PAIRING_CONFIG_FILE" ]]; then
+                local pairing_code=$(grep "PAIRING_CODE=" "$PAIRING_CONFIG_FILE" | cut -d'=' -f2 2>/dev/null || echo "")
+                if [[ -n "$pairing_code" ]]; then
+                    echo "Current Pairing Code: $pairing_code"
+                else
+                    echo "No pairing code found. Run 'mesophy-signage' to generate one."
+                fi
+            else
+                echo "No pairing code found. Run 'mesophy-signage' to generate one."
+            fi
             ;;
         "help"|"-h"|"--help")
             show_help
