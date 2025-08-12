@@ -22,12 +22,16 @@ class StateManager:
         device_id = self.config.get('device_id')
         screen_id = self.config.get('screen_id')
         
-        if not device_id or not screen_id:
+        if not device_id:
             return self.NOT_PAIRED
         
-        # Device is paired, check if content is available
-        # This will be determined by ContentManager
-        # For now, assume we need to check with content manager
+        # Device is paired but might not have screen assignment yet
+        if not screen_id:
+            self.logger.info("Device paired but no screen assigned - waiting for screen assignment")
+            return self.WAITING_FOR_MEDIA  # Will show waiting message
+        
+        # Device is paired and has screen assignment
+        # ContentManager will determine if content is available
         return self.WAITING_FOR_MEDIA  # ContentManager will determine if content is available
     
     def is_paired(self):

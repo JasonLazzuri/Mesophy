@@ -140,17 +140,22 @@ class MesophyPiClient:
                         device_id = device_info.get('device_id') or self.api.device_id
                         screen_id = device_info.get('screen_id')
                         
-                        if device_id and screen_id:
+                        if device_id:
+                            # Save device info - screen_id might be assigned later by admin
                             self.config['device_id'] = device_id
-                            self.config['screen_id'] = screen_id
+                            self.config['screen_id'] = screen_id  # May be None initially
                             self.config['location_id'] = device_info.get('location_id')
                             self.config['organization_id'] = device_info.get('organization_id')
                             self.config['pairing_code'] = None  # Clear pairing code
                             self.save_config()
-                            self.logger.info(f"Saved pairing info - Device: {device_id}, Screen: {screen_id}")
+                            
+                            if screen_id:
+                                self.logger.info(f"Saved pairing info - Device: {device_id}, Screen: {screen_id}")
+                            else:
+                                self.logger.info(f"Device paired ({device_id}) but no screen assigned yet")
                             return  # State will change on next loop
                         else:
-                            self.logger.error(f"Incomplete device info: device_id={device_id}, screen_id={screen_id}")
+                            self.logger.error(f"No device_id received: {device_info}")
                     else:
                         self.logger.error("Failed to get device info after pairing")
                 
@@ -162,6 +167,15 @@ class MesophyPiClient:
     
     def handle_waiting_for_media(self):
         """Handle WAITING_FOR_MEDIA state"""
+        screen_id = self.config.get('screen_id')
+        
+        if not screen_id:
+            self.logger.info("Device paired but no screen assigned yet")
+            # Show waiting for assignment message
+            self.display.show_waiting_for_media()
+            time.sleep(30)  # Check again in 30 seconds for screen assignment
+            return
+        
         self.logger.info("Device paired but no content available")
         
         # Show waiting message
