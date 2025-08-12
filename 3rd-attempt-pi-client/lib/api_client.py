@@ -201,13 +201,15 @@ class APIClient:
                     # Transform media assets to expected format
                     media_list = []
                     for asset in media_assets:
+                        duration = asset.get('display_duration', asset.get('duration', 10))
                         media_item = {
                             'id': asset.get('id'),
                             'url': asset.get('file_url'),
                             'type': asset.get('asset_type', 'image'),
                             'filename': asset.get('filename', f"asset_{asset.get('id')}"),
-                            'duration': asset.get('display_duration', asset.get('duration', 10))
+                            'duration': duration
                         }
+                        self.logger.info(f"Media asset: {asset.get('filename')} - duration: {duration}s (display_duration: {asset.get('display_duration')}, duration: {asset.get('duration')})")
                         media_list.append(media_item)
                     
                     return media_list

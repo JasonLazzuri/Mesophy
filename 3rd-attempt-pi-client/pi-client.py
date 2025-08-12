@@ -193,16 +193,33 @@ class MesophyPiClient:
         """Handle PLAYING_CONTENT state"""
         self.logger.info("Playing scheduled content")
         
+        # Periodically sync content to detect playlist changes
+        # Only sync every 5th content item to avoid too frequent API calls
+        if not hasattr(self, '_content_sync_counter'):
+            self._content_sync_counter = 0
+        
+        self._content_sync_counter += 1
+        if self._content_sync_counter >= 5:
+            self.logger.info("Checking for content updates...")
+            self.content.sync_content()
+            self._content_sync_counter = 0
+        
         # Get current content to display
         current_content = self.content.get_current_content()
         
         if current_content:
+            # Get the duration for this content item
+            duration = current_content.get('duration', 10)
+            self.logger.info(f"Displaying content for {duration} seconds: {current_content.get('filename')}")
+            
             self.display.show_content(current_content)
+            
+            # Wait for the specified duration before moving to next content
+            time.sleep(duration)
         else:
             self.logger.warning("No content to display, switching to waiting state")
             # State manager will handle this transition
-        
-        time.sleep(10)  # Check for content updates
+            time.sleep(10)
     
     def shutdown(self):
         """Clean shutdown"""
