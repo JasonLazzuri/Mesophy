@@ -1,5 +1,5 @@
 """
-Display Manager for Mesophy Pi Client
+Display Manager for Mesophy Pi Client - Professional Design
 Handles all HDMI display output using direct framebuffer access
 """
 
@@ -22,10 +22,12 @@ class DisplayManager:
         # Create temp directory for generated images
         os.makedirs(self.temp_dir, exist_ok=True)
         
-        # Colors
-        self.bg_color = (0, 31, 63)      # Dark blue
-        self.text_color = (255, 255, 255)  # White
-        self.accent_color = (0, 150, 255)  # Light blue
+        # Colors - Professional design palette
+        self.bg_color = (20, 25, 40)       # Dark blue background
+        self.text_color = (255, 255, 255)  # White text
+        self.accent_color = (0, 150, 255)  # Blue accent
+        self.highlight_color = (0, 150, 255)  # Blue highlight (instead of orange)
+        self.footer_color = (150, 150, 150)  # Gray for footer
         
     def show_pairing_code(self, pairing_code):
         """Display pairing code on HDMI screen"""
@@ -84,91 +86,131 @@ class DisplayManager:
             self.logger.error(f"Error during cleanup: {e}")
     
     def _create_pairing_image(self, pairing_code):
-        """Create beautiful pairing code display image"""
+        """Create professional pairing code display image"""
         # Create image
         image = Image.new('RGB', (self.width, self.height), self.bg_color)
         draw = ImageDraw.Draw(image)
         
-        # Try to load fonts, fallback to default if not available
+        # Load fonts with better sizing
         try:
-            title_font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 80)
-            code_font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 200)
-            subtitle_font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 50)
-            instruction_font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 40)
+            title_font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 72)
+            heading_font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 48)
+            body_font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 36)
+            code_font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf', 64)
         except:
             # Fallback to default font
             title_font = ImageFont.load_default()
+            heading_font = ImageFont.load_default()
+            body_font = ImageFont.load_default()
             code_font = ImageFont.load_default()
-            subtitle_font = ImageFont.load_default()
-            instruction_font = ImageFont.load_default()
         
-        # Draw title
-        title = "MESOPHY DIGITAL SIGNAGE"
+        # Title with emoji
+        title_text = "🔗 Device Pairing Required"
         try:
-            # New PIL versions (10.0.0+)
-            title_bbox = draw.textbbox((0, 0), title, font=title_font)
+            title_bbox = draw.textbbox((0, 0), title_text, font=title_font)
             title_width = title_bbox[2] - title_bbox[0]
         except AttributeError:
-            # Older PIL versions
-            title_width = draw.textsize(title, font=title_font)[0]
+            title_width = draw.textsize(title_text, font=title_font)[0]
         
-        title_x = (self.width - title_width) // 2
-        draw.text((title_x, 150), title, fill=self.text_color, font=title_font)
+        draw.text(((self.width - title_width) // 2, 80), title_text, fill=self.accent_color, font=title_font)
         
-        # Draw pairing code (large and centered)
+        # Subtitle
+        subtitle_text = "This Pi device needs to be paired with a screen in the admin portal"
         try:
-            # New PIL versions (10.0.0+)
+            subtitle_bbox = draw.textbbox((0, 0), subtitle_text, font=body_font)
+            subtitle_width = subtitle_bbox[2] - subtitle_bbox[0]
+        except AttributeError:
+            subtitle_width = draw.textsize(subtitle_text, font=body_font)[0]
+        
+        draw.text(((self.width - subtitle_width) // 2, 180), subtitle_text, fill=self.text_color, font=body_font)
+        
+        # Pairing Code section
+        code_heading = "Pairing Code:"
+        try:
+            code_heading_bbox = draw.textbbox((0, 0), code_heading, font=heading_font)
+            code_heading_width = code_heading_bbox[2] - code_heading_bbox[0]
+        except AttributeError:
+            code_heading_width = draw.textsize(code_heading, font=heading_font)[0]
+        
+        draw.text(((self.width - code_heading_width) // 2, 280), code_heading, fill=self.text_color, font=heading_font)
+        
+        # Pairing code with highlighted background
+        try:
             code_bbox = draw.textbbox((0, 0), pairing_code, font=code_font)
             code_width = code_bbox[2] - code_bbox[0]
+            code_height = code_bbox[3] - code_bbox[1]
         except AttributeError:
-            # Older PIL versions
-            code_width = draw.textsize(pairing_code, font=code_font)[0]
-        code_x = (self.width - code_width) // 2
-        code_y = (self.height - 300) // 2
+            code_size = draw.textsize(pairing_code, font=code_font)
+            code_width = code_size[0]
+            code_height = code_size[1]
         
-        # Draw code background
-        padding = 40
-        draw.rectangle([
-            code_x - padding, code_y - padding,
-            code_x + code_width + padding, code_y + 200 + padding
-        ], fill=self.accent_color)
+        # Draw background box for pairing code
+        box_padding = 20
+        box_x = (self.width - code_width) // 2 - box_padding
+        box_y = 360 - box_padding
+        box_width = code_width + 2 * box_padding
+        box_height = code_height + 2 * box_padding
         
-        draw.text((code_x, code_y), pairing_code, fill=self.text_color, font=code_font)
+        # Create rounded rectangle background
+        try:
+            draw.rounded_rectangle([box_x, box_y, box_x + box_width, box_y + box_height], 
+                                   radius=10, fill=self.highlight_color)
+        except AttributeError:
+            # Fallback for older PIL versions
+            draw.rectangle([box_x, box_y, box_x + box_width, box_y + box_height], 
+                          fill=self.highlight_color)
         
-        # Draw instructions
+        draw.text(((self.width - code_width) // 2, 360), pairing_code, fill=self.text_color, font=code_font)
+        
+        # Instructions with emojis
         instructions = [
-            "1. Go to your Mesophy dashboard",
-            "2. Navigate to Screens → Pair Device",
-            f"3. Enter pairing code: {pairing_code}",
-            "4. Assign this device to a screen"
+            "📋 How to pair this device:",
+            "",
+            "1. Open the Mesophy admin portal in your web browser",
+            "2. Navigate to Dashboard → Screens → Pair Device", 
+            f"3. Enter the pairing code: {pairing_code}",
+            "4. Assign the device to a screen and location",
+            "5. The device will automatically start displaying content"
         ]
         
-        instruction_y = code_y + 300
-        for i, instruction in enumerate(instructions):
-            try:
-                # New PIL versions (10.0.0+)
-                inst_bbox = draw.textbbox((0, 0), instruction, font=instruction_font)
-                inst_width = inst_bbox[2] - inst_bbox[0]
-            except AttributeError:
-                # Older PIL versions
-                inst_width = draw.textsize(instruction, font=instruction_font)[0]
-            
-            inst_x = (self.width - inst_width) // 2
-            draw.text((inst_x, instruction_y + i * 60), instruction, 
-                     fill=self.text_color, font=instruction_font)
+        y_offset = 500
+        for instruction in instructions:
+            if instruction == "📋 How to pair this device:":
+                # Section heading
+                try:
+                    instr_bbox = draw.textbbox((0, 0), instruction, font=heading_font)
+                    instr_width = instr_bbox[2] - instr_bbox[0]
+                except AttributeError:
+                    instr_width = draw.textsize(instruction, font=heading_font)[0]
+                
+                draw.text(((self.width - instr_width) // 2, y_offset), instruction, fill=self.accent_color, font=heading_font)
+                y_offset += 60
+            elif instruction == "":
+                y_offset += 20
+            else:
+                # Regular instruction
+                draw.text((200, y_offset), instruction, fill=self.text_color, font=body_font)
+                y_offset += 50
         
-        # Draw URL at bottom
-        url = "https://mesophy.vercel.app"
+        # Portal URL
+        url_text = "Portal: https://mesophy.vercel.app"
         try:
-            # New PIL versions (10.0.0+)
-            url_bbox = draw.textbbox((0, 0), url, font=subtitle_font)
+            url_bbox = draw.textbbox((0, 0), url_text, font=body_font)
             url_width = url_bbox[2] - url_bbox[0]
         except AttributeError:
-            # Older PIL versions
-            url_width = draw.textsize(url, font=subtitle_font)[0]
+            url_width = draw.textsize(url_text, font=body_font)[0]
         
-        url_x = (self.width - url_width) // 2
-        draw.text((url_x, self.height - 100), url, fill=self.accent_color, font=subtitle_font)
+        draw.text(((self.width - url_width) // 2, self.height - 120), url_text, fill=self.accent_color, font=body_font)
+        
+        # Footer
+        footer_text = "Mesophy Digital Signage Platform - Waiting for pairing..."
+        try:
+            footer_bbox = draw.textbbox((0, 0), footer_text, font=body_font)
+            footer_width = footer_bbox[2] - footer_bbox[0]
+        except AttributeError:
+            footer_width = draw.textsize(footer_text, font=body_font)[0]
+        
+        draw.text(((self.width - footer_width) // 2, self.height - 60), footer_text, fill=self.footer_color, font=body_font)
         
         return image
     
