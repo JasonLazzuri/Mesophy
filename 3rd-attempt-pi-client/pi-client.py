@@ -185,12 +185,7 @@ class MesophyPiClient:
         content_available = self.content.sync_content()
         if content_available:
             self.logger.info("Content now available")
-            self.config['content_available'] = True
-            self.save_config()
             return  # State will change on next loop
-        else:
-            self.config['content_available'] = False
-            self.save_config()
         
         time.sleep(30)  # Check again in 30 seconds
     
@@ -203,16 +198,11 @@ class MesophyPiClient:
         
         if current_content:
             self.display.show_content(current_content)
-            
-            # Calculate display duration
-            duration = current_content.get('duration', 10)
-            self.logger.info(f"Displaying content for {duration} seconds: {current_content.get('filename')}")
-            time.sleep(duration)
         else:
             self.logger.warning("No content to display, switching to waiting state")
-            self.config['content_available'] = False
-            self.save_config()
-            time.sleep(10)
+            # State manager will handle this transition
+        
+        time.sleep(10)  # Check for content updates
     
     def shutdown(self):
         """Clean shutdown"""
