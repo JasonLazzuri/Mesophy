@@ -210,16 +210,90 @@ class MesophyPiClient:
         if current_content:
             # Get the duration for this content item
             duration = current_content.get('duration', 10)
-            self.logger.info(f"Displaying content for {duration} seconds: {current_content.get('filename')}")
+            content_type = current_content.get('type', 'image')
+            filename = current_content.get('filename', 'unknown')
             
-            self.display.show_content(current_content)
+            self.logger.info(f"Displaying content for {duration} seconds: {filename}")
             
-            # Wait for the specified duration before moving to next content
-            time.sleep(duration)
+            if content_type == 'video':
+                # For videos, use a blocking video player that handles timing
+                self._play_video_blocking(current_content, duration)
+            else:
+                # For images, display and wait
+                self.display.show_content(current_content)
+                time.sleep(duration)
         else:
             self.logger.warning("No content to display, switching to waiting state")
             # State manager will handle this transition
             time.sleep(10)
+    
+    def _play_video_blocking(self, content_info, duration):
+        """Play video for specified duration with proper cleanup"""
+        import subprocess
+        
+        video_path = content_info.get('path')
+        filename = content_info.get('filename', 'unknown')
+        
+        self.logger.info(f"Playing video with blocking: {filename}")
+        
+        try:
+            # Kill any existing video processes
+            subprocess.run(['sudo', 'pkill', '-f', 'omxplayer'], capture_output=True)
+            subprocess.run(['sudo', 'pkill', '-f', 'vlc'], capture_output=True)
+            
+            # Start video player and wait for specified duration
+            if self._command_exists('omxplayer'):
+                cmd = [
+                    'omxplayer',
+                    '--no-osd',
+                    '--blank',
+                    '--aspect-mode', 'fill',
+                    '--no-keys',
+                    video_path
+                ]
+                self.logger.info("Starting omxplayer for video")
+                process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                
+                # Wait for the specified duration
+                time.sleep(duration)
+                
+                # Kill the video player
+                try:
+                    process.terminate()
+                    process.wait(timeout=3)
+                except:
+                    process.kill()
+                
+                # Clear screen after video
+                self.logger.info("Clearing screen after video")
+                subprocess.run(['sudo', 'pkill', '-f', 'omxplayer'], capture_output=True)
+                subprocess.run([
+                    'sudo', 'dd', 'if=/dev/zero', 'of=/dev/fb0', 
+                    'bs=1M', 'count=1'
+                ], capture_output=True, timeout=5)
+                
+                self.logger.info("Video playback completed and screen cleared")
+                
+            else:
+                self.logger.error("omxplayer not available for video playback")
+                # Fallback to regular display
+                self.display.show_content(content_info)
+                time.sleep(duration)
+                
+        except Exception as e:
+            self.logger.error(f"Error in video playback: {e}")
+            # Fallback to regular display
+            self.display.show_content(content_info)
+            time.sleep(duration)
+    
+    def _command_exists(self, command):
+        """Check if command exists in system PATH"""
+        import subprocess
+        try:
+            subprocess.run(['which', command], check=True, capture_output=True)
+            return True
+        except subprocess.CalledProcessError:
+            return False
     
     def shutdown(self):
         """Clean shutdown"""

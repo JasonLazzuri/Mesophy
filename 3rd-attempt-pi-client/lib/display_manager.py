@@ -59,10 +59,7 @@ class DisplayManager:
             self._display_image_file(content_path)
         elif content_type == 'video':
             self.logger.info(f"Playing video: {filename}")
-            success = self._display_video_file(content_path)
-            if success:
-                # Clear screen after video to prevent artifacts
-                self._clear_framebuffer()
+            # Note: video player will handle its own timing and cleanup
         else:
             self.logger.error(f"Unknown content type: {content_type} for file: {filename}")
             # Fallback to image display for unknown types
