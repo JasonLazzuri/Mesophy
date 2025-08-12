@@ -23,52 +23,38 @@ class APIClient:
         self.device_id = self._get_device_id()
     
     def generate_pairing_code(self):
-        """Generate a new 6-digit alphanumeric pairing code"""
+        """Generate a new pairing code from backend"""
         try:
-            # Generate 6-character alphanumeric code (uppercase letters and numbers only)
-            characters = string.ascii_uppercase + string.digits
-            pairing_code = ''.join(random.choice(characters) for _ in range(6))
-            
             device_info = {
                 "device_id": self.device_id,
                 "hostname": socket.gethostname(),
                 "ip_address": self._get_local_ip(),
                 "mac_address": self._get_mac_address(),
-                "timestamp": datetime.utcnow().isoformat(),
-                "pairing_code": pairing_code
+                "timestamp": datetime.utcnow().isoformat()
             }
             
-            # Try to register with backend, but don't fail if backend is unavailable
-            try:
-                response = requests.post(
-                    f"{self.base_url}/api/devices/generate-code",
-                    json={
-                        "device_info": device_info,
-                        "device_ip": self._get_local_ip(),
-                        "pairing_code": pairing_code
-                    },
-                    timeout=self.timeout
-                )
-                
-                if response.status_code in [200, 201]:
-                    data = response.json()
-                    if data.get('success'):
-                        # Use backend-provided code if available
-                        backend_code = data.get('pairing_code')
-                        if backend_code and all(c in characters for c in backend_code):
-                            pairing_code = backend_code
-                        self.logger.info(f"Backend registration successful: {pairing_code}")
-                    else:
-                        self.logger.warning(f"Backend registration failed, using local code: {pairing_code}")
-                else:
-                    self.logger.warning(f"Backend unavailable ({response.status_code}), using local code: {pairing_code}")
-                    
-            except requests.exceptions.RequestException as e:
-                self.logger.warning(f"Backend unavailable (network error), using local code: {pairing_code}")
+            response = requests.post(
+                f"{self.base_url}/api/devices/generate-code",
+                json={
+                    "device_info": device_info,
+                    "device_ip": self._get_local_ip()
+                },
+                timeout=self.timeout
+            )
             
-            self.logger.info(f"Generated pairing code: {pairing_code}")
-            return pairing_code
+            if response.status_code in [200, 201]:
+                data = response.json()
+                if data.get('success'):
+                    pairing_code = data.get('pairing_code')
+                    self.logger.info(f"Backend registration successful: {pairing_code}")
+                    return pairing_code
+                else:
+                    self.logger.error(f"API returned error: {data.get('error', 'Unknown error')}")
+            else:
+                self.logger.error(f"API request failed: {response.status_code} - {response.text}")
                 
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Network error generating pairing code: {e}")
         except Exception as e:
             self.logger.error(f"Unexpected error generating pairing code: {e}")
         
