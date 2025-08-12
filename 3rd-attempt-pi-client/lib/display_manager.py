@@ -104,14 +104,25 @@ class DisplayManager:
         
         # Draw title
         title = "MESOPHY DIGITAL SIGNAGE"
-        title_bbox = draw.textbbox((0, 0), title, font=title_font)
-        title_width = title_bbox[2] - title_bbox[0]
+        try:
+            # New PIL versions (10.0.0+)
+            title_bbox = draw.textbbox((0, 0), title, font=title_font)
+            title_width = title_bbox[2] - title_bbox[0]
+        except AttributeError:
+            # Older PIL versions
+            title_width = draw.textsize(title, font=title_font)[0]
+        
         title_x = (self.width - title_width) // 2
         draw.text((title_x, 150), title, fill=self.text_color, font=title_font)
         
         # Draw pairing code (large and centered)
-        code_bbox = draw.textbbox((0, 0), pairing_code, font=code_font)
-        code_width = code_bbox[2] - code_bbox[0]
+        try:
+            # New PIL versions (10.0.0+)
+            code_bbox = draw.textbbox((0, 0), pairing_code, font=code_font)
+            code_width = code_bbox[2] - code_bbox[0]
+        except AttributeError:
+            # Older PIL versions
+            code_width = draw.textsize(pairing_code, font=code_font)[0]
         code_x = (self.width - code_width) // 2
         code_y = (self.height - 300) // 2
         
@@ -134,16 +145,28 @@ class DisplayManager:
         
         instruction_y = code_y + 300
         for i, instruction in enumerate(instructions):
-            inst_bbox = draw.textbbox((0, 0), instruction, font=instruction_font)
-            inst_width = inst_bbox[2] - inst_bbox[0]
+            try:
+                # New PIL versions (10.0.0+)
+                inst_bbox = draw.textbbox((0, 0), instruction, font=instruction_font)
+                inst_width = inst_bbox[2] - inst_bbox[0]
+            except AttributeError:
+                # Older PIL versions
+                inst_width = draw.textsize(instruction, font=instruction_font)[0]
+            
             inst_x = (self.width - inst_width) // 2
             draw.text((inst_x, instruction_y + i * 60), instruction, 
                      fill=self.text_color, font=instruction_font)
         
         # Draw URL at bottom
         url = "https://mesophy.vercel.app"
-        url_bbox = draw.textbbox((0, 0), url, font=subtitle_font)
-        url_width = url_bbox[2] - url_bbox[0]
+        try:
+            # New PIL versions (10.0.0+)
+            url_bbox = draw.textbbox((0, 0), url, font=subtitle_font)
+            url_width = url_bbox[2] - url_bbox[0]
+        except AttributeError:
+            # Older PIL versions
+            url_width = draw.textsize(url, font=subtitle_font)[0]
+        
         url_x = (self.width - url_width) // 2
         draw.text((url_x, self.height - 100), url, fill=self.accent_color, font=subtitle_font)
         
@@ -167,8 +190,14 @@ class DisplayManager:
             message_font = ImageFont.load_default()
         
         # Draw title
-        title_bbox = draw.textbbox((0, 0), title, font=title_font)
-        title_width = title_bbox[2] - title_bbox[0]
+        try:
+            # New PIL versions (10.0.0+)
+            title_bbox = draw.textbbox((0, 0), title, font=title_font)
+            title_width = title_bbox[2] - title_bbox[0]
+        except AttributeError:
+            # Older PIL versions
+            title_width = draw.textsize(title, font=title_font)[0]
+        
         title_x = (self.width - title_width) // 2
         title_y = (self.height // 2) - 150
         draw.text((title_x, title_y), title, fill=text_color, font=title_font)
@@ -178,8 +207,14 @@ class DisplayManager:
         message_y = title_y + 150
         
         for i, line in enumerate(message_lines):
-            line_bbox = draw.textbbox((0, 0), line, font=message_font)
-            line_width = line_bbox[2] - line_bbox[0]
+            try:
+                # New PIL versions (10.0.0+)
+                line_bbox = draw.textbbox((0, 0), line, font=message_font)
+                line_width = line_bbox[2] - line_bbox[0]
+            except AttributeError:
+                # Older PIL versions
+                line_width = draw.textsize(line, font=message_font)[0]
+            
             line_x = (self.width - line_width) // 2
             draw.text((line_x, message_y + i * 80), line, fill=text_color, font=message_font)
         

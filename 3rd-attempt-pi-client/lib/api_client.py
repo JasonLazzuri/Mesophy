@@ -40,7 +40,7 @@ class APIClient:
                 timeout=self.timeout
             )
             
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 data = response.json()
                 if data.get('success'):
                     pairing_code = data.get('pairing_code')
@@ -66,7 +66,7 @@ class APIClient:
                 timeout=self.timeout
             )
             
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 data = response.json()
                 if data.get('paired'):
                     self.logger.info("Device has been paired!")
@@ -96,7 +96,7 @@ class APIClient:
                 timeout=self.timeout
             )
             
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 data = response.json()
                 if data.get('paired'):
                     return {
@@ -119,7 +119,7 @@ class APIClient:
                 timeout=self.timeout
             )
             
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 data = response.json()
                 return data.get('schedule', [])
             else:
@@ -138,7 +138,7 @@ class APIClient:
                 timeout=self.timeout
             )
             
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 data = response.json()
                 return data.get('media', [])
             else:
@@ -154,7 +154,7 @@ class APIClient:
         try:
             response = requests.get(media_url, stream=True, timeout=self.timeout)
             
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 with open(local_path, 'wb') as f:
                     for chunk in response.iter_content(chunk_size=8192):
                         f.write(chunk)
