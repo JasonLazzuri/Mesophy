@@ -59,7 +59,10 @@ class DisplayManager:
             self._display_image_file(content_path)
         elif content_type == 'video':
             self.logger.info(f"Playing video: {filename}")
-            self._display_video_file(content_path)
+            success = self._display_video_file(content_path)
+            if success:
+                # Clear screen after video to prevent artifacts
+                self._clear_framebuffer()
         else:
             self.logger.error(f"Unknown content type: {content_type} for file: {filename}")
             # Fallback to image display for unknown types
@@ -322,17 +325,17 @@ class DisplayManager:
                 # omxplayer (hardware accelerated on Pi)
                 {
                     'command': 'omxplayer',
-                    'args': ['--no-osd', '--blank', '--aspect-mode', 'fill', video_path]
+                    'args': ['--no-osd', '--blank', '--aspect-mode', 'fill', '--no-keys', video_path]
                 },
                 # VLC command line
                 {
                     'command': 'cvlc',
-                    'args': ['--intf', 'dummy', '--fullscreen', '--no-audio', '--play-and-exit', video_path]
+                    'args': ['--intf', 'dummy', '--fullscreen', '--no-audio', '--play-and-exit', '--no-loop', video_path]
                 },
                 # VLC GUI (fallback)
                 {
                     'command': 'vlc',
-                    'args': ['--intf', 'dummy', '--fullscreen', '--no-audio', '--play-and-exit', video_path]
+                    'args': ['--intf', 'dummy', '--fullscreen', '--no-audio', '--play-and-exit', '--no-loop', video_path]
                 }
             ]
             
@@ -365,6 +368,17 @@ class DisplayManager:
         except Exception as e:
             self.logger.error(f"Failed to play video: {e}")
             return False
+    
+    def _clear_framebuffer(self):
+        """Clear the framebuffer to prevent video artifacts"""
+        try:
+            self.logger.debug("Clearing framebuffer after video")
+            subprocess.run([
+                'sudo', 'dd', 'if=/dev/zero', 'of=/dev/fb0', 
+                'bs=1M', 'count=1'
+            ], capture_output=True, timeout=5)
+        except Exception as e:
+            self.logger.error(f"Error clearing framebuffer: {e}")
     
     def _command_exists(self, command):
         """Check if command exists in system PATH"""
