@@ -205,9 +205,32 @@ class APIClient:
             
             if response.status_code in [200, 201]:
                 data = response.json()
-                return data.get('media', [])
+                
+                # Check for media_assets in the response
+                media_assets = data.get('media_assets', [])
+                
+                if media_assets:
+                    self.logger.info(f"Found {len(media_assets)} media assets from schedule '{data.get('schedule_name')}'")
+                    
+                    # Transform media assets to expected format
+                    media_list = []
+                    for asset in media_assets:
+                        media_item = {
+                            'id': asset.get('id'),
+                            'url': asset.get('file_url'),
+                            'type': asset.get('asset_type', 'image'),
+                            'filename': asset.get('filename', f"asset_{asset.get('id')}"),
+                            'duration': asset.get('display_duration', asset.get('duration', 10))
+                        }
+                        media_list.append(media_item)
+                    
+                    return media_list
+                else:
+                    self.logger.info(f"No media assets found. Response: {data.get('message', 'No message')}")
+                    return []
+                    
             else:
-                self.logger.error(f"Failed to get media list: {response.status_code}")
+                self.logger.error(f"Failed to get media list: {response.status_code} - {response.text}")
                 
         except Exception as e:
             self.logger.error(f"Error getting media list: {e}")
