@@ -202,14 +202,26 @@ class APIClient:
                     media_list = []
                     for asset in media_assets:
                         duration = asset.get('display_duration', asset.get('duration', 10))
+                        
+                        # Get asset type from API or detect from file extension
+                        asset_type = asset.get('asset_type', 'image')
+                        file_url = asset.get('file_url', '')
+                        
+                        # Fallback: detect video files by extension if asset_type is wrong
+                        if asset_type == 'image' and file_url:
+                            video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.m4v']
+                            if any(file_url.lower().endswith(ext) for ext in video_extensions):
+                                asset_type = 'video'
+                                self.logger.info(f"Detected video file by extension: {file_url}")
+                        
                         media_item = {
                             'id': asset.get('id'),
-                            'url': asset.get('file_url'),
-                            'type': asset.get('asset_type', 'image'),
+                            'url': file_url,
+                            'type': asset_type,
                             'filename': asset.get('filename', f"asset_{asset.get('id')}"),
                             'duration': duration
                         }
-                        self.logger.info(f"Media asset: {asset.get('filename')} - duration: {duration}s (display_duration: {asset.get('display_duration')}, duration: {asset.get('duration')})")
+                        self.logger.info(f"Media asset: {asset.get('filename')} - duration: {duration}s (display_duration: {asset.get('display_duration')}, duration: {asset.get('duration')}, asset_type: {asset.get('asset_type')} → final_type: {asset_type}, file_url: {file_url})")
                         media_list.append(media_item)
                     
                     return media_list
