@@ -51,13 +51,19 @@ class DisplayManager:
         """Display media content"""
         content_path = content_info.get('path')
         content_type = content_info.get('type')
+        filename = content_info.get('filename', 'unknown')
+        
+        self.logger.info(f"Showing content: {filename} (type: {content_type}, path: {content_path})")
         
         if content_type == 'image':
             self._display_image_file(content_path)
         elif content_type == 'video':
+            self.logger.info(f"Playing video: {filename}")
             self._display_video_file(content_path)
         else:
-            self.logger.error(f"Unknown content type: {content_type}")
+            self.logger.error(f"Unknown content type: {content_type} for file: {filename}")
+            # Fallback to image display for unknown types
+            self._display_image_file(content_path)
     
     def show_error(self, error_message):
         """Display error message"""
@@ -300,39 +306,65 @@ class DisplayManager:
             self.logger.error(f"Failed to display image file: {e}")
     
     def _display_video_file(self, video_path):
-        """Display video file using omxplayer"""
+        """Display video file using omxplayer or vlc"""
         try:
+            if not os.path.exists(video_path):
+                self.logger.error(f"Video file not found: {video_path}")
+                return False
+            
             # Kill any existing video processes
             subprocess.run(['sudo', 'pkill', '-f', 'omxplayer'], capture_output=True)
             subprocess.run(['sudo', 'pkill', '-f', 'vlc'], capture_output=True)
+            subprocess.run(['sudo', 'pkill', '-f', 'cvlc'], capture_output=True)
             
-            # Try omxplayer first (hardware accelerated on Pi)
-            if self._command_exists('omxplayer'):
-                cmd = [
-                    'omxplayer',
-                    '--no-osd',        # No on-screen display
-                    '--loop',          # Loop video
-                    '--blank',         # Blank screen before playback
-                    video_path
-                ]
-            else:
-                # Fallback to VLC
-                cmd = [
-                    'vlc',
-                    '--intf', 'dummy',     # No interface
-                    '--fullscreen',        # Fullscreen mode
-                    '--loop',              # Loop video
-                    '--no-audio',          # No audio (optional)
-                    video_path
-                ]
+            # Try different video players in order of preference
+            video_players = [
+                # omxplayer (hardware accelerated on Pi)
+                {
+                    'command': 'omxplayer',
+                    'args': ['--no-osd', '--blank', '--aspect-mode', 'fill', video_path]
+                },
+                # VLC command line
+                {
+                    'command': 'cvlc',
+                    'args': ['--intf', 'dummy', '--fullscreen', '--no-audio', '--play-and-exit', video_path]
+                },
+                # VLC GUI (fallback)
+                {
+                    'command': 'vlc',
+                    'args': ['--intf', 'dummy', '--fullscreen', '--no-audio', '--play-and-exit', video_path]
+                }
+            ]
             
-            # Run video player in background
-            process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            for player in video_players:
+                if self._command_exists(player['command']):
+                    try:
+                        self.logger.info(f"Trying to play video with {player['command']}: {video_path}")
+                        
+                        # Run video player
+                        process = subprocess.Popen(
+                            [player['command']] + player['args'],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.PIPE
+                        )
+                        
+                        self.logger.info(f"Started video player: {player['command']}")
+                        return True
+                        
+                    except Exception as e:
+                        self.logger.warning(f"Failed to start {player['command']}: {e}")
+                        continue
+                else:
+                    self.logger.debug(f"Video player not available: {player['command']}")
             
-            self.logger.info(f"Playing video: {video_path}")
+            # If no video player worked, show error
+            self.logger.error(f"No suitable video player found for: {video_path}")
+            self.show_error(f"Cannot play video: {os.path.basename(video_path)}")
+            return False
             
         except Exception as e:
             self.logger.error(f"Failed to play video: {e}")
+            return False
     
     def _command_exists(self, command):
         """Check if command exists in system PATH"""
