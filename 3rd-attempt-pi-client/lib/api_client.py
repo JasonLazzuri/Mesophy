@@ -86,6 +86,8 @@ class APIClient:
                 data = response.json()
                 if data.get('paired'):
                     self.logger.info("Device has been paired!")
+                    # Store pairing response data for get_device_info()
+                    self._last_pairing_response = data
                     return True
                 else:
                     self.logger.debug("Device not yet paired")
@@ -103,8 +105,22 @@ class APIClient:
     def get_device_info(self):
         """Get device information after pairing"""
         try:
+            # Use cached pairing response if available
+            if hasattr(self, '_last_pairing_response') and self._last_pairing_response:
+                data = self._last_pairing_response
+                device_info = {
+                    'device_id': data.get('device_id', self.device_id),
+                    'screen_id': data.get('screen_id'),
+                    'location_id': data.get('location_id'),
+                    'organization_id': data.get('organization_id')
+                }
+                self.logger.info(f"Device info from pairing response: {device_info}")
+                return device_info
+            
+            # Fallback: try to get info from API
             pairing_code = self.config.get('pairing_code')
             if not pairing_code:
+                self.logger.warning("No pairing code available for device info lookup")
                 return None
             
             response = requests.get(
@@ -115,12 +131,14 @@ class APIClient:
             if response.status_code in [200, 201]:
                 data = response.json()
                 if data.get('paired'):
-                    return {
-                        'device_id': data.get('device_id'),
+                    device_info = {
+                        'device_id': data.get('device_id', self.device_id),
                         'screen_id': data.get('screen_id'),
                         'location_id': data.get('location_id'),
                         'organization_id': data.get('organization_id')
                     }
+                    self.logger.info(f"Device info from API: {device_info}")
+                    return device_info
                     
         except Exception as e:
             self.logger.error(f"Error getting device info: {e}")

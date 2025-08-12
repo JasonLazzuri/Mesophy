@@ -137,11 +137,22 @@ class MesophyPiClient:
                     self.logger.info("Device paired successfully!")
                     device_info = self.api.get_device_info()
                     if device_info:
-                        self.config['device_id'] = device_info.get('device_id')
-                        self.config['screen_id'] = device_info.get('screen_id')
-                        self.config['pairing_code'] = None  # Clear pairing code
-                        self.save_config()
-                        return  # State will change on next loop
+                        device_id = device_info.get('device_id') or self.api.device_id
+                        screen_id = device_info.get('screen_id')
+                        
+                        if device_id and screen_id:
+                            self.config['device_id'] = device_id
+                            self.config['screen_id'] = screen_id
+                            self.config['location_id'] = device_info.get('location_id')
+                            self.config['organization_id'] = device_info.get('organization_id')
+                            self.config['pairing_code'] = None  # Clear pairing code
+                            self.save_config()
+                            self.logger.info(f"Saved pairing info - Device: {device_id}, Screen: {screen_id}")
+                            return  # State will change on next loop
+                        else:
+                            self.logger.error(f"Incomplete device info: device_id={device_id}, screen_id={screen_id}")
+                    else:
+                        self.logger.error("Failed to get device info after pairing")
                 
                 time.sleep(10)
         else:
