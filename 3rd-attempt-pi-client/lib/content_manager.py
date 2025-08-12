@@ -128,10 +128,21 @@ class ContentManager:
             cache_item = self.cache_info.get(media_id)
             
             if cache_item and os.path.exists(cache_item['local_path']):
+                # Use the current media_item type (which may have been corrected by API client)
+                # instead of the cached type (which might be wrong)
+                current_type = media_item.get('type', cache_item['type'])
+                
+                # Update cache if type has been corrected
+                if current_type != cache_item['type']:
+                    self.logger.info(f"Updating cached type for {media_id}: {cache_item['type']} → {current_type}")
+                    cache_item['type'] = current_type
+                    self.cache_info[media_id] = cache_item
+                    self._save_cache_info()
+                
                 playlist.append({
                     'id': media_id,
                     'path': cache_item['local_path'],
-                    'type': cache_item['type'],
+                    'type': current_type,
                     'filename': cache_item['filename'],
                     'duration': media_item.get('duration', 10)  # Default 10 seconds
                 })
