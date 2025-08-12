@@ -15,7 +15,7 @@ class StateManager:
         self.WAITING_FOR_MEDIA = "WAITING_FOR_MEDIA" 
         self.PLAYING_CONTENT = "PLAYING_CONTENT"
     
-    def get_current_state(self):
+    def get_current_state(self, content_manager=None):
         """Determine current state based on configuration"""
         
         # Check if device is paired
@@ -31,8 +31,11 @@ class StateManager:
             return self.WAITING_FOR_MEDIA  # Will show waiting message
         
         # Device is paired and has screen assignment
-        # ContentManager will determine if content is available
-        return self.WAITING_FOR_MEDIA  # ContentManager will determine if content is available
+        # Check if content is available
+        if content_manager and hasattr(content_manager, 'current_playlist') and len(content_manager.current_playlist) > 0:
+            return self.PLAYING_CONTENT
+        
+        return self.WAITING_FOR_MEDIA
     
     def is_paired(self):
         """Check if device is paired"""

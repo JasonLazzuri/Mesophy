@@ -95,7 +95,7 @@ class MesophyPiClient:
         
         try:
             while self.running:
-                current_state = self.state.get_current_state()
+                current_state = self.state.get_current_state(self.content)
                 self.logger.info(f"Current state: {current_state}")
                 
                 if current_state == "NOT_PAIRED":
