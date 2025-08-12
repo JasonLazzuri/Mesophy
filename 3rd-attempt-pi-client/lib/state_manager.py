@@ -31,8 +31,13 @@ class StateManager:
             return self.WAITING_FOR_MEDIA  # Will show waiting message
         
         # Device is paired and has screen assignment
-        # ContentManager will determine if content is available
-        return self.WAITING_FOR_MEDIA  # ContentManager will determine if content is available
+        # Check if content is available by looking at content availability flag
+        content_available = self.config.get('content_available', False)
+        
+        if content_available:
+            return self.PLAYING_CONTENT
+        else:
+            return self.WAITING_FOR_MEDIA
     
     def is_paired(self):
         """Check if device is paired"""
