@@ -1,0 +1,20 @@
+[Unit]
+Description=Mesophy Digital Signage Pi Client
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/mesophy/3rd-attempt-pi-client
+ExecStart=/usr/bin/python3 /opt/mesophy/3rd-attempt-pi-client/pi-client.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment
+Environment=DISPLAY=:0
+
+[Install]
+WantedBy=multi-user.target
