@@ -108,14 +108,36 @@ class APIClient:
             # Use cached pairing response if available
             if hasattr(self, '_last_pairing_response') and self._last_pairing_response:
                 data = self._last_pairing_response
-                device_info = {
-                    'device_id': data.get('device_id', self.device_id),
-                    'screen_id': data.get('screen_id'),
-                    'location_id': data.get('location_id'),
-                    'organization_id': data.get('organization_id')
-                }
-                self.logger.info(f"Device info from pairing response: {device_info}")
-                return device_info
+                
+                # Check if response has device_config (successful pairing)
+                if data.get('paired') and data.get('device_config'):
+                    config = data.get('device_config')
+                    location = config.get('location', {})
+                    device_info = {
+                        'device_id': self.device_id,
+                        'screen_id': config.get('screen_id'),
+                        'screen_name': config.get('screen_name'),
+                        'screen_type': config.get('screen_type'),
+                        'location_id': location.get('id'),
+                        'location_name': location.get('name'),
+                        'organization_id': None,  # Would need to be added to API response
+                        'device_token': config.get('device_token'),
+                        'api_base': config.get('api_base'),
+                        'sync_interval': config.get('sync_interval'),
+                        'heartbeat_interval': config.get('heartbeat_interval')
+                    }
+                    self.logger.info(f"Device info from device_config: {device_info}")
+                    return device_info
+                else:
+                    # Legacy format fallback
+                    device_info = {
+                        'device_id': data.get('device_id', self.device_id),
+                        'screen_id': data.get('screen_id'),
+                        'location_id': data.get('location_id'),
+                        'organization_id': data.get('organization_id')
+                    }
+                    self.logger.info(f"Device info from legacy format: {device_info}")
+                    return device_info
             
             # Fallback: try to get info from API
             pairing_code = self.config.get('pairing_code')
@@ -130,14 +152,23 @@ class APIClient:
             
             if response.status_code in [200, 201]:
                 data = response.json()
-                if data.get('paired'):
+                if data.get('paired') and data.get('device_config'):
+                    config = data.get('device_config')
+                    location = config.get('location', {})
                     device_info = {
-                        'device_id': data.get('device_id', self.device_id),
-                        'screen_id': data.get('screen_id'),
-                        'location_id': data.get('location_id'),
-                        'organization_id': data.get('organization_id')
+                        'device_id': self.device_id,
+                        'screen_id': config.get('screen_id'),
+                        'screen_name': config.get('screen_name'),
+                        'screen_type': config.get('screen_type'),
+                        'location_id': location.get('id'),
+                        'location_name': location.get('name'),
+                        'organization_id': None,
+                        'device_token': config.get('device_token'),
+                        'api_base': config.get('api_base'),
+                        'sync_interval': config.get('sync_interval'),
+                        'heartbeat_interval': config.get('heartbeat_interval')
                     }
-                    self.logger.info(f"Device info from API: {device_info}")
+                    self.logger.info(f"Device info from API device_config: {device_info}")
                     return device_info
                     
         except Exception as e:
