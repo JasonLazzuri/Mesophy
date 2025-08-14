@@ -66,12 +66,16 @@ class ContentManager:
     def get_current_content(self):
         """Get current content item to display"""
         if not self.current_playlist:
+            self.logger.warning("No playlist available")
             return None
         
         if self.current_index >= len(self.current_playlist):
             self.current_index = 0
+            self.logger.info(f"Playlist wrapped around, resetting to index 0")
         
         content_item = self.current_playlist[self.current_index]
+        
+        self.logger.info(f"Getting content at index {self.current_index}/{len(self.current_playlist)}: {content_item.get('filename', 'unknown')} ({content_item.get('type', 'unknown')})")
         
         # Move to next item for next call
         self.current_index += 1
