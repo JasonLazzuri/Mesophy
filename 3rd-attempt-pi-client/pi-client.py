@@ -264,15 +264,9 @@ class MesophyPiClient:
                 except:
                     process.kill()
                 
-                # Clear screen after video using display manager
-                self.logger.info("Clearing screen after video")
+                # Kill video player - next content will display immediately
+                self.logger.info("Stopping video player")
                 subprocess.run(['sudo', 'pkill', '-f', 'omxplayer'], capture_output=True)
-                
-                # Clear framebuffer to prevent old content from showing through
-                self.display._clear_framebuffer()
-                
-                # Brief delay to ensure black screen is visible
-                time.sleep(0.5)
                 
                 self.logger.info("Video playback completed")
                 
