@@ -366,6 +366,20 @@ class DisplayManager:
             self.logger.error(f"Failed to play video: {e}")
             return False
     
+    def _show_black_screen(self):
+        """Display a black screen to clear video artifacts"""
+        try:
+            self.logger.info("Displaying black screen to clear artifacts")
+            
+            # Create a black image
+            black_image = Image.new('RGB', (self.width, self.height), (0, 0, 0))
+            
+            # Display it using FBI
+            self._display_image(black_image, "black_screen.png")
+            
+        except Exception as e:
+            self.logger.error(f"Error showing black screen: {e}")
+    
     def _clear_framebuffer(self):
         """Clear the framebuffer to prevent video artifacts"""
         try:

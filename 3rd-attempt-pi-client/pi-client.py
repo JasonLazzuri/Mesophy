@@ -264,15 +264,14 @@ class MesophyPiClient:
                 except:
                     process.kill()
                 
-                # Clear screen after video
+                # Clear screen after video using display manager
                 self.logger.info("Clearing screen after video")
                 subprocess.run(['sudo', 'pkill', '-f', 'omxplayer'], capture_output=True)
-                subprocess.run([
-                    'sudo', 'dd', 'if=/dev/zero', 'of=/dev/fb0', 
-                    'bs=1M', 'count=1'
-                ], capture_output=True, timeout=5)
                 
-                self.logger.info("Video playback completed and screen cleared")
+                # Use display manager to show a black screen
+                self.display._show_black_screen()
+                
+                self.logger.info("Video playback completed and screen cleared with black screen")
                 
             else:
                 self.logger.error("omxplayer not available for video playback")
