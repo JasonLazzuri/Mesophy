@@ -264,7 +264,11 @@ class MesophyPiClient:
                 except:
                     process.kill()
                 
-                # Kill video player - next content will display immediately
+                # Show black screen immediately before killing video to eliminate flash
+                self.logger.info("Showing black screen before stopping video")
+                self.display._show_black_screen()
+                
+                # Kill video player
                 self.logger.info("Stopping video player")
                 subprocess.run(['sudo', 'pkill', '-f', 'omxplayer'], capture_output=True)
                 
