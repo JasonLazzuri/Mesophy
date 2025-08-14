@@ -271,6 +271,9 @@ class MesophyPiClient:
                 # Use display manager to show a black screen
                 self.display._show_black_screen()
                 
+                # Give the black screen a moment to display and clear artifacts
+                time.sleep(1.0)
+                
                 self.logger.info("Video playback completed and screen cleared with black screen")
                 
             else:
