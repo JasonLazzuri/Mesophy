@@ -55,7 +55,10 @@ class ContentManager:
             new_playlist = self._build_playlist(media_list)
             
             # Check if playlist has actually changed
-            if self._playlist_changed(new_playlist):
+            playlist_changed = self._playlist_changed(new_playlist)
+            self.logger.info(f"Playlist comparison result: changed={playlist_changed}")
+            
+            if playlist_changed:
                 self.logger.info("Playlist content changed, updating...")
                 
                 # Try to preserve current position by finding current item in new playlist
@@ -84,7 +87,7 @@ class ContentManager:
                     self.current_index = 0
                     self.logger.info("No current position to preserve, resetting to beginning")
             else:
-                self.logger.debug("Playlist content unchanged, keeping current position")
+                self.logger.info("Playlist content unchanged, keeping current position")
             
             # Clean up old cache files
             self._cleanup_cache()
@@ -274,23 +277,41 @@ class ContentManager:
     
     def _playlist_changed(self, new_playlist):
         """Check if new playlist is different from current playlist"""
-        if not self.current_playlist and not new_playlist:
-            return False
-        
-        if not self.current_playlist or not new_playlist:
-            return True
-        
-        if len(self.current_playlist) != len(new_playlist):
-            return True
-        
-        # Compare by item IDs and key properties
-        for i, (current_item, new_item) in enumerate(zip(self.current_playlist, new_playlist)):
-            if (current_item.get('id') != new_item.get('id') or
-                current_item.get('type') != new_item.get('type') or
-                current_item.get('duration') != new_item.get('duration')):
+        try:
+            self.logger.info(f"Comparing playlists - Current: {len(self.current_playlist) if self.current_playlist else 0} items, New: {len(new_playlist) if new_playlist else 0} items")
+            
+            if not self.current_playlist and not new_playlist:
+                self.logger.debug("Both playlists empty - no change")
+                return False
+            
+            if not self.current_playlist or not new_playlist:
+                self.logger.debug("One playlist empty, other not - changed")
                 return True
-        
-        return False
+            
+            if len(self.current_playlist) != len(new_playlist):
+                self.logger.debug(f"Playlist length changed: {len(self.current_playlist)} → {len(new_playlist)}")
+                return True
+            
+            # Compare by item IDs and key properties
+            for i, (current_item, new_item) in enumerate(zip(self.current_playlist, new_playlist)):
+                current_id = current_item.get('id')
+                new_id = new_item.get('id')
+                current_type = current_item.get('type')
+                new_type = new_item.get('type')
+                current_duration = current_item.get('duration')
+                new_duration = new_item.get('duration')
+                
+                if (current_id != new_id or current_type != new_type or current_duration != new_duration):
+                    self.logger.debug(f"Item {i} changed: ID {current_id}→{new_id}, Type {current_type}→{new_type}, Duration {current_duration}→{new_duration}")
+                    return True
+            
+            self.logger.info("Playlists are identical")
+            return False
+            
+        except Exception as e:
+            self.logger.error(f"Error comparing playlists: {e}")
+            # If there's an error, assume changed to be safe
+            return True
     
     def _sanitize_filename(self, filename):
         """Sanitize filename for safe storage"""

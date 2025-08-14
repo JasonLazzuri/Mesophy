@@ -268,8 +268,8 @@ class MesophyPiClient:
                 self.logger.info("Clearing screen after video")
                 subprocess.run(['sudo', 'pkill', '-f', 'omxplayer'], capture_output=True)
                 
-                # Show black screen to prevent old content from showing through
-                self.display._show_black_screen()
+                # Clear framebuffer to prevent old content from showing through
+                self.display._clear_framebuffer()
                 
                 # Brief delay to ensure black screen is visible
                 time.sleep(0.5)
