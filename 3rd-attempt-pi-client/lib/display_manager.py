@@ -7,6 +7,7 @@ import os
 import subprocess
 import tempfile
 import logging
+import time
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
@@ -282,28 +283,41 @@ class DisplayManager:
             self.logger.error(f"Failed to display image: {e}")
     
     def _display_image_file(self, image_path):
-        """Display image file using FBI"""
+        """Display image file using FBI with smoother transitions"""
         try:
-            # Kill any existing fbi processes
-            subprocess.run(['sudo', 'pkill', '-f', 'fbi'], capture_output=True)
-            
-            # Display image with FBI
+            # For smoother transitions, don't kill FBI immediately, let it overlap briefly
+            # Display new image with FBI
             cmd = [
                 'sudo', 'fbi',
                 '-d', '/dev/fb0',  # Framebuffer device
                 '-T', '1',         # Use virtual terminal 1
                 '-noverbose',      # Quiet output
                 '-a',              # Auto zoom to fit screen
+                '--once',          # Exit after displaying (don't wait for input)
                 image_path
             ]
             
-            # Run FBI in background
+            # Run FBI and wait for it to start displaying
             process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            # Brief delay to let new image start displaying
+            time.sleep(0.2)
+            
+            # Now kill any old FBI processes (but new one should be displaying)
+            subprocess.run(['sudo', 'pkill', '-f', 'fbi', '--exclude', str(process.pid)], 
+                          capture_output=True, check=False)
             
             self.logger.info(f"Displaying image: {image_path}")
             
         except Exception as e:
             self.logger.error(f"Failed to display image file: {e}")
+            # Fallback to old method
+            try:
+                subprocess.run(['sudo', 'pkill', '-f', 'fbi'], capture_output=True)
+                cmd = ['sudo', 'fbi', '-d', '/dev/fb0', '-T', '1', '-noverbose', '-a', image_path]
+                subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except:
+                pass
     
     def _display_video_file(self, video_path):
         """Display video file using omxplayer or vlc"""
