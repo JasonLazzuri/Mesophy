@@ -51,8 +51,40 @@ class ContentManager:
                 if self._download_media_item(media_item, api):
                     downloaded_any = True
             
-            # Update playlist
-            self.current_playlist = self._build_playlist(media_list)
+            # Update playlist only if content has changed
+            new_playlist = self._build_playlist(media_list)
+            
+            # Check if playlist has actually changed
+            if self._playlist_changed(new_playlist):
+                self.logger.info("Playlist content changed, updating...")
+                
+                # Try to preserve current position by finding current item in new playlist
+                current_item_id = None
+                if (self.current_playlist and 
+                    self.current_index > 0 and 
+                    self.current_index - 1 < len(self.current_playlist)):
+                    current_item_id = self.current_playlist[self.current_index - 1].get('id')
+                
+                # Update to new playlist
+                self.current_playlist = new_playlist
+                
+                # Try to find the current item in the new playlist
+                if current_item_id:
+                    for i, item in enumerate(self.current_playlist):
+                        if item.get('id') == current_item_id:
+                            self.current_index = i + 1  # Set to next item after current
+                            self.logger.info(f"Preserved position after playlist update: index {self.current_index}")
+                            break
+                    else:
+                        # Current item not found in new playlist, reset to beginning
+                        self.current_index = 0
+                        self.logger.info("Current item not found in new playlist, resetting to beginning")
+                else:
+                    # No current item to preserve, reset to beginning
+                    self.current_index = 0
+                    self.logger.info("No current position to preserve, resetting to beginning")
+            else:
+                self.logger.debug("Playlist content unchanged, keeping current position")
             
             # Clean up old cache files
             self._cleanup_cache()
@@ -239,6 +271,26 @@ class ContentManager:
         
         except Exception as e:
             self.logger.error(f"Error during cache cleanup: {e}")
+    
+    def _playlist_changed(self, new_playlist):
+        """Check if new playlist is different from current playlist"""
+        if not self.current_playlist and not new_playlist:
+            return False
+        
+        if not self.current_playlist or not new_playlist:
+            return True
+        
+        if len(self.current_playlist) != len(new_playlist):
+            return True
+        
+        # Compare by item IDs and key properties
+        for i, (current_item, new_item) in enumerate(zip(self.current_playlist, new_playlist)):
+            if (current_item.get('id') != new_item.get('id') or
+                current_item.get('type') != new_item.get('type') or
+                current_item.get('duration') != new_item.get('duration')):
+                return True
+        
+        return False
     
     def _sanitize_filename(self, filename):
         """Sanitize filename for safe storage"""
