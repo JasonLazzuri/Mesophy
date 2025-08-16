@@ -2,7 +2,7 @@
 
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/hooks/useAuth'
-import { Building2, Monitor, Users, LogOut, Menu, X, Tv, Image, Calendar, Play, Download, Smartphone } from 'lucide-react'
+import { Building2, Monitor, Users, LogOut, Menu, X, Tv, Image, Calendar, Play, Download, Smartphone, Activity } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
@@ -38,6 +38,7 @@ export default function DashboardLayout({
         ]
       : []),
     { name: 'Screens', href: '/dashboard/screens', icon: Tv },
+    { name: 'Devices', href: '/dashboard/devices', icon: Activity },
     { name: 'Media', href: '/dashboard/media', icon: Image },
     { name: 'Playlists', href: '/dashboard/playlists', icon: Play },
     { name: 'Schedules', href: '/dashboard/schedules', icon: Calendar },
