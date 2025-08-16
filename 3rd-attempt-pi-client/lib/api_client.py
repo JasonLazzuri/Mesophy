@@ -280,6 +280,64 @@ class APIClient:
             self.logger.error(f"Error sending heartbeat: {e}")
             return False
     
+    def send_enhanced_heartbeat(self, system_info=None, cache_stats=None, playlist_info=None):
+        """Send enhanced heartbeat with detailed system information"""
+        try:
+            device_id = self.config.get('device_id')
+            if not device_id:
+                return False
+            
+            heartbeat_data = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "status": "online",
+                "ip_address": self._get_local_ip(),
+                "system_info": system_info or {},
+                "display_info": {
+                    "cache_stats": cache_stats or {},
+                    "playlist_info": playlist_info or {}
+                }
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/api/devices/{device_id}/heartbeat",
+                json=heartbeat_data,
+                timeout=self.timeout
+            )
+            
+            if response.status_code == 200:
+                self.logger.debug("Enhanced heartbeat sent successfully")
+                return True
+            else:
+                self.logger.warning(f"Heartbeat failed with status: {response.status_code}")
+                return False
+            
+        except Exception as e:
+            self.logger.error(f"Error sending enhanced heartbeat: {e}")
+            return False
+    
+    def send_heartbeat_with_status(self, status):
+        """Send heartbeat with specific status"""
+        try:
+            device_id = self.config.get('device_id')
+            if not device_id:
+                return False
+            
+            response = requests.post(
+                f"{self.base_url}/api/devices/{device_id}/heartbeat",
+                json={
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "status": status,
+                    "ip_address": self._get_local_ip()
+                },
+                timeout=self.timeout
+            )
+            
+            return response.status_code == 200
+            
+        except Exception as e:
+            self.logger.error(f"Error sending status heartbeat: {e}")
+            return False
+    
     def _get_device_id(self):
         """Generate unique device identifier"""
         try:

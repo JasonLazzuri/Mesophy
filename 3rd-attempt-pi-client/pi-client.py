@@ -40,6 +40,10 @@ class MesophyPiClient:
         self.logger = logging.getLogger(__name__)
         self.running = False
         
+        # Heartbeat tracking
+        self.last_heartbeat = 0
+        self.heartbeat_interval = 30  # Send heartbeat every 30 seconds
+        
     def load_config(self):
         """Load configuration from file"""
         try:
@@ -95,6 +99,9 @@ class MesophyPiClient:
         
         try:
             while self.running:
+                # Send heartbeat if needed
+                self._send_heartbeat_if_needed()
+                
                 current_state = self.state.get_current_state(self.content)
                 self.logger.info(f"Current state: {current_state}")
                 
@@ -295,10 +302,84 @@ class MesophyPiClient:
         except subprocess.CalledProcessError:
             return False
     
+    def _send_heartbeat_if_needed(self):
+        """Send heartbeat if enough time has passed"""
+        current_time = time.time()
+        if current_time - self.last_heartbeat >= self.heartbeat_interval:
+            device_id = self.config.get('device_id')
+            if device_id:
+                self._send_enhanced_heartbeat()
+                self.last_heartbeat = current_time
+    
+    def _send_enhanced_heartbeat(self):
+        """Send heartbeat with enhanced system information"""
+        try:
+            # Get cache statistics
+            cache_stats = self.content.get_cache_stats()
+            
+            # Get system information
+            system_info = self._get_system_info()
+            
+            # Get current playlist info
+            playlist_info = {
+                'current_index': getattr(self.content, 'current_index', 0),
+                'playlist_size': len(getattr(self.content, 'current_playlist', [])),
+                'current_state': self.state.get_current_state(self.content)
+            }
+            
+            success = self.api.send_enhanced_heartbeat(
+                system_info=system_info,
+                cache_stats=cache_stats,
+                playlist_info=playlist_info
+            )
+            
+            if success:
+                self.logger.debug("Heartbeat sent successfully")
+            else:
+                self.logger.warning("Failed to send heartbeat")
+                
+        except Exception as e:
+            self.logger.error(f"Error sending enhanced heartbeat: {e}")
+    
+    def _get_system_info(self):
+        """Collect system information for heartbeat"""
+        import os
+        import psutil
+        
+        try:
+            return {
+                'cpu_percent': psutil.cpu_percent(),
+                'memory_percent': psutil.virtual_memory().percent,
+                'disk_usage': psutil.disk_usage('/').percent,
+                'uptime': time.time() - psutil.boot_time(),
+                'load_average': os.getloadavg() if hasattr(os, 'getloadavg') else None,
+                'temperature': self._get_cpu_temperature()
+            }
+        except Exception as e:
+            self.logger.error(f"Error collecting system info: {e}")
+            return {}
+    
+    def _get_cpu_temperature(self):
+        """Get CPU temperature (Pi specific)"""
+        try:
+            with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
+                temp = int(f.read().strip()) / 1000.0
+                return temp
+        except:
+            return None
+    
     def shutdown(self):
         """Clean shutdown"""
         self.logger.info("Shutting down Pi client...")
         self.running = False
+        
+        # Send final heartbeat with offline status
+        try:
+            if self.config.get('device_id'):
+                self.api.send_heartbeat_with_status('offline')
+        except:
+            pass
+        
         self.display.cleanup()
 
 def main():
