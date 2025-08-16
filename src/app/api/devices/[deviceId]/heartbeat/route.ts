@@ -30,10 +30,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .single()
 
     if (screenError || !screen) {
-      console.error('Screen not found for device:', deviceId, screenError)
+      console.log('Screen not found for device:', deviceId, 'Error:', screenError?.message)
+      
+      // Log the heartbeat attempt even for unregistered devices for debugging
+      console.log('Heartbeat from unregistered device:', {
+        deviceId,
+        status,
+        system_info,
+        display_info,
+        timestamp: new Date().toISOString()
+      })
+      
+      // Return success to prevent log spam, but indicate device needs registration
       return NextResponse.json({ 
-        error: 'Device not registered' 
-      }, { status: 404 })
+        success: false,
+        message: 'Device not registered in any screen',
+        device_id: deviceId,
+        requires_pairing: true
+      }, { status: 200 })
     }
 
     // Update screen status and last_seen

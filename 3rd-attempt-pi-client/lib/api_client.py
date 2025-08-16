@@ -308,8 +308,23 @@ class APIClient:
             )
             
             if response.status_code == 200:
-                self.logger.debug("Enhanced heartbeat sent successfully")
-                return True
+                try:
+                    response_data = response.json()
+                    if response_data.get('success', True):
+                        self.logger.debug("Enhanced heartbeat sent successfully")
+                        return True
+                    else:
+                        # Device not registered but heartbeat was received
+                        message = response_data.get('message', 'Device not registered')
+                        if response_data.get('requires_pairing'):
+                            self.logger.info(f"Heartbeat received but device needs pairing: {message}")
+                        else:
+                            self.logger.warning(f"Heartbeat issue: {message}")
+                        return False
+                except:
+                    # If we can't parse JSON, assume success for 200 status
+                    self.logger.debug("Enhanced heartbeat sent successfully")
+                    return True
             else:
                 self.logger.warning(f"Heartbeat failed with status: {response.status_code}")
                 try:
