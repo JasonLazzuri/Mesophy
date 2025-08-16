@@ -285,7 +285,10 @@ class APIClient:
         try:
             device_id = self.config.get('device_id')
             if not device_id:
+                self.logger.debug("No device_id configured, skipping heartbeat")
                 return False
+            
+            self.logger.debug(f"Sending heartbeat for device_id: {device_id}")
             
             heartbeat_data = {
                 "timestamp": datetime.utcnow().isoformat(),
@@ -309,6 +312,11 @@ class APIClient:
                 return True
             else:
                 self.logger.warning(f"Heartbeat failed with status: {response.status_code}")
+                try:
+                    error_details = response.json()
+                    self.logger.warning(f"Heartbeat error details: {error_details}")
+                except:
+                    self.logger.warning(f"Heartbeat error response: {response.text}")
                 return False
             
         except Exception as e:
