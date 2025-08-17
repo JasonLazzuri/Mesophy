@@ -159,17 +159,44 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }, { status: 404 })
     }
 
-    // Verify user has access to this device
-    const { data: hasAccess } = await supabase
-      .rpc('user_can_access_location', {
-        user_id: user.id,
-        location_id: screen.location_id
-      })
+    // Check user profile and permissions
+    const { data: userProfile } = await supabase
+      .from('user_profiles')
+      .select('role, organization_id, district_id, location_id')
+      .eq('id', user.id)
+      .single()
 
-    if (!hasAccess) {
+    if (!userProfile) {
       return NextResponse.json({ 
-        error: 'Access denied to this device' 
+        error: 'User profile not found' 
       }, { status: 403 })
+    }
+
+    // Super admins have access to all devices
+    if (userProfile.role !== 'super_admin') {
+      // For non-super admins, check if they have access to this device's location
+      const deviceOrganizationId = screen.locations?.districts?.organization_id
+      
+      if (userProfile.role === 'district_manager') {
+        // District managers can access devices in their district
+        if (userProfile.district_id !== screen.locations?.district_id) {
+          return NextResponse.json({ 
+            error: 'Access denied to this device' 
+          }, { status: 403 })
+        }
+      } else if (userProfile.role === 'location_manager') {
+        // Location managers can only access devices in their location
+        if (userProfile.location_id !== screen.location_id) {
+          return NextResponse.json({ 
+            error: 'Access denied to this device' 
+          }, { status: 403 })
+        }
+      } else {
+        // Unknown role
+        return NextResponse.json({ 
+          error: 'Access denied to this device' 
+        }, { status: 403 })
+        }
     }
 
     // Queue the command
