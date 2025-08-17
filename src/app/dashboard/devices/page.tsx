@@ -51,14 +51,28 @@ export default function DevicesPage() {
   const fetchDevices = async () => {
     try {
       const response = await fetch('/api/devices/status')
-      if (!response.ok) throw new Error('Failed to fetch devices')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(errorData.error || 'Failed to fetch devices')
+      }
       
       const data = await response.json()
-      setDevices(data.devices || [])
+      // Ensure devices is always an array and validate device structure
+      const validDevices = Array.isArray(data.devices) 
+        ? data.devices.filter((device: any) => 
+            device && 
+            typeof device.id === 'string' && 
+            typeof device.screen_name === 'string'
+          )
+        : []
+      
+      setDevices(validDevices)
       setLastUpdated(new Date())
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
+      setDevices([]) // Ensure devices is empty array on error
+      console.error('Device fetch error:', err)
     } finally {
       setLoading(false)
     }
@@ -306,7 +320,7 @@ export default function DevicesPage() {
                     </div>
                     
                     <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
-                      <span>{device.location_name}</span>
+                      <span>{device.location_name || 'Unknown Location'}</span>
                       {device.district_name && (
                         <>
                           <span>•</span>
@@ -449,6 +463,7 @@ export default function DevicesPage() {
                           {/* Command Results */}
                           {Object.entries(commandResults)
                             .filter(([key]) => key.startsWith(device.id))
+                            .filter(([key, result]) => result && typeof result === 'object')
                             .map(([key, result]) => (
                               <div
                                 key={key}
@@ -459,10 +474,10 @@ export default function DevicesPage() {
                                 }`}
                               >
                                 <div className="flex items-center justify-between">
-                                  <span>{result.message}</span>
-                                  <span className="text-gray-500">{result.timestamp}</span>
+                                  <span>{result.message || 'Command executed'}</span>
+                                  <span className="text-gray-500">{result.timestamp || ''}</span>
                                 </div>
-                                {result.command_id && (
+                                {result.command_id && typeof result.command_id === 'string' && (
                                   <div className="mt-1 font-mono text-gray-500">
                                     ID: {result.command_id.slice(0, 8)}...
                                   </div>
