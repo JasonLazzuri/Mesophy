@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 
 interface DeviceLogMetadata {
   system_info?: {
@@ -24,7 +24,15 @@ interface DeviceLogMetadata {
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    // Use admin client for device status to bypass RLS
+    const supabase = createAdminClient()
+    if (!supabase) {
+      console.error('Failed to create admin client for device status')
+      return NextResponse.json({ 
+        error: 'Service unavailable',
+        devices: []
+      }, { status: 503 })
+    }
 
     // Get all screens with their device information and latest heartbeat data
     const { data: screens, error: screensError } = await supabase
