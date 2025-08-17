@@ -175,88 +175,116 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Super admins have access to all devices
     if (userProfile.role !== 'super_admin') {
       // For non-super admins, check if they have access to this device's location
-      const deviceOrganizationId = screen.locations?.districts?.organization_id
-      
-      if (userProfile.role === 'district_manager') {
-        // District managers can access devices in their district
-        if (userProfile.district_id !== screen.locations?.district_id) {
+      try {
+        if (userProfile.role === 'district_manager') {
+          // District managers can access devices in their district
+          const screenDistrict = screen.locations?.districts
+          if (!screenDistrict || userProfile.district_id !== screenDistrict.id) {
+            return NextResponse.json({ 
+              error: 'Access denied to this device' 
+            }, { status: 403 })
+          }
+        } else if (userProfile.role === 'location_manager') {
+          // Location managers can only access devices in their location
+          if (userProfile.location_id !== screen.location_id) {
+            return NextResponse.json({ 
+              error: 'Access denied to this device' 
+            }, { status: 403 })
+          }
+        } else {
+          // Unknown role
           return NextResponse.json({ 
             error: 'Access denied to this device' 
           }, { status: 403 })
         }
-      } else if (userProfile.role === 'location_manager') {
-        // Location managers can only access devices in their location
-        if (userProfile.location_id !== screen.location_id) {
-          return NextResponse.json({ 
-            error: 'Access denied to this device' 
-          }, { status: 403 })
-        }
-      } else {
-        // Unknown role
+      } catch (permissionError) {
+        console.error('Permission check error:', permissionError)
         return NextResponse.json({ 
-          error: 'Access denied to this device' 
-        }, { status: 403 })
-        }
+          error: 'Permission check failed' 
+        }, { status: 500 })
+      }
     }
 
     // Queue the command
-    const { data: command, error: insertError } = await supabase
-      .from('device_commands')
-      .insert({
+    try {
+      console.log('Attempting to insert command:', {
         device_id: deviceId,
         screen_id: screen.id,
         command_type,
         command_data,
         priority,
         timeout_seconds,
-        scheduled_for: scheduled_for ? new Date(scheduled_for).toISOString() : new Date().toISOString(),
-        created_by: user.id
+        user_id: user.id
       })
-      .select()
-      .single()
 
-    if (insertError) {
-      console.error('Error queuing command:', insertError)
-      return NextResponse.json({ 
-        error: 'Failed to queue command' 
-      }, { status: 500 })
-    }
-
-    // Log the command queuing activity
-    await supabase
-      .from('device_sync_log')
-      .insert({
-        screen_id: screen.id,
-        activity: 'command_queued',
-        details: {
-          command_id: command.id,
-          command_type,
+      const { data: command, error: insertError } = await supabase
+        .from('device_commands')
+        .insert({
           device_id: deviceId,
-          queued_by: user.id,
+          screen_id: screen.id,
+          command_type,
+          command_data,
           priority,
-          scheduled_for: command.scheduled_for
+          timeout_seconds,
+          scheduled_for: scheduled_for ? new Date(scheduled_for).toISOString() : new Date().toISOString(),
+          created_by: user.id
+        })
+        .select()
+        .single()
+
+      if (insertError) {
+        console.error('Database insert error:', insertError)
+        return NextResponse.json({ 
+          error: 'Failed to queue command',
+          details: insertError.message 
+        }, { status: 500 })
+      }
+
+      console.log('Command successfully queued:', command)
+
+      // Log the command queuing activity
+      try {
+        await supabase
+          .from('device_sync_log')
+          .insert({
+            screen_id: screen.id,
+            activity: 'command_queued',
+            details: {
+              command_id: command.id,
+              command_type,
+              device_id: deviceId,
+              queued_by: user.id,
+              priority,
+              scheduled_for: command.scheduled_for
+            }
+          })
+      } catch (logError) {
+        console.warn('Failed to log command queuing activity:', logError)
+        // Don't fail the request if logging fails
+      }
+
+      console.log(`Command queued: ${command_type} for device ${deviceId} by user ${user.id}`)
+
+      return NextResponse.json({
+        success: true,
+        message: 'Command queued successfully',
+        command: {
+          id: command.id,
+          command_type: command.command_type,
+          status: command.status,
+          priority: command.priority,
+          scheduled_for: command.scheduled_for,
+          created_at: command.created_at
         }
       })
 
-    console.log(`Command queued: ${command_type} for device ${deviceId} by user ${user.id}`)
-
-    return NextResponse.json({
-      success: true,
-      message: 'Command queued successfully',
-      command: {
-        id: command.id,
-        command_type: command.command_type,
-        status: command.status,
-        priority: command.priority,
-        scheduled_for: command.scheduled_for,
-        created_at: command.created_at
-      },
-      device: {
-        id: deviceId,
-        screen_name: screen.name,
-        location_name: screen.locations.name
-      }
-    })
+    } catch (dbError) {
+      console.error('Database operation failed:', dbError)
+      return NextResponse.json({ 
+        error: 'Database operation failed',
+        details: dbError instanceof Error ? dbError.message : 'Unknown error'
+      }, { status: 500 })
+    }
 
   } catch (error) {
     console.error('Command queue error:', error)
