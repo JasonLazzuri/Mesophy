@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 // Simplified without lucide-react icons to avoid React error #130
 
 interface Device {
@@ -58,11 +59,23 @@ export default function SimpleDevicesPage() {
     setCommandLoading(prev => ({ ...prev, [commandKey]: true }))
     
     try {
+      // Get current session to include auth token
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      
+      // Include authorization header if we have a session
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`
+      }
+      
       const response = await fetch(`/api/devices/${deviceId}/commands`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
+        credentials: 'include', // Important: include cookies for authentication
         body: JSON.stringify({
           command_type: commandType,
           command_data: { source: 'simple_dashboard' },
