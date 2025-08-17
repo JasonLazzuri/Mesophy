@@ -51,50 +51,34 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'restart':
-        // Log restart request - actual restart would be handled by Pi polling this endpoint
-        const { error: logError } = await supabase
-          .from('device_sync_log')
+        // Queue restart command using the new command system
+        const { data: restartCommand, error: restartError } = await supabase
+          .from('device_commands')
           .insert({
+            device_id: device_id,
             screen_id: screen_id,
-            activity: 'restart_requested',
-            details: {
-              requested_by: user.id,
-              requested_at: new Date().toISOString(),
-              device_id: device_id
-            }
+            command_type: 'restart',
+            command_data: { source: 'management_api' },
+            priority: 2, // High priority
+            created_by: user.id
           })
+          .select()
+          .single()
 
-        if (logError) {
-          return NextResponse.json({ error: 'Failed to log restart request' }, { status: 500 })
+        if (restartError) {
+          console.error('Error queuing restart command:', restartError)
+          return NextResponse.json({ error: 'Failed to queue restart command' }, { status: 500 })
         }
 
-        return NextResponse.json({
-          message: 'Restart request logged successfully',
-          action: 'restart',
-          screen_id: screen_id,
-          device_id: device_id
-        })
-
-      case 'force_sync':
-        // Update sync request flag
-        const { error: updateError } = await supabase
-          .from('screens')
-          .update({ 
-            updated_at: new Date().toISOString() 
-          })
-          .eq('id', screen_id)
-
-        if (updateError) {
-          return NextResponse.json({ error: 'Failed to trigger sync' }, { status: 500 })
-        }
-
-        // Log sync request
+        // Log the command queuing activity
         await supabase
           .from('device_sync_log')
           .insert({
             screen_id: screen_id,
-            activity: 'force_sync_requested',
+            activity: 'command_queued',
             details: {
+              command_id: restartCommand.id,
+              command_type: 'restart',
               requested_by: user.id,
               requested_at: new Date().toISOString(),
               device_id: device_id
@@ -102,9 +86,178 @@ export async function POST(request: NextRequest) {
           })
 
         return NextResponse.json({
-          message: 'Force sync requested successfully',
+          message: 'Restart command queued successfully',
+          action: 'restart',
+          command_id: restartCommand.id,
+          screen_id: screen_id,
+          device_id: device_id,
+          status: 'pending'
+        })
+
+      case 'force_sync':
+        // Queue sync command using the new command system
+        const { data: syncCommand, error: syncError } = await supabase
+          .from('device_commands')
+          .insert({
+            device_id: device_id,
+            screen_id: screen_id,
+            command_type: 'sync_content',
+            command_data: { source: 'management_api', force: true },
+            priority: 3, // Normal-high priority
+            created_by: user.id
+          })
+          .select()
+          .single()
+
+        if (syncError) {
+          console.error('Error queuing sync command:', syncError)
+          return NextResponse.json({ error: 'Failed to queue sync command' }, { status: 500 })
+        }
+
+        // Log the command queuing activity
+        await supabase
+          .from('device_sync_log')
+          .insert({
+            screen_id: screen_id,
+            activity: 'command_queued',
+            details: {
+              command_id: syncCommand.id,
+              command_type: 'sync_content',
+              requested_by: user.id,
+              requested_at: new Date().toISOString(),
+              device_id: device_id
+            }
+          })
+
+        return NextResponse.json({
+          message: 'Force sync command queued successfully',
           action: 'force_sync',
-          screen_id: screen_id
+          command_id: syncCommand.id,
+          screen_id: screen_id,
+          device_id: device_id,
+          status: 'pending'
+        })
+
+      case 'reboot':
+        // Queue reboot command
+        const { data: rebootCommand, error: rebootError } = await supabase
+          .from('device_commands')
+          .insert({
+            device_id: device_id,
+            screen_id: screen_id,
+            command_type: 'reboot',
+            command_data: { source: 'management_api' },
+            priority: 1, // Highest priority
+            timeout_seconds: 600, // 10 minutes timeout for reboot
+            created_by: user.id
+          })
+          .select()
+          .single()
+
+        if (rebootError) {
+          console.error('Error queuing reboot command:', rebootError)
+          return NextResponse.json({ error: 'Failed to queue reboot command' }, { status: 500 })
+        }
+
+        await supabase
+          .from('device_sync_log')
+          .insert({
+            screen_id: screen_id,
+            activity: 'command_queued',
+            details: {
+              command_id: rebootCommand.id,
+              command_type: 'reboot',
+              requested_by: user.id,
+              device_id: device_id
+            }
+          })
+
+        return NextResponse.json({
+          message: 'Reboot command queued successfully',
+          action: 'reboot',
+          command_id: rebootCommand.id,
+          status: 'pending',
+          warning: 'Device will be unavailable during reboot'
+        })
+
+      case 'clear_cache':
+        // Queue clear cache command
+        const { data: cacheCommand, error: cacheError } = await supabase
+          .from('device_commands')
+          .insert({
+            device_id: device_id,
+            screen_id: screen_id,
+            command_type: 'clear_cache',
+            command_data: { source: 'management_api' },
+            priority: 4, // Normal priority
+            created_by: user.id
+          })
+          .select()
+          .single()
+
+        if (cacheError) {
+          console.error('Error queuing clear cache command:', cacheError)
+          return NextResponse.json({ error: 'Failed to queue clear cache command' }, { status: 500 })
+        }
+
+        await supabase
+          .from('device_sync_log')
+          .insert({
+            screen_id: screen_id,
+            activity: 'command_queued',
+            details: {
+              command_id: cacheCommand.id,
+              command_type: 'clear_cache',
+              requested_by: user.id,
+              device_id: device_id
+            }
+          })
+
+        return NextResponse.json({
+          message: 'Clear cache command queued successfully',
+          action: 'clear_cache',
+          command_id: cacheCommand.id,
+          status: 'pending'
+        })
+
+      case 'health_check':
+        // Queue health check command
+        const { data: healthCommand, error: healthError } = await supabase
+          .from('device_commands')
+          .insert({
+            device_id: device_id,
+            screen_id: screen_id,
+            command_type: 'health_check',
+            command_data: { source: 'management_api' },
+            priority: 5, // Normal priority
+            created_by: user.id
+          })
+          .select()
+          .single()
+
+        if (healthError) {
+          console.error('Error queuing health check command:', healthError)
+          return NextResponse.json({ error: 'Failed to queue health check command' }, { status: 500 })
+        }
+
+        await supabase
+          .from('device_sync_log')
+          .insert({
+            screen_id: screen_id,
+            activity: 'command_queued',
+            details: {
+              command_id: healthCommand.id,
+              command_type: 'health_check',
+              requested_by: user.id,
+              device_id: device_id
+            }
+          })
+
+        return NextResponse.json({
+          message: 'Health check command queued successfully',
+          action: 'health_check',
+          command_id: healthCommand.id,
+          status: 'pending'
         })
 
       case 'get_logs':
@@ -254,9 +407,12 @@ export async function GET(request: NextRequest) {
     
     if (screen.device_token) {
       availableActions.push(
-        { action: 'restart', label: 'Restart Device', description: 'Restart the Pi device' },
-        { action: 'force_sync', label: 'Force Sync', description: 'Trigger immediate content sync' },
-        { action: 'unpair', label: 'Unpair Device', description: 'Remove device pairing', destructive: true }
+        { action: 'restart', label: 'Restart Service', description: 'Restart the Pi client service', icon: 'refresh' },
+        { action: 'reboot', label: 'Reboot Device', description: 'Reboot the entire Pi device', icon: 'power', destructive: true },
+        { action: 'force_sync', label: 'Force Sync', description: 'Trigger immediate content sync', icon: 'sync' },
+        { action: 'clear_cache', label: 'Clear Cache', description: 'Clear media cache and re-download content', icon: 'trash' },
+        { action: 'health_check', label: 'Health Check', description: 'Run system health diagnostics', icon: 'heart' },
+        { action: 'unpair', label: 'Unpair Device', description: 'Remove device pairing', icon: 'unlink', destructive: true }
       )
     }
     

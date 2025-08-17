@@ -24,6 +24,7 @@ from display_manager import DisplayManager
 from api_client import APIClient
 from state_manager import StateManager
 from content_manager import ContentManager
+from command_executor import CommandExecutor
 
 class MesophyPiClient:
     def __init__(self, config_path="/opt/mesophy/config/client.conf"):
@@ -36,6 +37,7 @@ class MesophyPiClient:
         self.api = APIClient(self.config)
         self.state = StateManager(self.config)
         self.content = ContentManager(self.config)
+        self.command_executor = CommandExecutor(self.config, self.api)
         
         self.logger = logging.getLogger(__name__)
         self.running = False
@@ -303,12 +305,17 @@ class MesophyPiClient:
             return False
     
     def _send_heartbeat_if_needed(self):
-        """Send heartbeat if enough time has passed"""
+        """Send heartbeat and poll for commands if enough time has passed"""
         current_time = time.time()
         if current_time - self.last_heartbeat >= self.heartbeat_interval:
             device_id = self.config.get('device_id')
             if device_id:
+                # Send heartbeat
                 self._send_enhanced_heartbeat()
+                
+                # Poll for and execute commands
+                self._poll_and_execute_commands()
+                
                 self.last_heartbeat = current_time
     
     def _send_enhanced_heartbeat(self):
@@ -340,6 +347,29 @@ class MesophyPiClient:
                 
         except Exception as e:
             self.logger.error(f"Error sending enhanced heartbeat: {e}")
+    
+    def _poll_and_execute_commands(self):
+        """Poll for pending commands and execute them"""
+        try:
+            # Poll for commands
+            commands = self.api.poll_commands(limit=3)  # Process up to 3 commands at once
+            
+            if not commands:
+                return
+            
+            self.logger.info(f"Processing {len(commands)} commands")
+            
+            # Execute commands in order of priority
+            for command in commands:
+                try:
+                    self.command_executor.execute_command(command)
+                except Exception as e:
+                    self.logger.error(f"Failed to execute command {command.get('id')}: {e}")
+                    # Error handling is done in command_executor.execute_command
+                    continue
+                
+        except Exception as e:
+            self.logger.error(f"Error during command polling: {e}")
     
     def _get_system_info(self):
         """Collect system information for heartbeat"""

@@ -338,6 +338,85 @@ class APIClient:
             self.logger.error(f"Error sending enhanced heartbeat: {e}")
             return False
     
+    def poll_commands(self, limit=5):
+        """Poll for pending commands from the server"""
+        try:
+            device_id = self.config.get('device_id')
+            if not device_id:
+                self.logger.debug("No device_id configured, skipping command polling")
+                return []
+            
+            self.logger.debug(f"Polling for commands for device_id: {device_id}")
+            
+            response = requests.get(
+                f"{self.base_url}/api/devices/{device_id}/commands?limit={limit}",
+                timeout=self.timeout
+            )
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    commands = data.get('commands', [])
+                    if commands:
+                        self.logger.info(f"Received {len(commands)} commands to execute")
+                        for cmd in commands:
+                            self.logger.info(f"Command: {cmd.get('command_type')} (Priority: {cmd.get('priority')}, ID: {cmd.get('id')})")
+                    else:
+                        self.logger.debug("No pending commands")
+                    return commands
+                except:
+                    self.logger.error(f"Failed to parse command polling response: {response.text}")
+                    return []
+            else:
+                self.logger.warning(f"Command polling failed with status: {response.status_code}")
+                try:
+                    error_details = response.json()
+                    self.logger.warning(f"Command polling error details: {error_details}")
+                except:
+                    self.logger.warning(f"Command polling error response: {response.text}")
+                return []
+            
+        except Exception as e:
+            self.logger.error(f"Error polling commands: {e}")
+            return []
+    
+    def update_command_status(self, command_id, status, result=None, error_message=None):
+        """Update the status of a command execution"""
+        try:
+            device_id = self.config.get('device_id')
+            if not device_id:
+                return False
+            
+            update_data = {
+                'command_id': command_id,
+                'status': status
+            }
+            
+            if result is not None:
+                update_data['result'] = result
+            
+            if error_message:
+                update_data['error_message'] = error_message
+            
+            self.logger.debug(f"Updating command {command_id} status to {status}")
+            
+            response = requests.put(
+                f"{self.base_url}/api/devices/{device_id}/commands",
+                json=update_data,
+                timeout=self.timeout
+            )
+            
+            if response.status_code == 200:
+                self.logger.debug(f"Successfully updated command {command_id} status to {status}")
+                return True
+            else:
+                self.logger.error(f"Failed to update command status: {response.status_code} - {response.text}")
+                return False
+            
+        except Exception as e:
+            self.logger.error(f"Error updating command status: {e}")
+            return False
+    
     def send_heartbeat_with_status(self, status):
         """Send heartbeat with specific status"""
         try:
