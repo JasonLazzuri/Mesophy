@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 
 interface RouteParams {
   params: {
@@ -9,7 +9,15 @@ interface RouteParams {
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = await createClient()
+    // Use admin client for device operations to bypass RLS
+    const supabase = createAdminClient()
+    if (!supabase) {
+      console.error('Failed to create admin client for device heartbeat')
+      return NextResponse.json({ 
+        error: 'Service unavailable' 
+      }, { status: 503 })
+    }
+    
     const { deviceId } = params
     const body = await request.json()
     

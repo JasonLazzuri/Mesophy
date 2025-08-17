@@ -96,7 +96,7 @@ check_installation_status() {
     # Check required dependencies
     local missing_deps=()
     
-    for dep in fbi vlc curl python3 imagemagick; do
+    for dep in fbi vlc curl python3 convert; do
         if ! command -v "$dep" &> /dev/null; then
             missing_deps+=("$dep")
         fi

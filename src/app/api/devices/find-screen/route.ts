@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -7,7 +7,14 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search')
 
   try {
-    const supabase = await createClient()
+    // Use admin client for device operations to bypass RLS
+    const supabase = createAdminClient()
+    if (!supabase) {
+      console.error('Failed to create admin client for screen lookup')
+      return NextResponse.json({ 
+        error: 'Service unavailable' 
+      }, { status: 503 })
+    }
 
     let query = supabase
       .from('screens')

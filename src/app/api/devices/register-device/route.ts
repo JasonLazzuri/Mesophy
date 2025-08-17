@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 
 interface RegisterDeviceRequest {
   device_id: string
@@ -119,7 +119,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const supabase = await createClient()
+    // Use admin client for device operations to bypass RLS
+    const supabase = createAdminClient()
+    if (!supabase) {
+      console.error('Failed to create admin client for device lookup')
+      return NextResponse.json({ 
+        error: 'Service unavailable' 
+      }, { status: 503 })
+    }
     
     // Check current assignment
     const { data: currentAssignment, error: currentError } = await supabase

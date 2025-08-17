@@ -363,26 +363,51 @@ class APIClient:
     
     def _get_device_id(self):
         """Generate unique device identifier"""
+        # Check if device_id is explicitly configured
+        configured_id = self.config.get('device_id')
+        if configured_id:
+            self.logger.info(f"Using configured device_id: {configured_id}")
+            return configured_id
+            
         try:
             # Try to get CPU serial number (Pi specific)
             with open('/proc/cpuinfo', 'r') as f:
                 for line in f:
+                    line = line.strip()
+                    # Handle both 'Serial' and 'Serial\t:' formats
                     if line.startswith('Serial'):
-                        serial = line.split(':')[1].strip()
-                        return f"pi-{serial}"
-        except:
-            pass
+                        parts = line.split(':', 1)
+                        if len(parts) == 2:
+                            serial = parts[1].strip()
+                            # Remove any leading zeros and ensure it's not empty
+                            serial = serial.lstrip('0') or '0'
+                            if serial and serial != '0000000000000000':
+                                self.logger.info(f"Using CPU serial for device_id: pi-{serial}")
+                                return f"pi-{serial}"
+                            else:
+                                self.logger.warning(f"Invalid CPU serial found: '{serial}', falling back to MAC")
+                        else:
+                            self.logger.warning(f"Unexpected Serial line format: '{line}', falling back to MAC")
+            
+            self.logger.warning("No valid CPU serial found in /proc/cpuinfo, falling back to MAC address")
+                        
+        except Exception as e:
+            self.logger.warning(f"Error reading CPU serial from /proc/cpuinfo: {e}, falling back to MAC address")
         
         # Fallback to MAC address
         try:
             import uuid
             mac = uuid.getnode()
-            return f"device-{mac:012x}"
-        except:
-            pass
+            mac_id = f"device-{mac:012x}"
+            self.logger.info(f"Using MAC address for device_id: {mac_id}")
+            return mac_id
+        except Exception as e:
+            self.logger.error(f"Error getting MAC address: {e}, using random fallback")
         
         # Ultimate fallback
-        return f"device-{uuid.uuid4().hex[:12]}"
+        fallback_id = f"device-{uuid.uuid4().hex[:12]}"
+        self.logger.warning(f"Using random fallback device_id: {fallback_id}")
+        return fallback_id
     
     def _get_local_ip(self):
         """Get local IP address"""
