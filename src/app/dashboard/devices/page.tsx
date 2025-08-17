@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Monitor, Search, Wifi, WifiOff, AlertTriangle, Settings, Clock, Activity, Thermometer, HardDrive, Cpu, MemoryStick, RefreshCw } from 'lucide-react'
+import { Monitor, Search, Wifi, WifiOff, AlertTriangle, Settings, Clock, Activity, Thermometer, HardDrive, Cpu, MemoryStick, RefreshCw, Power, RotateCcw, Sync, Trash2, Heart, Zap, Play, Pause, ChevronDown, ChevronUp } from 'lucide-react'
 import Link from 'next/link'
 
 interface DeviceStats {
@@ -44,6 +44,9 @@ export default function DevicesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
+  const [expandedDevices, setExpandedDevices] = useState<Set<string>>(new Set())
+  const [commandLoading, setCommandLoading] = useState<Record<string, boolean>>({})
+  const [commandResults, setCommandResults] = useState<Record<string, any>>({})
 
   const fetchDevices = async () => {
     try {
@@ -68,6 +71,96 @@ export default function DevicesPage() {
     const interval = setInterval(fetchDevices, 30000)
     return () => clearInterval(interval)
   }, [])
+
+  // Remote control functions
+  const executeCommand = async (deviceId: string, commandType: string, commandData: any = {}) => {
+    const commandKey = `${deviceId}-${commandType}`
+    setCommandLoading(prev => ({ ...prev, [commandKey]: true }))
+    
+    try {
+      const response = await fetch(`/api/devices/${deviceId}/commands`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          command_type: commandType,
+          command_data: commandData,
+          priority: getPriorityForCommand(commandType)
+        }),
+      })
+
+      const result = await response.json()
+      
+      if (response.ok) {
+        setCommandResults(prev => ({ 
+          ...prev, 
+          [commandKey]: { 
+            success: true, 
+            message: result.message,
+            command_id: result.command?.id,
+            timestamp: new Date().toLocaleTimeString()
+          }
+        }))
+        
+        // Refresh devices to show updated status
+        setTimeout(() => fetchDevices(), 2000)
+      } else {
+        setCommandResults(prev => ({ 
+          ...prev, 
+          [commandKey]: { 
+            success: false, 
+            message: result.error || 'Command failed',
+            timestamp: new Date().toLocaleTimeString()
+          }
+        }))
+      }
+    } catch (error) {
+      setCommandResults(prev => ({ 
+        ...prev, 
+        [commandKey]: { 
+          success: false, 
+          message: 'Network error',
+          timestamp: new Date().toLocaleTimeString()
+        }
+      }))
+    } finally {
+      setCommandLoading(prev => ({ ...prev, [commandKey]: false }))
+      
+      // Clear result after 5 seconds
+      setTimeout(() => {
+        setCommandResults(prev => {
+          const newResults = { ...prev }
+          delete newResults[commandKey]
+          return newResults
+        })
+      }, 5000)
+    }
+  }
+
+  const getPriorityForCommand = (commandType: string): number => {
+    const priorities: Record<string, number> = {
+      'reboot': 1,
+      'restart': 2,
+      'sync_content': 3,
+      'clear_cache': 4,
+      'health_check': 5,
+      'get_logs': 6
+    }
+    return priorities[commandType] || 5
+  }
+
+  const toggleDeviceExpansion = (deviceId: string) => {
+    setExpandedDevices(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(deviceId)) {
+        newSet.delete(deviceId)
+      } else {
+        newSet.add(deviceId)
+      }
+      return newSet
+    })
+  }
 
   const filteredDevices = devices.filter(device =>
     device.screen_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -280,6 +373,105 @@ export default function DevicesPage() {
                         </div>
                       )}
                     </div>
+
+                    {/* Remote Control Panel */}
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium text-gray-900">Remote Control</h4>
+                        <button
+                          onClick={() => toggleDeviceExpansion(device.id)}
+                          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+                        >
+                          {expandedDevices.has(device.id) ? (
+                            <>
+                              <ChevronUp className="w-3 h-3" />
+                              Less
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="w-3 h-3" />
+                              More
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Quick Actions (Always Visible) */}
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <RemoteControlButton
+                          icon={<RotateCcw className="w-3 h-3" />}
+                          label="Restart"
+                          onClick={() => executeCommand(device.id, 'restart')}
+                          loading={commandLoading[`${device.id}-restart`]}
+                          variant="secondary"
+                          size="sm"
+                        />
+                        <RemoteControlButton
+                          icon={<Sync className="w-3 h-3" />}
+                          label="Sync"
+                          onClick={() => executeCommand(device.id, 'sync_content')}
+                          loading={commandLoading[`${device.id}-sync_content`]}
+                          variant="secondary"
+                          size="sm"
+                        />
+                        <RemoteControlButton
+                          icon={<Heart className="w-3 h-3" />}
+                          label="Health"
+                          onClick={() => executeCommand(device.id, 'health_check')}
+                          loading={commandLoading[`${device.id}-health_check`]}
+                          variant="secondary"
+                          size="sm"
+                        />
+                      </div>
+
+                      {/* Advanced Actions (Expandable) */}
+                      {expandedDevices.has(device.id) && (
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap gap-2">
+                            <RemoteControlButton
+                              icon={<Trash2 className="w-3 h-3" />}
+                              label="Clear Cache"
+                              onClick={() => executeCommand(device.id, 'clear_cache')}
+                              loading={commandLoading[`${device.id}-clear_cache`]}
+                              variant="secondary"
+                              size="sm"
+                            />
+                            <RemoteControlButton
+                              icon={<Power className="w-3 h-3" />}
+                              label="Reboot"
+                              onClick={() => executeCommand(device.id, 'reboot')}
+                              loading={commandLoading[`${device.id}-reboot`]}
+                              variant="destructive"
+                              size="sm"
+                            />
+                          </div>
+
+                          {/* Command Results */}
+                          {Object.entries(commandResults)
+                            .filter(([key]) => key.startsWith(device.id))
+                            .map(([key, result]) => (
+                              <div
+                                key={key}
+                                className={`p-2 rounded text-xs ${
+                                  result.success
+                                    ? 'bg-green-50 text-green-700 border border-green-200'
+                                    : 'bg-red-50 text-red-700 border border-red-200'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span>{result.message}</span>
+                                  <span className="text-gray-500">{result.timestamp}</span>
+                                </div>
+                                {result.command_id && (
+                                  <div className="mt-1 font-mono text-gray-500">
+                                    ID: {result.command_id.slice(0, 8)}...
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="ml-4 text-right">
@@ -307,5 +499,54 @@ export default function DevicesPage() {
         )}
       </div>
     </div>
+  )
+}
+
+// Remote Control Button Component
+interface RemoteControlButtonProps {
+  icon: React.ReactNode
+  label: string
+  onClick: () => void
+  loading?: boolean
+  variant?: 'primary' | 'secondary' | 'destructive'
+  size?: 'sm' | 'md'
+  disabled?: boolean
+}
+
+function RemoteControlButton({
+  icon,
+  label,
+  onClick,
+  loading = false,
+  variant = 'secondary',
+  size = 'md',
+  disabled = false
+}: RemoteControlButtonProps) {
+  const baseClasses = "inline-flex items-center gap-1.5 font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+  
+  const sizeClasses = {
+    sm: "px-2.5 py-1.5 text-xs",
+    md: "px-3 py-2 text-sm"
+  }
+  
+  const variantClasses = {
+    primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500",
+    secondary: "bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-500 border border-gray-300",
+    destructive: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled || loading}
+      className={`${baseClasses} ${sizeClasses[size]} ${variantClasses[variant]}`}
+    >
+      {loading ? (
+        <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+      ) : (
+        icon
+      )}
+      {label}
+    </button>
   )
 }
