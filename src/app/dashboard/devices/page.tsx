@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Monitor, Search, Wifi, WifiOff, AlertTriangle, Settings, Clock, Activity, Thermometer, HardDrive, Cpu, MemoryStick, RefreshCw, Power, RotateCcw, Sync, Trash2, Heart, Zap, Play, Pause, ChevronDown, ChevronUp } from 'lucide-react'
+import { Monitor, Search, Wifi, WifiOff, AlertTriangle, Clock, Activity, Thermometer, HardDrive, Cpu, MemoryStick, RefreshCw, Power, RotateCcw, Sync, Trash2, Heart, ChevronDown, ChevronUp } from 'lucide-react'
 import Link from 'next/link'
 
 interface DeviceStats {
@@ -47,6 +47,20 @@ export default function DevicesPage() {
   const [expandedDevices, setExpandedDevices] = useState<Set<string>>(new Set())
   const [commandLoading, setCommandLoading] = useState<Record<string, boolean>>({})
   const [commandResults, setCommandResults] = useState<Record<string, any>>({})
+  const [renderError, setRenderError] = useState<string | null>(null)
+
+  // Error boundary effect
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      if (event.message.includes('Minified React error #130')) {
+        setRenderError('Component rendering error detected. Please refresh the page.')
+        console.error('React render error caught:', event)
+      }
+    }
+    
+    window.addEventListener('error', handleError)
+    return () => window.removeEventListener('error', handleError)
+  }, [])
 
   const fetchDevices = async () => {
     try {
@@ -176,10 +190,31 @@ export default function DevicesPage() {
     })
   }
 
+  // Early return for render errors
+  if (renderError) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex items-center gap-2 text-red-700">
+            <AlertTriangle className="w-4 h-4" />
+            <span className="font-medium">Rendering Error</span>
+          </div>
+          <p className="text-red-600 text-sm mt-1">{renderError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-3 px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700"
+          >
+            Refresh Page
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const filteredDevices = devices.filter(device =>
-    device.screen_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    device.location_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    device.id.toLowerCase().includes(searchTerm.toLowerCase())
+    device.screen_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    device.location_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    device.id?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const formatUptime = (uptimeSeconds?: number) => {
@@ -550,17 +585,31 @@ function RemoteControlButton({
     destructive: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"
   }
 
+  // Safely render icon with error handling
+  const renderIcon = () => {
+    if (loading) {
+      return <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+    }
+    
+    try {
+      // Ensure icon is a valid React element
+      if (icon && typeof icon === 'object' && 'type' in icon) {
+        return icon
+      }
+      return null
+    } catch (e) {
+      console.warn('Error rendering icon:', e)
+      return null
+    }
+  }
+
   return (
     <button
       onClick={onClick}
       disabled={disabled || loading}
       className={`${baseClasses} ${sizeClasses[size]} ${variantClasses[variant]}`}
     >
-      {loading ? (
-        <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-      ) : (
-        icon
-      )}
+      {renderIcon()}
       {label}
     </button>
   )
