@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Monitor, Search, AlertTriangle, Clock, RefreshCw } from 'lucide-react'
+import { Monitor, Search, AlertTriangle, Clock, RefreshCw, RotateCcw, Sync, Heart } from 'lucide-react'
 
 interface Device {
   id: string
@@ -20,6 +20,8 @@ export default function SimpleDevicesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
+  const [commandLoading, setCommandLoading] = useState<Record<string, boolean>>({})
+  const [commandResults, setCommandResults] = useState<Record<string, { success: boolean; message: string; timestamp: string }>>({})
 
   const fetchDevices = async () => {
     try {
@@ -47,6 +49,71 @@ export default function SimpleDevicesPage() {
       console.error('Device fetch error:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Remote control function
+  const executeCommand = async (deviceId: string, commandType: string) => {
+    const commandKey = `${deviceId}-${commandType}`
+    setCommandLoading(prev => ({ ...prev, [commandKey]: true }))
+    
+    try {
+      const response = await fetch(`/api/devices/${deviceId}/commands`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          command_type: commandType,
+          command_data: { source: 'simple_dashboard' },
+          priority: commandType === 'restart' ? 2 : 5
+        }),
+      })
+
+      const result = await response.json()
+      
+      if (response.ok) {
+        setCommandResults(prev => ({ 
+          ...prev, 
+          [commandKey]: { 
+            success: true, 
+            message: result.message || 'Command executed successfully',
+            timestamp: new Date().toLocaleTimeString()
+          }
+        }))
+        
+        // Refresh devices to show updated status
+        setTimeout(() => fetchDevices(), 2000)
+      } else {
+        setCommandResults(prev => ({ 
+          ...prev, 
+          [commandKey]: { 
+            success: false, 
+            message: result.error || 'Command failed',
+            timestamp: new Date().toLocaleTimeString()
+          }
+        }))
+      }
+    } catch (error) {
+      setCommandResults(prev => ({ 
+        ...prev, 
+        [commandKey]: { 
+          success: false, 
+          message: 'Network error',
+          timestamp: new Date().toLocaleTimeString()
+        }
+      }))
+    } finally {
+      setCommandLoading(prev => ({ ...prev, [commandKey]: false }))
+      
+      // Clear result after 5 seconds
+      setTimeout(() => {
+        setCommandResults(prev => {
+          const newResults = { ...prev }
+          delete newResults[commandKey]
+          return newResults
+        })
+      }, 5000)
     }
   }
 
@@ -175,6 +242,69 @@ export default function SimpleDevicesPage() {
                       )}
                       <span>•</span>
                       <span className="font-mono text-xs">{device.id}</span>
+                    </div>
+
+                    {/* Simple Remote Controls */}
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <button
+                          onClick={() => executeCommand(device.id, 'restart')}
+                          disabled={commandLoading[`${device.id}-restart`]}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {commandLoading[`${device.id}-restart`] ? (
+                            <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <RotateCcw className="w-3 h-3" />
+                          )}
+                          Restart
+                        </button>
+                        
+                        <button
+                          onClick={() => executeCommand(device.id, 'sync_content')}
+                          disabled={commandLoading[`${device.id}-sync_content`]}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {commandLoading[`${device.id}-sync_content`] ? (
+                            <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Sync className="w-3 h-3" />
+                          )}
+                          Sync
+                        </button>
+                        
+                        <button
+                          onClick={() => executeCommand(device.id, 'health_check')}
+                          disabled={commandLoading[`${device.id}-health_check`]}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {commandLoading[`${device.id}-health_check`] ? (
+                            <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Heart className="w-3 h-3" />
+                          )}
+                          Health
+                        </button>
+                      </div>
+
+                      {/* Command Results */}
+                      {Object.entries(commandResults)
+                        .filter(([key]) => key.startsWith(device.id))
+                        .map(([key, result]) => (
+                          <div
+                            key={key}
+                            className={`p-2 rounded text-xs ${
+                              result.success
+                                ? 'bg-green-50 text-green-700 border border-green-200'
+                                : 'bg-red-50 text-red-700 border border-red-200'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span>{result.message}</span>
+                              <span className="text-gray-500">{result.timestamp}</span>
+                            </div>
+                          </div>
+                        ))}
                     </div>
                   </div>
                   
