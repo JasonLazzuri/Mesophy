@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS device_commands (
     screen_id UUID REFERENCES screens(id) ON DELETE CASCADE,
     command_type TEXT NOT NULL CHECK (command_type IN (
         'restart',           -- Restart Pi client service
+        'restart_content',   -- Restart digital signage software only
         'reboot',           -- Reboot the Pi device
         'shutdown',         -- Shutdown the Pi device
         'update_playlist',  -- Deploy new playlist
