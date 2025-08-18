@@ -131,7 +131,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Validate command type
     const validCommands = [
-      'restart', 'reboot', 'shutdown', 'update_playlist', 'sync_content',
+      'restart', 'restart_content', 'reboot', 'shutdown', 'update_playlist', 'sync_content',
       'update_config', 'clear_cache', 'emergency_message', 'test_display',
       'get_logs', 'health_check'
     ]

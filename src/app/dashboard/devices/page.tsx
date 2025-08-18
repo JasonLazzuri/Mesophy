@@ -79,7 +79,7 @@ export default function SimpleDevicesPage() {
         body: JSON.stringify({
           command_type: commandType,
           command_data: { source: 'simple_dashboard' },
-          priority: commandType === 'restart' ? 2 : 5
+          priority: (commandType === 'restart' || commandType === 'restart_content' || commandType === 'reboot') ? 2 : 5
         }),
       })
 
@@ -261,16 +261,31 @@ export default function SimpleDevicesPage() {
                     <div className="mt-4 pt-4 border-t border-gray-200">
                       <div className="flex flex-wrap gap-2 mb-3">
                         <button
-                          onClick={() => executeCommand(device.id, 'restart')}
-                          disabled={commandLoading[`${device.id}-restart`]}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={() => executeCommand(device.id, 'restart_content')}
+                          disabled={commandLoading[`${device.id}-restart_content`]}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Restart digital signage software only (10-30 seconds)"
                         >
-                          {commandLoading[`${device.id}-restart`] ? (
+                          {commandLoading[`${device.id}-restart_content`] ? (
                             <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
                           ) : (
                             <span>🔄</span>
                           )}
-                          Restart
+                          Restart Content
+                        </button>
+                        
+                        <button
+                          onClick={() => executeCommand(device.id, 'reboot')}
+                          disabled={commandLoading[`${device.id}-reboot`]}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-md hover:bg-orange-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Restart entire Pi device (1-3 minutes)"
+                        >
+                          {commandLoading[`${device.id}-reboot`] ? (
+                            <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <span>🔄</span>
+                          )}
+                          Restart Device
                         </button>
                         
                         <button

@@ -35,6 +35,8 @@ class CommandExecutor:
             # Route to appropriate handler
             if command_type == 'restart':
                 result = self._handle_restart(command_data)
+            elif command_type == 'restart_content':
+                result = self._handle_restart_content(command_data)
             elif command_type == 'reboot':
                 result = self._handle_reboot(command_data)
             elif command_type == 'shutdown':
@@ -103,6 +105,70 @@ class CommandExecutor:
             raise Exception("Service restart timed out")
         except Exception as e:
             raise Exception(f"Failed to restart service: {e}")
+    
+    def _handle_restart_content(self, data):
+        """Restart digital signage content/software only (no device reboot)"""
+        self.logger.info("Executing content restart command")
+        
+        try:
+            # Import content manager for cache operations
+            import sys
+            import os
+            sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+            from lib.content_manager import ContentManager
+            
+            # Clear content cache to force fresh download
+            content_manager = ContentManager(self.config)
+            cache_stats_before = content_manager.get_cache_stats()
+            
+            # Clear cache
+            cache_dir = self.config.get('cache_dir', '/opt/mesophy/content')
+            if os.path.exists(cache_dir):
+                for item in os.listdir(cache_dir):
+                    item_path = os.path.join(cache_dir, item)
+                    if item.endswith('.json'):
+                        continue  # Keep config files
+                    try:
+                        if os.path.isfile(item_path):
+                            os.remove(item_path)
+                        elif os.path.isdir(item_path):
+                            shutil.rmtree(item_path)
+                    except Exception as e:
+                        self.logger.warning(f"Failed to remove {item_path}: {e}")
+            
+            # Force content sync before restart
+            self.logger.info("Syncing fresh content before restart...")
+            content_manager.sync_content()
+            
+            cache_stats_after = content_manager.get_cache_stats()
+            
+            self.logger.info("Content cleared and synced, initiating graceful restart")
+            
+            # Schedule the restart for 3 seconds later to allow response to be sent
+            import threading
+            def delayed_restart():
+                time.sleep(3)
+                self.logger.info("Executing delayed content restart")
+                os.kill(os.getpid(), 15)  # SIGTERM - systemd will restart the service
+            
+            restart_thread = threading.Thread(target=delayed_restart)
+            restart_thread.daemon = True
+            restart_thread.start()
+            
+            return {
+                'method': 'content_restart',
+                'status': 'restarting',
+                'message': 'Content system restarting with fresh cache',
+                'cache_cleared': {
+                    'files_before': cache_stats_before.get('total_files', 0),
+                    'files_after': cache_stats_after.get('total_files', 0),
+                    'size_freed_mb': cache_stats_before.get('total_size_mb', 0) - cache_stats_after.get('total_size_mb', 0)
+                },
+                'restart_delay': '3 seconds'
+            }
+            
+        except Exception as e:
+            raise Exception(f"Failed to restart content: {e}")
     
     def _handle_reboot(self, data):
         """Reboot the Pi device"""
