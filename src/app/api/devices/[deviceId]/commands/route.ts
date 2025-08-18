@@ -90,10 +90,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // POST: Queue a new command from the portal
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
+    // Use regular client for authentication
     const supabase = await createClient()
     if (!supabase) {
       return NextResponse.json({ 
         error: 'Service unavailable' 
+      }, { status: 503 })
+    }
+
+    // Use admin client for database operations (bypass RLS)
+    const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      return NextResponse.json({ 
+        error: 'Admin service unavailable' 
       }, { status: 503 })
     }
 
@@ -134,7 +143,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Get screen information to verify access
-    const { data: screen, error: screenError } = await supabase
+    const { data: screen, error: screenError } = await adminSupabase
       .from('screens')
       .select(`
         id,
@@ -160,7 +169,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Check user profile and permissions
-    const { data: userProfile } = await supabase
+    const { data: userProfile } = await adminSupabase
       .from('user_profiles')
       .select('role, organization_id, district_id, location_id')
       .eq('id', user.id)
@@ -217,7 +226,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         user_id: user.id
       })
 
-      const { data: command, error: insertError } = await supabase
+      const { data: command, error: insertError } = await adminSupabase
         .from('device_commands')
         .insert({
           device_id: deviceId,
@@ -244,7 +253,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       // Log the command queuing activity
       try {
-        await supabase
+        await adminSupabase
           .from('device_sync_log')
           .insert({
             screen_id: screen.id,
