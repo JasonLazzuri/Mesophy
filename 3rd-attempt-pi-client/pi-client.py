@@ -44,7 +44,7 @@ class MesophyPiClient:
         
         # Heartbeat tracking
         self.last_heartbeat = 0
-        self.heartbeat_interval = 30  # Send heartbeat every 30 seconds
+        self.heartbeat_interval = 10  # Send heartbeat every 10 seconds for faster response
         
     def load_config(self):
         """Load configuration from file"""
