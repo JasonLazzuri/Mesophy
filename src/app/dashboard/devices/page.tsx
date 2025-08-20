@@ -69,6 +69,20 @@ export default function SimpleDevicesPage() {
     return times[commandType as keyof typeof times] || 15000
   }
 
+  const getCommandDisplayName = (commandType: string) => {
+    const names = {
+      restart_content: 'Content Restart',
+      reboot: 'Device Restart',
+      sync_content: 'Content Sync',
+      health_check: 'Health Check'
+    }
+    return names[commandType as keyof typeof names] || commandType.charAt(0).toUpperCase() + commandType.slice(1)
+  }
+
+  const getCommandPollingEstimate = () => {
+    return '10' // Pi polls every 10 seconds now
+  }
+
   const addToHistory = (deviceId: string, commandType: string, success: boolean, message: string, detail?: string) => {
     const historyItem = {
       id: `${deviceId}-${commandType}-${Date.now()}`,
@@ -115,6 +129,37 @@ export default function SimpleDevicesPage() {
   // Remote control function
   const executeCommand = async (deviceId: string, commandType: string) => {
     const commandKey = `${deviceId}-${commandType}`
+    const device = devices.find(d => d.id === deviceId)
+    
+    // Check if device is offline before sending command
+    if (device?.status === 'offline') {
+      const offlineMessage = 'Device is offline'
+      const offlineDetail = `Cannot execute ${getCommandDisplayName(commandType)} - device was last seen ${formatLastSeen(device.last_seen)}. Please wait for device to come online.`
+      
+      setCommandResults(prev => ({ 
+        ...prev, 
+        [commandKey]: { 
+          success: false, 
+          message: offlineMessage,
+          timestamp: new Date().toLocaleTimeString(),
+          detail: offlineDetail
+        }
+      }))
+      
+      // Add to history
+      addToHistory(deviceId, commandType, false, offlineMessage, offlineDetail)
+      
+      // Clear result after 10 seconds for offline devices
+      setTimeout(() => {
+        setCommandResults(prev => {
+          const newResults = { ...prev }
+          delete newResults[commandKey]
+          return newResults
+        })
+      }, 10000)
+      return
+    }
+    
     setCommandLoading(prev => ({ ...prev, [commandKey]: true }))
     setCommandStatus(prev => ({ ...prev, [commandKey]: 'queued' }))
     
@@ -125,7 +170,7 @@ export default function SimpleDevicesPage() {
         success: true, 
         message: 'Command queued for execution...',
         timestamp: new Date().toLocaleTimeString(),
-        detail: 'Waiting for device to process command'
+        detail: `Waiting for device to process command (next check in ~${getCommandPollingEstimate()} seconds)`
       }
     }))
     
