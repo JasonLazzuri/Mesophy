@@ -15,6 +15,8 @@ import time
 import json
 import logging
 import argparse
+import threading
+import queue
 from pathlib import Path
 
 # Add lib directory to path
@@ -42,9 +44,27 @@ class MesophyPiClient:
         self.logger = logging.getLogger(__name__)
         self.running = False
         
-        # Heartbeat tracking
-        self.last_heartbeat = 0
-        self.heartbeat_interval = 10  # Send heartbeat every 10 seconds for faster response
+        # Threading configuration
+        self.threading_enabled = self.config.get('threading_mode', 'enabled') == 'enabled'
+        self.command_polling_interval = self.config.get('command_polling_interval', 2)  # 2 seconds for responsiveness
+        self.heartbeat_interval = self.config.get('heartbeat_interval', 10)  # 10 seconds for status
+        
+        # Threading components
+        if self.threading_enabled:
+            self.command_queue = queue.PriorityQueue()
+            self.interrupt_display = threading.Event()
+            self.shutdown_event = threading.Event()
+            
+            # Thread references
+            self.command_thread = None
+            self.heartbeat_thread = None
+            self.current_content_thread = None
+            
+            self.logger.info("Multi-threaded mode enabled")
+        else:
+            # Legacy single-threaded mode
+            self.last_heartbeat = 0
+            self.logger.info("Single-threaded legacy mode enabled")
         
     def load_config(self):
         """Load configuration from file"""
@@ -63,6 +83,9 @@ class MesophyPiClient:
             "pairing_code": None,
             "cache_dir": "/opt/mesophy/content",
             "log_level": "INFO",
+            "threading_mode": "enabled",  # "enabled" or "disabled" for legacy mode
+            "command_polling_interval": 2,  # seconds between command checks
+            "heartbeat_interval": 10,  # seconds between heartbeats
             "display": {
                 "width": 1920,
                 "height": 1080,
@@ -100,10 +123,31 @@ class MesophyPiClient:
         self.logger.info("Mesophy Pi Client starting...")
         
         try:
-            while self.running:
-                # Send heartbeat if needed
-                self._send_heartbeat_if_needed()
-                
+            if self.threading_enabled:
+                self._run_threaded()
+            else:
+                self._run_legacy()
+        except KeyboardInterrupt:
+            self.logger.info("Received interrupt signal, shutting down...")
+        except Exception as e:
+            self.logger.error(f"Unexpected error: {e}", exc_info=True)
+        finally:
+            self.shutdown()
+    
+    def _run_threaded(self):
+        """Run in multi-threaded mode for better command responsiveness"""
+        self.logger.info("Starting multi-threaded operation")
+        
+        # Start background threads
+        self.command_thread = threading.Thread(target=self._command_loop, daemon=True)
+        self.heartbeat_thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
+        
+        self.command_thread.start()
+        self.heartbeat_thread.start()
+        
+        # Main display loop
+        while self.running and not self.shutdown_event.is_set():
+            try:
                 current_state = self.state.get_current_state(self.content)
                 self.logger.info(f"Current state: {current_state}")
                 
@@ -112,17 +156,35 @@ class MesophyPiClient:
                 elif current_state == "WAITING_FOR_MEDIA":
                     self.handle_waiting_for_media()
                 elif current_state == "PLAYING_CONTENT":
-                    self.handle_playing_content()
+                    self.handle_playing_content_threaded()
                 else:
                     self.logger.error(f"Unknown state: {current_state}")
-                    time.sleep(10)
-                
-        except KeyboardInterrupt:
-            self.logger.info("Received interrupt signal, shutting down...")
-        except Exception as e:
-            self.logger.error(f"Unexpected error: {e}", exc_info=True)
-        finally:
-            self.shutdown()
+                    self._interruptible_sleep(10)
+                    
+            except Exception as e:
+                self.logger.error(f"Error in main loop: {e}", exc_info=True)
+                self._interruptible_sleep(5)
+    
+    def _run_legacy(self):
+        """Run in single-threaded legacy mode"""
+        self.logger.info("Starting single-threaded legacy operation")
+        
+        while self.running:
+            # Send heartbeat if needed
+            self._send_heartbeat_if_needed()
+            
+            current_state = self.state.get_current_state(self.content)
+            self.logger.info(f"Current state: {current_state}")
+            
+            if current_state == "NOT_PAIRED":
+                self.handle_not_paired()
+            elif current_state == "WAITING_FOR_MEDIA":
+                self.handle_waiting_for_media()
+            elif current_state == "PLAYING_CONTENT":
+                self.handle_playing_content()
+            else:
+                self.logger.error(f"Unknown state: {current_state}")
+                time.sleep(10)
     
     def handle_not_paired(self):
         """Handle NOT_PAIRED state - show pairing code"""
@@ -182,7 +244,11 @@ class MesophyPiClient:
             self.logger.info("Device paired but no screen assigned yet")
             # Show waiting for assignment message
             self.display.show_waiting_for_media()
-            time.sleep(30)  # Check again in 30 seconds for screen assignment
+            sleep_duration = 30
+            if self.threading_enabled:
+                self._interruptible_sleep(sleep_duration)
+            else:
+                time.sleep(sleep_duration)  # Check again in 30 seconds for screen assignment
             return
         
         self.logger.info("Device paired but no content available")
@@ -196,7 +262,11 @@ class MesophyPiClient:
             self.logger.info("Content now available")
             return  # State will change on next loop
         
-        time.sleep(30)  # Check again in 30 seconds
+        sleep_duration = 30
+        if self.threading_enabled:
+            self._interruptible_sleep(sleep_duration)
+        else:
+            time.sleep(sleep_duration)  # Check again in 30 seconds
     
     def handle_playing_content(self):
         """Handle PLAYING_CONTENT state"""
@@ -398,10 +468,181 @@ class MesophyPiClient:
         except:
             return None
     
+    def _interruptible_sleep(self, duration):
+        """Sleep that can be interrupted for urgent commands"""
+        if not self.threading_enabled:
+            time.sleep(duration)
+            return False
+            
+        end_time = time.time() + duration
+        while time.time() < end_time and not self.interrupt_display.is_set() and not self.shutdown_event.is_set():
+            time.sleep(0.1)  # Check every 100ms
+        
+        interrupted = self.interrupt_display.is_set()
+        if interrupted:
+            self.interrupt_display.clear()
+            self.logger.info("Sleep interrupted for urgent command")
+        return interrupted
+    
+    def _command_loop(self):
+        """Dedicated command processing thread"""
+        self.logger.info("Starting command processing thread")
+        
+        while self.running and not self.shutdown_event.is_set():
+            try:
+                # Poll for commands more frequently
+                commands = self.api.poll_commands(limit=5)
+                
+                if commands:
+                    self.logger.info(f"Received {len(commands)} commands")
+                    
+                    # Sort by priority (lower number = higher priority)
+                    commands.sort(key=lambda x: x.get('priority', 5))
+                    
+                    for command in commands:
+                        priority = command.get('priority', 5)
+                        command_type = command.get('command_type', 'unknown')
+                        
+                        # Check if urgent command needs to interrupt display
+                        if priority <= 2:
+                            self.logger.info(f"Urgent command {command_type} (priority {priority}) - interrupting display")
+                            self.interrupt_display.set()
+                        
+                        # Execute command
+                        self.command_executor.execute_command(command)
+                        
+            except Exception as e:
+                self.logger.error(f"Error in command loop: {e}", exc_info=True)
+            
+            # Sleep with interrupt capability
+            if not self._interruptible_sleep(self.command_polling_interval):
+                # Not interrupted, continue normal operation
+                pass
+    
+    def _heartbeat_loop(self):
+        """Dedicated heartbeat thread"""
+        self.logger.info("Starting heartbeat thread")
+        
+        while self.running and not self.shutdown_event.is_set():
+            try:
+                self._send_enhanced_heartbeat()
+            except Exception as e:
+                self.logger.error(f"Error in heartbeat loop: {e}", exc_info=True)
+            
+            # Sleep with interrupt capability
+            self._interruptible_sleep(self.heartbeat_interval)
+    
+    def handle_playing_content_threaded(self):
+        """Handle PLAYING_CONTENT state with threading support"""
+        self.logger.info("Playing scheduled content (threaded mode)")
+        
+        # Periodically sync content to detect playlist changes
+        if not hasattr(self, '_content_sync_counter'):
+            self._content_sync_counter = 0
+        
+        self._content_sync_counter += 1
+        if self._content_sync_counter >= 5:
+            self.logger.info("Checking for content updates...")
+            self.content.sync_content()
+            self._content_sync_counter = 0
+        
+        # Get current content to display
+        current_content = self.content.get_current_content()
+        
+        if current_content:
+            # Get the duration for this content item
+            duration = current_content.get('duration', 10)
+            content_type = current_content.get('type', 'image')
+            filename = current_content.get('filename', 'unknown')
+            
+            self.logger.info(f"Displaying content for {duration} seconds: {filename}")
+            
+            if content_type == 'video':
+                # For videos, use interruptible video player
+                self._play_video_interruptible(current_content, duration)
+            else:
+                # For images, display and wait with interrupt capability
+                self.display.show_content(current_content)
+                self._interruptible_sleep(duration)
+        else:
+            self.logger.warning("No content to display, switching to waiting state")
+            self._interruptible_sleep(10)
+    
+    def _play_video_interruptible(self, content_info, duration):
+        """Play video with interrupt capability"""
+        import subprocess
+        
+        video_path = content_info.get('path')
+        filename = content_info.get('filename', 'unknown')
+        
+        self.logger.info(f"Playing video with interrupt capability: {filename}")
+        
+        try:
+            # Kill any existing video processes
+            subprocess.run(['sudo', 'pkill', '-f', 'omxplayer'], capture_output=True)
+            subprocess.run(['sudo', 'pkill', '-f', 'vlc'], capture_output=True)
+            
+            # Start video player
+            if self._command_exists('omxplayer'):
+                cmd = [
+                    'omxplayer',
+                    '--no-osd',
+                    '--blank',
+                    '--aspect-mode', 'fill',
+                    '--no-keys',
+                    video_path
+                ]
+                self.logger.info("Starting omxplayer for video")
+                process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                
+                # Wait for the specified duration with interrupt capability
+                if self._interruptible_sleep(duration):
+                    self.logger.info("Video playback interrupted by command")
+                
+                # Kill the video player
+                try:
+                    process.terminate()
+                    process.wait(timeout=3)
+                except:
+                    process.kill()
+                
+                # Show black screen before stopping video
+                self.logger.info("Showing black screen before stopping video")
+                self.display._show_black_screen()
+                
+                # Kill video player
+                self.logger.info("Stopping video player")
+                subprocess.run(['sudo', 'pkill', '-f', 'omxplayer'], capture_output=True)
+                
+                self.logger.info("Video playback completed")
+                
+            else:
+                self.logger.error("omxplayer not available for video playback")
+                # Fallback to regular display
+                self.display.show_content(content_info)
+                self._interruptible_sleep(duration)
+                
+        except Exception as e:
+            self.logger.error(f"Error in video playback: {e}")
+            # Fallback to regular display
+            self.display.show_content(content_info)
+            self._interruptible_sleep(duration)
+
     def shutdown(self):
         """Clean shutdown"""
         self.logger.info("Shutting down Pi client...")
         self.running = False
+        
+        # Signal all threads to stop
+        if self.threading_enabled:
+            self.shutdown_event.set()
+            self.interrupt_display.set()
+            
+            # Wait for threads to finish
+            if self.command_thread and self.command_thread.is_alive():
+                self.command_thread.join(timeout=5)
+            if self.heartbeat_thread and self.heartbeat_thread.is_alive():
+                self.heartbeat_thread.join(timeout=5)
         
         # Send final heartbeat with offline status
         try:
