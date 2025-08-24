@@ -231,7 +231,17 @@ export async function GET(
           }
         }))
       } : null,
-      media_assets: mediaAssets,
+      media_assets: mediaAssets.map(asset => ({
+        id: asset.id,
+        name: asset.name,
+        url: asset.optimized_url || asset.preview_url || asset.file_url,
+        thumbnail_url: asset.thumbnail_url,
+        mime_type: asset.mime_type,
+        file_size: asset.file_size,
+        duration: asset.duration,
+        width: asset.width,
+        height: asset.height
+      })),
       current_time: currentTime,
       current_day: currentDay,
       schedule_time_range: `${activeSchedule.start_time}-${activeSchedule.end_time}`
