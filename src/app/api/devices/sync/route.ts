@@ -87,7 +87,8 @@ export async function GET(request: NextRequest) {
         updated_at,
         playlist_id,
         screen_id,
-        target_screen_types
+        target_screen_types,
+        target_locations
       `)
       .eq('is_active', true)
       .lte('start_date', currentDate)
@@ -106,14 +107,17 @@ export async function GET(request: NextRequest) {
 
     console.log('Found all schedules:', allSchedules?.length || 0)
 
-    // Filter schedules that match this screen (by screen_id or screen_type)
+    // Filter schedules that match this screen (by screen_id, screen_type, or location)
     const schedules = (allSchedules || []).filter(schedule => {
       const screenIdMatch = schedule.screen_id === screen.id
       const screenTypeMatch = schedule.target_screen_types && schedule.target_screen_types.includes(screen.screen_type)
+      const locationMatch = schedule.target_locations && schedule.target_locations.includes(screen.locations?.id)
       // If no specific screen assignments, assume "All screens"
-      const allScreensMatch = !schedule.screen_id && (!schedule.target_screen_types || schedule.target_screen_types.length === 0)
-      const matches = screenIdMatch || screenTypeMatch || allScreensMatch
-      console.log(`🔍 Schedule "${schedule.name}": screen_id=${schedule.screen_id}, target_screen_types=${JSON.stringify(schedule.target_screen_types)}, screen_type=${screen.screen_type}, matches=${matches}`)
+      const allScreensMatch = !schedule.screen_id && 
+                             (!schedule.target_screen_types || schedule.target_screen_types.length === 0) &&
+                             (!schedule.target_locations || schedule.target_locations.length === 0)
+      const matches = screenIdMatch || screenTypeMatch || locationMatch || allScreensMatch
+      console.log(`🔍 Schedule "${schedule.name}": screen_id=${schedule.screen_id}, target_screen_types=${JSON.stringify(schedule.target_screen_types)}, target_locations=${JSON.stringify(schedule.target_locations)}, screen_type=${screen.screen_type}, location_id=${screen.locations?.id}, matches=${matches}`)
       return matches
     })
 

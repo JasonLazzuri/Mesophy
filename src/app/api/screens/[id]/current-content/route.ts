@@ -28,8 +28,8 @@ export async function GET(
     const screen_id = params.id
     console.log(`🔍 Checking content for screen: ${screen_id}`)
 
-    // 1. Verify the screen exists
-    const screenResponse = await fetch(`${url}/rest/v1/screens?id=eq.${screen_id}&select=*`, {
+    // 1. Verify the screen exists and get its location
+    const screenResponse = await fetch(`${url}/rest/v1/screens?id=eq.${screen_id}&select=*,locations(id,name)`, {
       headers: {
         'apikey': serviceKey,
         'Authorization': `Bearer ${serviceKey}`,
@@ -83,14 +83,17 @@ export async function GET(
 
     const allSchedules = await schedulesResponse.json()
 
-    // Filter schedules that match this screen (by screen_id or screen_type)
+    // Filter schedules that match this screen (by screen_id, screen_type, or location)
     const screenSchedules = allSchedules.filter(schedule => {
       const screenIdMatch = schedule.screen_id === screen_id
       const screenTypeMatch = schedule.target_screen_types && schedule.target_screen_types.includes(screen.screen_type)
+      const locationMatch = schedule.target_locations && schedule.target_locations.includes(screen.location_id)
       // If no specific screen assignments, assume "All screens"
-      const allScreensMatch = !schedule.screen_id && (!schedule.target_screen_types || schedule.target_screen_types.length === 0)
-      const matches = screenIdMatch || screenTypeMatch || allScreensMatch
-      console.log(`🔍 Schedule "${schedule.name}": screen_id=${schedule.screen_id}, target_screen_types=${JSON.stringify(schedule.target_screen_types)}, screen_type=${screen.screen_type}, matches=${matches}`)
+      const allScreensMatch = !schedule.screen_id && 
+                             (!schedule.target_screen_types || schedule.target_screen_types.length === 0) &&
+                             (!schedule.target_locations || schedule.target_locations.length === 0)
+      const matches = screenIdMatch || screenTypeMatch || locationMatch || allScreensMatch
+      console.log(`🔍 Schedule "${schedule.name}": screen_id=${schedule.screen_id}, target_screen_types=${JSON.stringify(schedule.target_screen_types)}, target_locations=${JSON.stringify(schedule.target_locations)}, screen_type=${screen.screen_type}, location_id=${screen.location_id}, matches=${matches}`)
       return matches
     })
 
