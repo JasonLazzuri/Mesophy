@@ -88,13 +88,13 @@ export async function GET(
     const screenSchedules = allSchedules.filter(schedule => {
       const screenIdMatch = schedule.screen_id === screen_id
       const screenTypeMatch = schedule.target_screen_types && schedule.target_screen_types.includes(screen.screen_type)
-      const locationMatch = schedule.target_locations && schedule.target_locations.includes(screen.location_id)
+      const locationMatch = schedule.target_locations && schedule.target_locations.includes(screen.locations?.id)
       // If no specific screen assignments, assume "All screens"
       const allScreensMatch = !schedule.screen_id && 
                              (!schedule.target_screen_types || schedule.target_screen_types.length === 0) &&
                              (!schedule.target_locations || schedule.target_locations.length === 0)
       const matches = screenIdMatch || screenTypeMatch || locationMatch || allScreensMatch
-      console.log(`🔍 Schedule "${schedule.name}": screen_id=${schedule.screen_id}, target_screen_types=${JSON.stringify(schedule.target_screen_types)}, target_locations=${JSON.stringify(schedule.target_locations)}, screen_type=${screen.screen_type}, location_id=${screen.location_id}, matches=${matches}`)
+      console.log(`🔍 Schedule "${schedule.name}": screen_id=${schedule.screen_id}, target_screen_types=${JSON.stringify(schedule.target_screen_types)}, target_locations=${JSON.stringify(schedule.target_locations)}, screen_type=${screen.screen_type}, location_id=${screen.locations?.id}, matches=${matches}`)
       return matches
     })
 
