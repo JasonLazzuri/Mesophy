@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Colors - Mesophy Brand (Indigo) -->
+    <color name="primary">#4F46E5</color>              <!-- indigo-600 -->
+    <color name="primary_dark">#4338CA</color>          <!-- indigo-700 -->
+    <color name="primary_light">#6366F1</color>         <!-- indigo-500 -->
+    <color name="primary_variant">#3730A3</color>       <!-- indigo-800 -->
+    
+    <!-- Accent Colors -->
+    <color name="accent">#10B981</color>                <!-- emerald-500 -->
+    <color name="accent_dark">#059669</color>           <!-- emerald-600 -->
+    <color name="accent_light">#34D399</color>          <!-- emerald-400 -->
+    
+    <!-- Background Colors -->
+    <color name="black">#000000</color>
+    <color name="dark_gray">#121212</color>
+    <color name="medium_gray">#333333</color>
+    <color name="light_gray">#666666</color>
+    
+    <!-- Text Colors -->
+    <color name="white">#FFFFFF</color>
+    <color name="white_90">#E6FFFFFF</color>
+    <color name="white_70">#B3FFFFFF</color>
+    <color name="white_50">#80FFFFFF</color>
+    <color name="white_30">#4DFFFFFF</color>
+    
+    <!-- Status Colors -->
+    <color name="success">#4CAF50</color>
+    <color name="success_light">#81C784</color>
+    <color name="warning">#FF9800</color>
+    <color name="warning_light">#FFB74D</color>
+    <color name="error">#F44336</color>
+    <color name="error_light">#EF5350</color>
+    <color name="info">#2196F3</color>
+    <color name="info_light">#64B5F6</color>
+    
+    <!-- TV Focus Colors -->
+    <color name="tv_focus">#FFFFFF</color>
+    <color name="tv_focus_background">#33FFFFFF</color>
+    <color name="tv_card_background">#1A1A1A</color>
+    <color name="tv_card_focused">#2A2A2A</color>
+    
+    <!-- Transparent Colors -->
+    <color name="transparent">#00000000</color>
+    <color name="semi_transparent">#80000000</color>
+    <color name="overlay_dark">#CC000000</color>
+    
+    <!-- Material Colors (for compatibility) -->
+    <color name="material_primary">@color/primary</color>
+    <color name="material_primary_dark">@color/primary_dark</color>
+    <color name="material_accent">@color/primary</color>
+</resources>

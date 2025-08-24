@@ -51,16 +51,25 @@ RETURNS TEXT AS $$
 DECLARE
     code TEXT;
     exists_count INTEGER;
+    chars TEXT := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; -- Excluding confusing chars 0, O, 1, I, L
+    code_length INTEGER := 6;
+    i INTEGER;
+    char_count INTEGER;
 BEGIN
+    char_count := length(chars);
+    
     LOOP
-        -- Generate 6-character alphanumeric code (excluding similar looking chars)
-        code := upper(substring(replace(encode(gen_random_bytes(6), 'base64'), '+/', '23'), 1, 6));
-        code := translate(code, '0O1IL', '23456');
+        code := '';
+        
+        -- Build 6-character code from safe alphanumeric chars
+        FOR i IN 1..code_length LOOP
+            code := code || substring(chars, floor(random() * char_count + 1)::integer, 1);
+        END LOOP;
         
         -- Check if code already exists and is not expired
         SELECT COUNT(*) INTO exists_count
         FROM device_pairing_codes 
-        WHERE code = code AND expires_at > NOW();
+        WHERE code = generate_pairing_code.code AND expires_at > NOW();
         
         -- If unique, exit loop
         EXIT WHEN exists_count = 0;

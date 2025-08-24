@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     const currentTime = now.toTimeString().slice(0, 8)
     const currentDay = now.getDay() || 7 // Convert Sunday from 0 to 7
 
-    // Get all active schedules, then filter by screen type (like current-content API does)
+    // Get all active schedules (like current-content API does)
     console.log('Fetching schedules for screen:', screen.id, 'type:', screen.screen_type)
     const { data: allSchedules, error: schedulesError } = await adminSupabase
       .from('schedules')
@@ -86,8 +86,7 @@ export async function GET(request: NextRequest) {
         priority,
         updated_at,
         playlist_id,
-        screen_ids,
-        screen_types,
+        screen_id,
         target_screen_types
       `)
       .eq('is_active', true)
@@ -109,15 +108,12 @@ export async function GET(request: NextRequest) {
 
     // Filter schedules that match this screen (by screen_id or screen_type)
     const schedules = (allSchedules || []).filter(schedule => {
-      const screenIdMatch = schedule.screen_ids && schedule.screen_ids.includes(screen.id)
-      const screenTypeMatch = (schedule.screen_types && schedule.screen_types.includes(screen.screen_type)) || 
-                             (schedule.target_screen_types && schedule.target_screen_types.includes(screen.screen_type))
+      const screenIdMatch = schedule.screen_id === screen.id
+      const screenTypeMatch = schedule.target_screen_types && schedule.target_screen_types.includes(screen.screen_type)
       // If no specific screen assignments, assume "All screens"
-      const allScreensMatch = (!schedule.screen_ids || schedule.screen_ids.length === 0) && 
-                             (!schedule.screen_types || schedule.screen_types.length === 0) &&
-                             (!schedule.target_screen_types || schedule.target_screen_types.length === 0)
+      const allScreensMatch = !schedule.screen_id && (!schedule.target_screen_types || schedule.target_screen_types.length === 0)
       const matches = screenIdMatch || screenTypeMatch || allScreensMatch
-      console.log(`🔍 Schedule "${schedule.name}": target_screen_types=${JSON.stringify(schedule.target_screen_types)}, screen_type=${screen.screen_type}, matches=${matches}`)
+      console.log(`🔍 Schedule "${schedule.name}": screen_id=${schedule.screen_id}, target_screen_types=${JSON.stringify(schedule.target_screen_types)}, screen_type=${screen.screen_type}, matches=${matches}`)
       return matches
     })
 
