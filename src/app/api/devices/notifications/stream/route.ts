@@ -97,66 +97,77 @@ async function setupDatabaseListener(
     const supabase = createClient(supabaseUrl, serviceKey)
     const encoder = new TextEncoder()
     
-    // Subscribe to device_notifications table changes for this screen
-    const subscription = supabase
-      .channel(`notifications:${screenId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'device_notifications',
-          filter: `screen_id=eq.${screenId}`
-        },
-        async (payload) => {
-          try {
-            console.log('SSE: Database notification for screen:', screenId, payload)
-            
-            const notification = payload.new
-            
-            // Send content update notification via SSE
-            controller.enqueue(encoder.encode('event: content_update\n'))
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-              id: notification.id,
-              type: notification.notification_type,
-              title: notification.title,
-              message: notification.message,
-              scheduleId: notification.schedule_id,
-              playlistId: notification.playlist_id,
-              mediaAssetId: notification.media_asset_id,
-              priority: notification.priority,
-              timestamp: notification.created_at
-            })}\n\n`))
-            
-            // Mark notification as delivered
-            await supabase
-              .from('device_notifications')
-              .update({ delivered_at: new Date().toISOString() })
-              .eq('id', notification.id)
-            
-            console.log('SSE: Content update sent for screen:', screenId)
-            
-          } catch (error) {
-            console.error('SSE: Error processing notification:', error)
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('SSE: Subscription status for screen', screenId, ':', status)
+    // Use polling instead of real-time subscriptions (more reliable)
+    let lastCheckedTime = new Date()
+    
+    const checkForNotifications = async () => {
+      try {
+        // Get new notifications since last check
+        const { data: notifications, error } = await supabase
+          .from('device_notifications')
+          .select('*')
+          .eq('screen_id', screenId)
+          .is('delivered_at', null)
+          .gte('created_at', lastCheckedTime.toISOString())
+          .order('created_at', { ascending: true })
         
-        if (status === 'SUBSCRIBED') {
-          // Send confirmation that real-time is active
-          controller.enqueue(encoder.encode('event: realtime_ready\n'))
-          controller.enqueue(encoder.encode('data: {"status":"subscribed","screen_id":"' + screenId + '"}\n\n'))
+        if (error) {
+          console.error('SSE: Error fetching notifications:', error)
+          return
         }
-      })
+        
+        if (notifications && notifications.length > 0) {
+          console.log(`SSE: Found ${notifications.length} new notifications for screen:`, screenId)
+          
+          for (const notification of notifications) {
+            try {
+              // Send content update notification via SSE
+              controller.enqueue(encoder.encode('event: content_update\n'))
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                id: notification.id,
+                type: notification.notification_type,
+                title: notification.title,
+                message: notification.message,
+                scheduleId: notification.schedule_id,
+                playlistId: notification.playlist_id,
+                mediaAssetId: notification.media_asset_id,
+                priority: notification.priority,
+                timestamp: notification.created_at
+              })}\n\n`))
+              
+              // Mark notification as delivered
+              await supabase
+                .from('device_notifications')
+                .update({ delivered_at: new Date().toISOString() })
+                .eq('id', notification.id)
+              
+              console.log('SSE: Content update sent for screen:', screenId, '- title:', notification.title)
+              
+            } catch (error) {
+              console.error('SSE: Error delivering notification:', error)
+            }
+          }
+          
+          lastCheckedTime = new Date()
+        }
+      } catch (error) {
+        console.error('SSE: Error in notification check:', error)
+      }
+    }
+    
+    // Check for notifications every 2 seconds
+    const notificationInterval = setInterval(checkForNotifications, 2000)
+    
+    // Send confirmation that polling is active
+    controller.enqueue(encoder.encode('event: realtime_ready\n'))
+    controller.enqueue(encoder.encode('data: {"status":"polling_active","screen_id":"' + screenId + '","check_interval":"2s"}\n\n'))
     
     // Handle cleanup when stream closes
     const originalClose = controller.close.bind(controller)
     controller.close = () => {
-      console.log('SSE: Cleaning up subscription for screen:', screenId)
+      console.log('SSE: Cleaning up polling for screen:', screenId)
       clearInterval(heartbeatInterval)
-      supabase.removeChannel(subscription)
+      clearInterval(notificationInterval)
       originalClose()
     }
     
