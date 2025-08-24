@@ -145,12 +145,12 @@ export async function GET(request: NextRequest) {
               .from('playlist_items')
               .select(`
                 id,
-                display_order,
-                display_duration,
+                order_index,
+                duration_override,
                 media_asset_id
               `)
               .eq('playlist_id', playlistData.id)
-              .order('display_order')
+              .order('order_index')
 
             if (!itemsError && items) {
               // Get media assets for each item
@@ -264,11 +264,11 @@ export async function GET(request: NextRequest) {
           id: schedule.playlists.id,
           name: schedule.playlists.name,
           items: schedule.playlists.playlist_items
-            .sort((a, b) => a.display_order - b.display_order)
+            .sort((a, b) => a.order_index - b.order_index)
             .map(item => ({
               id: item.id,
-              display_order: item.display_order,
-              display_duration: item.display_duration,
+              display_order: item.order_index,
+              display_duration: item.duration_override || 10,
               media: item.media_assets ? {
                 id: item.media_assets.id,
                 name: item.media_assets.name,
