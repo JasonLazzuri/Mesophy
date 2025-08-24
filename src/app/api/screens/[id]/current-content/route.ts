@@ -53,6 +53,7 @@ export async function GET(
 
     const screen = screens[0]
     console.log(`✅ Screen found: ${screen.name} (${screen.screen_type})`)
+    console.log(`🏢 Screen location_id: ${screen.location_id}, locations: ${JSON.stringify(screen.locations)}`)
 
     // 2. Get current time in the screen's timezone (PDT/PST for Pi devices)
     const now = new Date()
