@@ -66,7 +66,7 @@ export async function GET(
 
     // 3. Find active schedules for this screen
     const todayDate = pdtTime.toISOString().split('T')[0]
-    const schedulesResponse = await fetch(`${url}/rest/v1/schedules?is_active=eq.true&start_date=lte.${todayDate}&end_date=gte.${todayDate}&select=*,playlists(*)`, {
+    const schedulesResponse = await fetch(`${url}/rest/v1/schedules?is_active=eq.true&start_date=lte.${todayDate}&or=(end_date.is.null,end_date.gte.${todayDate})&select=*,playlists(*)`, {
       headers: {
         'apikey': serviceKey,
         'Authorization': `Bearer ${serviceKey}`,
