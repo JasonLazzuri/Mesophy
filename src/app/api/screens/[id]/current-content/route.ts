@@ -211,7 +211,26 @@ export async function GET(
       schedule_name: activeSchedule.name,
       screen_id,
       screen_name: screen.name,
-      playlist: activeSchedule.playlists,
+      playlist: activeSchedule.playlists ? {
+        ...activeSchedule.playlists,
+        items: mediaAssets.map(asset => ({
+          id: asset.id,
+          display_order: asset.display_order,
+          display_duration: asset.display_duration,
+          media_asset_id: asset.id,
+          media: {
+            id: asset.id,
+            name: asset.name,
+            url: asset.optimized_url || asset.preview_url || asset.file_url,
+            thumbnail_url: asset.thumbnail_url,
+            mime_type: asset.mime_type,
+            file_size: asset.file_size,
+            duration: asset.duration,
+            width: asset.width,
+            height: asset.height
+          }
+        }))
+      } : null,
       media_assets: mediaAssets,
       current_time: currentTime,
       current_day: currentDay,
