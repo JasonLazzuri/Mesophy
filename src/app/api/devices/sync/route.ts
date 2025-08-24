@@ -71,7 +71,8 @@ export async function GET(request: NextRequest) {
     const currentTime = now.toTimeString().slice(0, 8)
     const currentDay = now.getDay() || 7 // Convert Sunday from 0 to 7
 
-    // Get active schedules for this screen
+    // Get active schedules for this screen - simplified query first
+    console.log('Fetching schedules for screen:', screen.id)
     const { data: schedules, error: schedulesError } = await adminSupabase
       .from('schedules')
       .select(`
@@ -84,30 +85,7 @@ export async function GET(request: NextRequest) {
         days_of_week,
         priority,
         updated_at,
-        playlists (
-          id,
-          name,
-          updated_at,
-          playlist_items (
-            id,
-            display_order,
-            display_duration,
-            media_assets (
-              id,
-              name,
-              file_url,
-              thumbnail_url,
-              preview_url,
-              optimized_url,
-              mime_type,
-              file_size,
-              duration,
-              width,
-              height,
-              updated_at
-            )
-          )
-        )
+        playlist_id
       `)
       .eq('screen_id', screen.id)
       .eq('is_active', true)
@@ -117,13 +95,91 @@ export async function GET(request: NextRequest) {
 
     if (schedulesError) {
       console.error('Error fetching schedules:', schedulesError)
+      console.error('Screen ID:', screen.id)
+      console.error('Current date:', currentDate)
       return NextResponse.json({ 
-        error: 'Failed to fetch schedules' 
+        error: 'Failed to fetch schedules',
+        details: schedulesError.message 
       }, { status: 500 })
     }
 
+    console.log('Found schedules:', schedules?.length || 0)
+
+    // Get playlist details separately to avoid complex nested query issues
+    const enrichedSchedules = []
+    if (schedules && schedules.length > 0) {
+      for (const schedule of schedules) {
+        let playlist = null
+        if (schedule.playlist_id) {
+          const { data: playlistData, error: playlistError } = await adminSupabase
+            .from('playlists')
+            .select(`
+              id,
+              name,
+              updated_at
+            `)
+            .eq('id', schedule.playlist_id)
+            .single()
+
+          if (!playlistError && playlistData) {
+            // Get playlist items
+            const { data: items, error: itemsError } = await adminSupabase
+              .from('playlist_items')
+              .select(`
+                id,
+                display_order,
+                display_duration,
+                media_asset_id
+              `)
+              .eq('playlist_id', playlistData.id)
+              .order('display_order')
+
+            if (!itemsError && items) {
+              // Get media assets for each item
+              const enrichedItems = []
+              for (const item of items) {
+                const { data: mediaAsset, error: mediaError } = await adminSupabase
+                  .from('media_assets')
+                  .select(`
+                    id,
+                    name,
+                    file_url,
+                    thumbnail_url,
+                    preview_url,
+                    optimized_url,
+                    mime_type,
+                    file_size,
+                    duration,
+                    width,
+                    height,
+                    updated_at
+                  `)
+                  .eq('id', item.media_asset_id)
+                  .single()
+
+                enrichedItems.push({
+                  ...item,
+                  media_assets: mediaError ? null : mediaAsset
+                })
+              }
+              
+              playlist = {
+                ...playlistData,
+                playlist_items: enrichedItems
+              }
+            }
+          }
+        }
+        
+        enrichedSchedules.push({
+          ...schedule,
+          playlists: playlist
+        })
+      }
+    }
+
     // Filter schedules by current day and time
-    const activeSchedules = (schedules || []).filter(schedule => {
+    const activeSchedules = enrichedSchedules.filter(schedule => {
       const isToday = schedule.days_of_week.includes(currentDay)
       const isInTimeRange = currentTime >= schedule.start_time && currentTime <= schedule.end_time
       return isToday && isInTimeRange
@@ -140,13 +196,13 @@ export async function GET(request: NextRequest) {
       const lastSyncDate = new Date(lastSync)
       
       // Check if any schedule was updated since last sync
-      scheduleChanged = (schedules || []).some(schedule => 
+      scheduleChanged = enrichedSchedules.some(schedule => 
         new Date(schedule.updated_at) > lastSyncDate ||
         (schedule.playlists && new Date(schedule.playlists.updated_at) > lastSyncDate)
       )
 
       // Check if any media was updated since last sync
-      mediaChanged = (schedules || []).some(schedule => 
+      mediaChanged = enrichedSchedules.some(schedule => 
         schedule.playlists?.playlist_items.some(item =>
           item.media_assets && new Date(item.media_assets.updated_at) > lastSyncDate
         )
@@ -177,7 +233,7 @@ export async function GET(request: NextRequest) {
         end_time: currentSchedule.end_time,
         days_of_week: currentSchedule.days_of_week
       } : null,
-      all_schedules: (schedules || []).map(schedule => ({
+      all_schedules: enrichedSchedules.map(schedule => ({
         id: schedule.id,
         name: schedule.name,
         start_date: schedule.start_date,
