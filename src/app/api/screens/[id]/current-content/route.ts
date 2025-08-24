@@ -83,6 +83,8 @@ export async function GET(
     }
 
     const allSchedules = await schedulesResponse.json()
+    console.log(`🔍 Raw schedules found: ${allSchedules?.length || 0}`)
+    console.log(`🔍 First schedule:`, JSON.stringify(allSchedules?.[0], null, 2))
 
     // Filter schedules that match this screen (by screen_id, screen_type, or location)
     const screenSchedules = allSchedules.filter(schedule => {
