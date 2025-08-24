@@ -115,14 +115,20 @@ export async function GET(
 
     console.log(`🎯 Found ${activeSchedules.length} active schedules`)
 
-    // 5. If no active schedules, return empty response
+    // 5. If no active schedules, return empty response with required fields
     if (activeSchedules.length === 0) {
       console.log('📭 No content scheduled for current time')
       return NextResponse.json({
-        message: 'No content scheduled for current time',
+        schedule_id: null,
+        schedule_name: null,
         screen_id,
+        screen_name: screen.name,
+        playlist: null,
+        media_assets: [],
         current_time: currentTime,
-        current_day: currentDay
+        current_day: currentDay,
+        schedule_time_range: null,
+        message: 'No content scheduled for current time'
       })
     }
 
