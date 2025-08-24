@@ -53,7 +53,7 @@ export async function GET(
 
     const screen = screens[0]
     console.log(`✅ Screen found: ${screen.name} (${screen.screen_type})`)
-    console.log(`🏢 Screen location_id: ${screen.location_id}, locations: ${JSON.stringify(screen.locations)}`)
+    console.log(`🏢 Screen location_id: ${screen.location_id}`)
 
     // 2. Get current time in the screen's timezone (PDT/PST for Pi devices)
     const now = new Date()
@@ -83,8 +83,6 @@ export async function GET(
     }
 
     const allSchedules = await schedulesResponse.json()
-    console.log(`🔍 Raw schedules found: ${allSchedules?.length || 0}`)
-    console.log(`🔍 First schedule:`, JSON.stringify(allSchedules?.[0], null, 2))
 
     // Filter schedules that match this screen (by screen_id, screen_type, or location)
     const screenSchedules = allSchedules.filter(schedule => {
@@ -96,7 +94,7 @@ export async function GET(
                              (!schedule.target_screen_types || schedule.target_screen_types.length === 0) &&
                              (!schedule.target_locations || schedule.target_locations.length === 0)
       const matches = screenIdMatch || screenTypeMatch || locationMatch || allScreensMatch
-      console.log(`🔍 Schedule "${schedule.name}": screen_id=${schedule.screen_id}, target_screen_types=${JSON.stringify(schedule.target_screen_types)}, target_locations=${JSON.stringify(schedule.target_locations)}, screen_type=${screen.screen_type}, location_id=${screen.locations?.id}, matches=${matches}`)
+      console.log(`🔍 Schedule "${schedule.name}": matches=${matches}`)
       return matches
     })
 
