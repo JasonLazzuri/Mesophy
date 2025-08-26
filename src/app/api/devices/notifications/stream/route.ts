@@ -98,17 +98,18 @@ async function setupDatabaseListener(
     const encoder = new TextEncoder()
     
     // Use polling instead of real-time subscriptions (more reliable)
-    let lastCheckedTime = new Date()
+    // Start from 5 minutes ago to catch any notifications that were created before SSE started
+    let lastCheckedTime = new Date(Date.now() - 5 * 60 * 1000)
     
     const checkForNotifications = async () => {
       try {
-        // Get new notifications since last check
+        // Get all undelivered notifications (don't filter by time on first check)
+        // This ensures we catch notifications created before SSE connection started
         const { data: notifications, error } = await supabase
           .from('device_notifications')
           .select('*')
           .eq('screen_id', screenId)
           .is('delivered_at', null)
-          .gte('created_at', lastCheckedTime.toISOString())
           .order('created_at', { ascending: true })
         
         if (error) {
