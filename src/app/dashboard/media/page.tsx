@@ -18,7 +18,12 @@ import {
   Eye,
   Edit,
   Trash2,
-  Download
+  Download,
+  CheckSquare,
+  Square,
+  FolderMinus,
+  Move,
+  X
 } from 'lucide-react'
 import { Database } from '@/types/database'
 import MediaUpload from '@/components/MediaUpload'
@@ -117,6 +122,38 @@ export default function MediaPage() {
     fetchFolders()
   }, [fetchMediaAssets, fetchFolders])
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only handle if not typing in an input
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) {
+        return
+      }
+
+      if (event.ctrlKey || event.metaKey) {
+        if (event.key === 'a') {
+          event.preventDefault()
+          if (mediaAssets.length > 0) {
+            handleSelectAll()
+          }
+        }
+      } else if (event.key === 'Delete' && selectedItems.size > 0) {
+        event.preventDefault()
+        if (currentFolderId) {
+          handleBulkRemoveFromFolder()
+        } else {
+          handleBulkDelete()
+        }
+      } else if (event.key === 'Escape' && selectedItems.size > 0) {
+        event.preventDefault()
+        handleDeselectAll()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [mediaAssets, selectedItems, currentFolderId])
+
   // Handle folder navigation
   const navigateToFolder = async (folderId: string | null, folderName?: string) => {
     setCurrentFolderId(folderId)
@@ -205,6 +242,81 @@ export default function MediaPage() {
     } catch (error) {
       console.error('Remove from folder error:', error)
       setError('Failed to remove from folder')
+    }
+  }
+
+  // Bulk operations
+  const handleSelectAll = () => {
+    const allIds = new Set(mediaAssets.map(asset => asset.id))
+    setSelectedItems(allIds)
+  }
+
+  const handleDeselectAll = () => {
+    setSelectedItems(new Set())
+  }
+
+  const handleBulkRemoveFromFolder = async () => {
+    const selectedIds = Array.from(selectedItems)
+    const count = selectedIds.length
+    
+    const confirmed = window.confirm(
+      `Remove ${count} item${count !== 1 ? 's' : ''} from this folder? The files will remain in your library.`
+    )
+    
+    if (!confirmed) return
+
+    try {
+      setError(null)
+      const response = await fetch('/api/media/remove-from-folder', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ mediaIds: selectedIds })
+      })
+      
+      if (response.ok) {
+        fetchMediaAssets()
+        setSelectedItems(new Set())
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        setError(errorData.error || 'Failed to remove items from folder')
+      }
+    } catch (error) {
+      console.error('Bulk remove from folder error:', error)
+      setError('Failed to remove items from folder')
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    const selectedIds = Array.from(selectedItems)
+    const count = selectedIds.length
+    
+    const confirmed = window.confirm(
+      `Delete ${count} item${count !== 1 ? 's' : ''} from the library? This action cannot be undone.`
+    )
+    
+    if (!confirmed) return
+
+    try {
+      setError(null)
+      // Delete each item individually since the API expects single items
+      const deletePromises = selectedIds.map(id => 
+        fetch(`/api/media/${id}`, { method: 'DELETE' })
+      )
+      
+      const results = await Promise.all(deletePromises)
+      const failed = results.filter(r => !r.ok)
+      
+      if (failed.length === 0) {
+        fetchMediaAssets()
+        setSelectedItems(new Set())
+      } else {
+        setError(`Failed to delete ${failed.length} of ${count} items`)
+      }
+    } catch (error) {
+      console.error('Bulk delete error:', error)
+      setError('Failed to delete items')
     }
   }
 
@@ -378,6 +490,13 @@ export default function MediaPage() {
 
       {/* Toolbar */}
       <div className="bg-white rounded-lg border border-gray-200 p-4">
+        {/* Keyboard shortcuts hint */}
+        {selectedItems.size === 0 && mediaAssets.length > 0 && (
+          <div className="mb-3 text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-md">
+            💡 <strong>Keyboard shortcuts:</strong> Ctrl+A (select all), Delete (remove/delete selected), Esc (clear selection)
+          </div>
+        )}
+        
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             {/* Search */}
@@ -405,31 +524,101 @@ export default function MediaPage() {
           </div>
 
           <div className="flex items-center space-x-3">
-            {/* Bulk Actions */}
-            {selectedItems.size > 0 && (
-              <div className="flex items-center space-x-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg">
-                <span className="text-sm text-indigo-700">{selectedItems.size} selected</span>
-                <select
-                  onChange={(e) => {
-                    const folderId = e.target.value || null
-                    handleMoveMediaToFolder(Array.from(selectedItems), folderId)
-                    e.target.value = ''
-                  }}
-                  className="text-sm border border-indigo-300 rounded px-2 py-1"
-                  defaultValue=""
-                >
-                  <option value="" disabled>Move to folder...</option>
-                  <option value="">Remove from folder</option>
-                  {folders.map((folder) => (
-                    <option key={folder.id} value={folder.id}>{folder.name}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => setSelectedItems(new Set())}
-                  className="text-indigo-600 hover:text-indigo-800"
-                >
-                  Clear
-                </button>
+            {/* Select All / Bulk Actions */}
+            {mediaAssets.length > 0 && (
+              <div className="flex items-center space-x-3">
+                {/* Select All Checkbox */}
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={selectedItems.size === mediaAssets.length ? handleDeselectAll : handleSelectAll}
+                    className="flex items-center space-x-1 text-sm text-gray-600 hover:text-gray-800"
+                  >
+                    {selectedItems.size === mediaAssets.length ? (
+                      <CheckSquare className="h-4 w-4" />
+                    ) : selectedItems.size > 0 ? (
+                      <div className="h-4 w-4 border-2 border-indigo-500 bg-indigo-100 rounded flex items-center justify-center">
+                        <div className="h-1.5 w-1.5 bg-indigo-500 rounded-sm"></div>
+                      </div>
+                    ) : (
+                      <Square className="h-4 w-4" />
+                    )}
+                    <span>
+                      {selectedItems.size === mediaAssets.length ? 'Deselect all' :
+                       selectedItems.size > 0 ? `Select all (${selectedItems.size} selected)` : 
+                       'Select all'}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Bulk Actions Toolbar */}
+                {selectedItems.size > 0 && (
+                  <div className="flex items-center space-x-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                    <span className="text-sm font-medium text-gray-700">
+                      {selectedItems.size} item{selectedItems.size !== 1 ? 's' : ''} selected
+                    </span>
+                    
+                    <div className="h-4 border-l border-gray-300"></div>
+                    
+                    {/* Folder Operations */}
+                    {currentFolderId && (
+                      <>
+                        <button
+                          onClick={handleBulkRemoveFromFolder}
+                          className="flex items-center space-x-1 px-3 py-1 text-sm bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 transition-colors"
+                          title="Remove selected items from this folder (keeps in library)"
+                        >
+                          <FolderMinus className="h-4 w-4" />
+                          <span>Remove from folder</span>
+                        </button>
+                        <div className="h-4 border-l border-gray-300"></div>
+                      </>
+                    )}
+                    
+                    {/* Move Operations */}
+                    <div className="relative">
+                      <select
+                        onChange={(e) => {
+                          const folderId = e.target.value || null
+                          handleMoveMediaToFolder(Array.from(selectedItems), folderId)
+                          e.target.value = ''
+                        }}
+                        className="flex items-center space-x-1 px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded hover:bg-blue-200 border-0 cursor-pointer appearance-none pr-8"
+                        defaultValue=""
+                      >
+                        <option value="" disabled>Move to...</option>
+                        {!currentFolderId && <option value="">📁 Organize in folder</option>}
+                        {folders.map((folder) => (
+                          <option key={folder.id} value={folder.id}>📁 {folder.name}</option>
+                        ))}
+                      </select>
+                      <Move className="h-3 w-3 text-blue-600 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                    </div>
+                    
+                    <div className="h-4 border-l border-gray-300"></div>
+                    
+                    {/* Delete Operation */}
+                    <button
+                      onClick={handleBulkDelete}
+                      className="flex items-center space-x-1 px-3 py-1 text-sm bg-red-100 text-red-800 rounded hover:bg-red-200 transition-colors"
+                      title="Permanently delete selected items from library"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Delete from library</span>
+                    </button>
+                    
+                    <div className="h-4 border-l border-gray-300"></div>
+                    
+                    {/* Clear Selection */}
+                    <button
+                      onClick={handleDeselectAll}
+                      className="flex items-center space-x-1 px-2 py-1 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
+                      title="Clear selection (Esc)"
+                    >
+                      <X className="h-4 w-4" />
+                      <span>Clear</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
