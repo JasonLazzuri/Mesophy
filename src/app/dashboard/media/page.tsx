@@ -586,7 +586,6 @@ export default function MediaPage() {
                         defaultValue=""
                       >
                         <option value="" disabled>Move to...</option>
-                        {!currentFolderId && <option value="">📁 Organize in folder</option>}
                         {folders.map((folder) => (
                           <option key={folder.id} value={folder.id}>📁 {folder.name}</option>
                         ))}
