@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 android {
@@ -60,9 +61,16 @@ dependencies {
     // JSON serialization
     implementation("com.squareup.moshi:moshi:1.15.0")
     implementation("com.squareup.moshi:moshi-kotlin:1.15.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
     
     // Coroutines for async operations
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    
+    // Image loading for media playback
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+    
+    // Server-Sent Events for real-time notifications (simpler than WebSockets)
+    implementation("com.squareup.okhttp3:okhttp-sse:4.12.0")
     
     // Testing
     testImplementation("junit:junit:4.13.2")

@@ -1,6 +1,7 @@
 package com.mesophy.signage
 
 import android.os.Bundle
+import android.view.View
 import android.widget.TextView
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
@@ -31,6 +32,12 @@ class MainActivity : FragmentActivity() {
     private val apiClient = ApiClient()
     private var currentPairingCode: String? = null
     private var isPolling = false
+    private var mediaDownloadManager: MediaDownloadManager? = null
+    private var mediaPlayerFragment: MediaPlayerFragment? = null
+    private var deviceHealthMonitor: DeviceHealthMonitor? = null
+    private var powerScheduleManager: PowerScheduleManager? = null
+    private var errorRecoveryManager: ErrorRecoveryManager? = null
+    private var isMediaPlaying = false
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,6 +80,9 @@ class MainActivity : FragmentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         isPolling = false
+        deviceHealthMonitor?.stop()
+        powerScheduleManager?.stop()
+        errorRecoveryManager?.stop()
         Timber.i("MainActivity destroyed")
     }
     
@@ -314,11 +324,130 @@ class MainActivity : FragmentActivity() {
      */
     private fun startContentSyncManager() {
         try {
+            // Create and start ErrorRecoveryManager first
+            errorRecoveryManager = ErrorRecoveryManager(this)
+            errorRecoveryManager!!.addListener(object : ErrorRecoveryManager.ErrorRecoveryListener {
+                override fun onErrorRecovered(errorType: String) {
+                    runOnUiThread {
+                        Timber.i("✅ Error recovered: $errorType")
+                        updateConnectionStatus("Recovered from $errorType error")
+                    }
+                }
+                
+                override fun onNetworkReconnected() {
+                    runOnUiThread {
+                        Timber.i("🌐 Network reconnected")
+                        updateConnectionStatus("Network reconnected")
+                        updateStatusIndicator(StatusType.ONLINE)
+                    }
+                }
+                
+                override fun onApplicationRestarting(reason: String) {
+                    runOnUiThread {
+                        Timber.w("🔄 Application restarting: $reason")
+                        updateConnectionStatus("Restarting: $reason")
+                        updateStatusIndicator(StatusType.ERROR)
+                        statusText.text = "Restarting app..."
+                        pairingCodeText.text = "RESTART"
+                    }
+                }
+                
+                override fun onCriticalError(error: String) {
+                    runOnUiThread {
+                        Timber.e("🚨 Critical error: $error")
+                        updateConnectionStatus("Critical error: $error")
+                        updateStatusIndicator(StatusType.ERROR)
+                    }
+                }
+            })
+            errorRecoveryManager!!.start()
+            Timber.i("🛡️ Error Recovery Manager started")
+            
             // Create MediaDownloadManager
-            val mediaDownloadManager = MediaDownloadManager(this)
+            mediaDownloadManager = MediaDownloadManager(this)
+            
+            // Create and start DeviceHealthMonitor
+            deviceHealthMonitor = DeviceHealthMonitor(this)
+            deviceHealthMonitor!!.addListener(object : DeviceHealthMonitor.HealthMonitorListener {
+                override fun onHealthMetricsUpdated(metrics: DeviceHealthMonitor.DeviceHealthMetrics) {
+                    // Log health metrics periodically
+                    if (metrics.healthStatus.overall != DeviceHealthMonitor.HealthLevel.HEALTHY) {
+                        Timber.w("🏥 Health: ${metrics.healthStatus.overall} - RAM: ${String.format("%.1f", metrics.memoryInfo.freeRAMPercentage * 100)}%")
+                    }
+                }
+                
+                override fun onHealthAlert(level: DeviceHealthMonitor.HealthLevel, message: String) {
+                    runOnUiThread {
+                        when (level) {
+                            DeviceHealthMonitor.HealthLevel.CRITICAL -> {
+                                updateConnectionStatus("⚠️ Critical: $message")
+                                updateStatusIndicator(StatusType.ERROR)
+                            }
+                            DeviceHealthMonitor.HealthLevel.WARNING -> {
+                                // Only update status if not already in error state
+                                if (statusIndicator.tag != StatusType.ERROR) {
+                                    updateConnectionStatus("⚠️ Warning: $message")
+                                }
+                            }
+                            else -> {}
+                        }
+                    }
+                }
+                
+                override fun onHealthReportSent(success: Boolean) {
+                    if (!success) {
+                        Timber.w("📊 Failed to send health report to backend")
+                    }
+                }
+            })
+            deviceHealthMonitor!!.start()
+            Timber.i("🏥 Device Health Monitor started")
+            
+            // Create and start PowerScheduleManager
+            powerScheduleManager = PowerScheduleManager(this)
+            powerScheduleManager!!.addListener(object : PowerScheduleManager.PowerScheduleListener {
+                override fun onPowerStateChanged(state: PowerScheduleManager.PowerState, scheduledChange: Boolean) {
+                    runOnUiThread {
+                        val stateText = when (state) {
+                            PowerScheduleManager.PowerState.ON -> "Display ON"
+                            PowerScheduleManager.PowerState.OFF -> "Display OFF"
+                            PowerScheduleManager.PowerState.TRANSITIONING -> "Transitioning..."
+                            PowerScheduleManager.PowerState.UNKNOWN -> "Unknown state"
+                        }
+                        val changeType = if (scheduledChange) " (scheduled)" else " (manual)"
+                        Timber.i("🔌 Power: $stateText$changeType")
+                    }
+                }
+                
+                override fun onScheduleUpdated(schedule: PowerScheduleManager.PowerSchedule) {
+                    Timber.i("🔌 Power schedule updated: ${schedule.onTime} - ${schedule.offTime}")
+                }
+                
+                override fun onPreShutdownWarning(minutesRemaining: Int) {
+                    runOnUiThread {
+                        updateConnectionStatus("⏰ Display will turn off in $minutesRemaining minutes")
+                        Timber.w("⏰ Pre-shutdown warning: $minutesRemaining minutes remaining")
+                    }
+                }
+                
+                override fun onPowerError(error: String) {
+                    runOnUiThread {
+                        Timber.e("❌ Power management error: $error")
+                        // Only show power errors if not in critical state
+                        if (statusIndicator.tag != StatusType.ERROR) {
+                            updateConnectionStatus("Power error: $error")
+                        }
+                    }
+                }
+            })
+            powerScheduleManager!!.start()
+            Timber.i("🔌 Power Schedule Manager started")
             
             // Create ContentSyncManager 
-            val contentSyncManager = ContentSyncManager(this, mediaDownloadManager)
+            val contentSyncManager = ContentSyncManager(this, mediaDownloadManager!!)
+            
+            // Register components with error recovery manager
+            errorRecoveryManager!!.registerComponents(contentSyncManager, null) // SSE manager will be registered separately
             
             // Add content sync listener
             contentSyncManager.addListener(object : ContentSyncManager.ContentSyncListener {
@@ -337,12 +466,14 @@ class MainActivity : FragmentActivity() {
                 override fun onSyncError(error: String) {
                     runOnUiThread {
                         handleContentSyncError(error)
+                        // Report to error recovery manager
+                        errorRecoveryManager?.handleComponentError("ContentSyncManager", error)
                     }
                 }
             })
             
             // Add download progress listener
-            mediaDownloadManager.addListener(object : MediaDownloadManager.DownloadListener {
+            mediaDownloadManager!!.addListener(object : MediaDownloadManager.DownloadListener {
                 override fun onDownloadStarted(mediaId: String, fileName: String) {
                     runOnUiThread {
                         updateConnectionStatus("Downloading $fileName...")
@@ -436,20 +567,35 @@ class MainActivity : FragmentActivity() {
         Timber.i("  • Media items: ${content.mediaAssets.size}")
         
         if (content.mediaAssets.isNotEmpty()) {
-            statusText.text = "Content ready"
-            pairingCodeText.text = "READY"
-            updateConnectionStatus("Playing ${content.scheduleName ?: "content"}")
-            updateStatusIndicator(StatusType.PAIRED)
-            
-            // TODO: Transition to media playback
-            // This would typically start the MediaPlayerFragment or DigitalSignageService
-            Timber.i("🎬 Ready to start media playback!")
+            if (!isMediaPlaying) {
+                // First time - start media playback
+                statusText.text = "Content ready"
+                pairingCodeText.text = "READY"
+                updateConnectionStatus("Playing ${content.scheduleName ?: "content"}")
+                updateStatusIndicator(StatusType.PAIRED)
+                
+                Timber.i("🎬 Starting initial media playback!")
+                startMediaPlayback(content)
+            } else {
+                // Already playing - update playlist
+                Timber.i("🔄 Updating media playlist while playing")
+                mediaPlayerFragment?.updatePlaylist(content)
+                
+                // Update connection status to show current schedule name
+                updateConnectionStatus("Playing ${content.scheduleName ?: "content"}")
+            }
             
         } else {
             statusText.text = "No media to display"
             pairingCodeText.text = "EMPTY"
             updateConnectionStatus("Waiting for media...")
             updateStatusIndicator(StatusType.ERROR)
+            
+            // Stop playback if currently playing
+            if (isMediaPlaying) {
+                mediaPlayerFragment?.stopPlayback()
+                isMediaPlaying = false
+            }
         }
     }
     
@@ -500,7 +646,76 @@ class MainActivity : FragmentActivity() {
     }
     
     /**
-     * Clean pairing code to ensure only alphanumeric characters
+     * Start media playback using MediaPlayerFragment
+     */
+    private fun startMediaPlayback(content: CurrentContentResponse) {
+        try {
+            val playlistItems = content.playlist?.items ?: emptyList()
+            Timber.i("🎬 Starting media playback with ${playlistItems.size} playlist items")
+            
+            // Hide the pairing UI and show media content
+            findViewById<View>(R.id.headerSection).visibility = View.GONE
+            findViewById<View>(R.id.mainCard).visibility = View.GONE
+            findViewById<View>(R.id.footerSection).visibility = View.GONE
+            
+            // Create and show MediaPlayerFragment
+            mediaPlayerFragment = MediaPlayerFragment()
+            
+            // Set up media playback listener
+            mediaPlayerFragment?.setMediaPlaybackListener(object : MediaPlayerFragment.MediaPlaybackListener {
+                override fun onMediaStarted(item: PlaylistItem) {
+                    Timber.d("🎵 Media started: ${item.media?.name ?: "Unknown"}")
+                }
+                
+                override fun onMediaCompleted(item: PlaylistItem) {
+                    Timber.d("✅ Media completed: ${item.media?.name ?: "Unknown"}")
+                }
+                
+                override fun onPlaylistCompleted() {
+                    Timber.i("🔄 Playlist completed, restarting...")
+                }
+                
+                override fun onMediaError(item: PlaylistItem, error: String) {
+                    Timber.e("❌ Media error: ${item.media?.name ?: "Unknown"} - $error")
+                }
+            })
+            
+            // Add fragment to container
+            supportFragmentManager.beginTransaction()
+                .replace(android.R.id.content, mediaPlayerFragment!!)
+                .commit()
+            
+            // Start playing the playlist items
+            mediaPlayerFragment?.startPlaylist(playlistItems)
+            
+            // Mark media as playing
+            isMediaPlaying = true
+            
+            Timber.i("✅ Media playback started successfully!")
+            
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Failed to start media playback")
+            // Show error and return to status screen
+            findViewById<View>(R.id.headerSection).visibility = View.VISIBLE
+            findViewById<View>(R.id.mainCard).visibility = View.VISIBLE
+            findViewById<View>(R.id.footerSection).visibility = View.VISIBLE
+            
+            statusText.text = "Playback error"
+            updateConnectionStatus("Error: ${e.message}")
+            updateStatusIndicator(StatusType.ERROR)
+            isMediaPlaying = false
+        }
+    }
+    
+    /**
+     * Get MediaDownloadManager instance for fragments
+     */
+    fun getMediaDownloadManager(): MediaDownloadManager? {
+        return mediaDownloadManager
+    }
+    
+    /**
+     * Clean pairing code to ensure only alpranumeric characters
      * Removes any problematic characters like /, +, =
      */
     private fun cleanPairingCode(code: String): String {

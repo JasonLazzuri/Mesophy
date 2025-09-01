@@ -39,7 +39,6 @@ export default function DashboardLayout({
       : []),
     { name: 'Screens', href: '/dashboard/screens', icon: Tv },
     { name: 'Devices', href: '/dashboard/devices', icon: Activity },
-    { name: 'Health Monitor', href: '/dashboard/health', icon: Activity },
     { name: 'Media', href: '/dashboard/media', icon: Image },
     { name: 'Playlists', href: '/dashboard/playlists', icon: Play },
     { name: 'Schedules', href: '/dashboard/schedules', icon: Calendar },

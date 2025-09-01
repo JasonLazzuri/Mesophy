@@ -225,6 +225,115 @@ class ApiClient(private val baseUrl: String = "https://mesophy.vercel.app") {
             })
         }
     }
+    
+    /**
+     * Report device health metrics to backend
+     */
+    suspend fun reportDeviceHealth(
+        deviceToken: String, 
+        screenId: String?, 
+        healthMetrics: Any // Using Any since DeviceHealthMonitor.DeviceHealthMetrics may not be directly accessible
+    ): HealthReportResponse {
+        val json = moshi.adapter(Any::class.java).toJson(healthMetrics)
+        val body = json.toRequestBody("application/json".toMediaTypeOrNull())
+        
+        val requestBuilder = Request.Builder()
+            .url("$baseUrl/api/devices/health")
+            .post(body)
+            .header("Authorization", "Bearer $deviceToken")
+            
+        if (screenId != null) {
+            requestBuilder.header("X-Screen-ID", screenId)
+        }
+        
+        val request = requestBuilder.build()
+            
+        return suspendCoroutine { continuation ->
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    Timber.e(e, "Failed to report health metrics")
+                    continuation.resumeWithException(e)
+                }
+                
+                override fun onResponse(call: Call, response: Response) {
+                    response.use {
+                        if (!response.isSuccessful) {
+                            Timber.e("Health report failed: HTTP ${response.code}")
+                            continuation.resumeWithException(
+                                IOException("HTTP ${response.code}: ${response.message}")
+                            )
+                            return
+                        }
+                        
+                        val responseBody = response.body?.string()
+                        if (responseBody == null) {
+                            continuation.resumeWithException(IOException("Empty health response"))
+                            return
+                        }
+                        
+                        try {
+                            val adapter = moshi.adapter(HealthReportResponse::class.java)
+                            val result = adapter.fromJson(responseBody)
+                            if (result != null) {
+                                Timber.i("Health metrics reported successfully: ${result.message}")
+                                continuation.resume(result)
+                            } else {
+                                continuation.resumeWithException(IOException("Failed to parse health response"))
+                            }
+                        } catch (e: Exception) {
+                            continuation.resumeWithException(e)
+                        }
+                    }
+                }
+            })
+        }
+    }
+
+    /**
+     * Send alert to backend for device performance issues or failures
+     */
+    suspend fun sendAlert(deviceToken: String, alertData: Map<String, Any>): AlertResponse {
+        val json = moshi.adapter(Map::class.java).toJson(alertData)
+        val body = json.toRequestBody("application/json".toMediaTypeOrNull())
+        
+        val request = Request.Builder()
+            .url("$baseUrl/api/devices/alerts")
+            .post(body)
+            .addHeader("Authorization", "Bearer $deviceToken")
+            .addHeader("Content-Type", "application/json")
+            .build()
+        
+        return suspendCoroutine { continuation ->
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    Timber.e(e, "Failed to send alert")
+                    continuation.resumeWithException(e)
+                }
+                
+                override fun onResponse(call: Call, response: Response) {
+                    response.use {
+                        if (!response.isSuccessful) {
+                            val error = IOException("Alert failed: ${response.code}")
+                            Timber.e(error, "Alert request failed: ${response.body?.string()}")
+                            continuation.resumeWithException(error)
+                            return
+                        }
+                        
+                        try {
+                            val responseBody = response.body?.string()
+                            val adapter = moshi.adapter(AlertResponse::class.java)
+                            val alertResponse = adapter.fromJson(responseBody!!)
+                            Timber.i("Alert sent successfully: ${alertData["alert_type"]}")
+                            continuation.resume(alertResponse!!)
+                        } catch (e: Exception) {
+                            Timber.e(e, "Failed to parse alert response")
+                            continuation.resumeWithException(e)
+                        }
+                    }
+                }
+            })
+        }
+    }
 }
 
 // Data classes for API responses
@@ -284,4 +393,30 @@ data class ApiEndpoints(
     val sync: String,
     val heartbeat: String,
     val logs: String
+)
+
+@JsonClass(generateAdapter = true)
+data class HealthReportResponse(
+    val success: Boolean,
+    val message: String,
+    @Json(name = "device_name") val deviceName: String? = null,
+    @Json(name = "health_level") val healthLevel: String? = null,
+    val alerts: List<HealthAlert>? = null,
+    val timestamp: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class HealthAlert(
+    val type: String,
+    val message: String,
+    val details: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class AlertResponse(
+    val success: Boolean,
+    val message: String,
+    @Json(name = "alert_id") val alertId: String? = null,
+    @Json(name = "alerts_triggered") val alertsTriggered: Int? = null,
+    val timestamp: String? = null
 )

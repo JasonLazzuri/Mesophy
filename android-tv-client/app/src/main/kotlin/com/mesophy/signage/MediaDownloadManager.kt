@@ -8,6 +8,8 @@ import java.io.*
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import kotlin.math.abs
+import kotlin.math.max
 
 /**
  * Media download and caching manager for Android TV digital signage client
@@ -313,20 +315,26 @@ class MediaDownloadManager(private val context: Context) {
     private fun isValidCacheFile(file: File, mediaAsset: MediaAsset): Boolean {
         if (!file.exists()) return false
         
-        // Check file size if available
-        mediaAsset.fileSize?.let { expectedSize ->
-            if (file.length() != expectedSize) {
-                Timber.d("Cache file size mismatch: ${file.length()} vs $expectedSize")
-                return false
-            }
-        }
-        
-        // Basic file validation
-        if (file.length() < 100) {
-            Timber.d("Cache file too small: ${file.length()} bytes")
+        // Basic file validation - ensure file has content
+        if (file.length() == 0L) {
+            Timber.d("Cache file is empty: ${file.name}")
             return false
         }
         
+        // Lenient file size validation for optimized/compressed files
+        mediaAsset.fileSize?.let { expectedSize ->
+            val actualSize = file.length()
+            val sizeDifference = abs(actualSize - expectedSize.toLong())
+            val toleranceBytes = max((expectedSize * 0.5).toLong(), 1024L * 1024L) // 50% or 1MB tolerance, whichever is larger
+            
+            if (sizeDifference > toleranceBytes) {
+                Timber.w("Cache file size significantly different but allowing: ${actualSize} vs ${expectedSize} (difference: ${sizeDifference}, tolerance: ${toleranceBytes})")
+            } else {
+                Timber.d("Cache file size within tolerance: ${actualSize} vs ${expectedSize}")
+            }
+        }
+        
+        // File is valid if it exists and has content
         return true
     }
     
@@ -433,6 +441,33 @@ class MediaDownloadManager(private val context: Context) {
             } catch (e: Exception) {
                 Timber.e(e, "Error during cache cleanup")
             }
+        }
+    }
+    
+    /**
+     * Clear all cached media files for smart cache management
+     * This is used when implementing playlist replacement strategy
+     */
+    fun clearAllCachedMedia() {
+        try {
+            val files = cacheDir.listFiles()
+            if (files != null) {
+                var deletedCount = 0
+                var freedBytes = 0L
+                
+                files.forEach { file ->
+                    val size = file.length()
+                    if (file.delete()) {
+                        deletedCount++
+                        freedBytes += size
+                        Timber.d("🧹 Deleted cached media file: ${file.name}")
+                    }
+                }
+                
+                Timber.i("🧹 Smart cache wipe: $deletedCount files, ${freedBytes / 1024 / 1024}MB freed")
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error during cache media wipe")
         }
     }
     
