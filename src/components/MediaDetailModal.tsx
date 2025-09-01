@@ -33,6 +33,8 @@ interface MediaDetailModalProps {
   mediaId: string | null
   onEdit?: (asset: MediaAsset) => void
   onDelete?: (assetId: string) => void
+  onRemoveFromFolder?: (assetId: string) => void
+  currentFolderId?: string | null
 }
 
 export default function MediaDetailModal({ 
@@ -40,7 +42,9 @@ export default function MediaDetailModal({
   onClose, 
   mediaId, 
   onEdit, 
-  onDelete 
+  onDelete,
+  onRemoveFromFolder,
+  currentFolderId 
 }: MediaDetailModalProps) {
   const [asset, setAsset] = useState<MediaAsset | null>(null)
   const [loading, setLoading] = useState(false)
@@ -104,10 +108,22 @@ export default function MediaDetailModal({
   const handleDelete = async () => {
     if (asset && onDelete) {
       const confirmed = window.confirm(
-        `Are you sure you want to delete "${asset.name}"? This action cannot be undone.`
+        `Are you sure you want to delete "${asset.name}" from the library? This action cannot be undone.`
       )
       if (confirmed) {
         onDelete(asset.id)
+        onClose()
+      }
+    }
+  }
+
+  const handleRemoveFromFolder = async () => {
+    if (asset && onRemoveFromFolder) {
+      const confirmed = window.confirm(
+        `Remove "${asset.name}" from this folder? The file will remain in your library.`
+      )
+      if (confirmed) {
+        onRemoveFromFolder(asset.id)
         onClose()
       }
     }
@@ -346,7 +362,7 @@ export default function MediaDetailModal({
           {/* Actions */}
           {asset && (
             <div className="p-6 border-t border-gray-200 bg-gray-50">
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-3 mb-3">
                 <button
                   onClick={handleDownload}
                   className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center justify-center text-sm"
@@ -362,12 +378,26 @@ export default function MediaDetailModal({
                   <Edit className="h-4 w-4 mr-2" />
                   Edit
                 </button>
+              </div>
+
+              {/* Delete Actions */}
+              <div className="flex items-center space-x-2">
+                {currentFolderId && onRemoveFromFolder && (
+                  <button
+                    onClick={handleRemoveFromFolder}
+                    className="flex-1 bg-yellow-100 text-yellow-800 px-4 py-2 rounded-lg hover:bg-yellow-200 flex items-center justify-center text-sm"
+                  >
+                    <FolderOpen className="h-4 w-4 mr-2" />
+                    Remove from folder
+                  </button>
+                )}
                 
                 <button
                   onClick={handleDelete}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                  className="flex-1 bg-red-100 text-red-800 px-4 py-2 rounded-lg hover:bg-red-200 flex items-center justify-center text-sm"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete from library
                 </button>
               </div>
             </div>

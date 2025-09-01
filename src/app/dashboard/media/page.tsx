@@ -182,6 +182,32 @@ export default function MediaPage() {
     }
   }
 
+  const handleRemoveFromFolder = async (assetId: string) => {
+    try {
+      setError(null) // Clear any existing errors
+      
+      const response = await fetch('/api/media/remove-from-folder', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ mediaIds: [assetId] })
+      })
+      
+      if (response.ok) {
+        fetchMediaAssets()
+        setShowDetailModal(false) // Close detail modal after successful removal
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('Remove from folder error:', response.status, response.statusText, errorData)
+        setError(errorData.error || `Failed to remove from folder: ${response.status} ${response.statusText}`)
+      }
+    } catch (error) {
+      console.error('Remove from folder error:', error)
+      setError('Failed to remove from folder')
+    }
+  }
+
   // Handle folder actions
   const handleFolderEdit = (folder: MediaFolder) => {
     setEditingFolder(folder)
@@ -666,12 +692,25 @@ export default function MediaPage() {
                                 e.stopPropagation()
                                 // Create a simple context menu for media actions
                                 const menu = document.createElement('div')
-                                menu.className = 'absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 min-w-32'
-                                menu.innerHTML = `
-                                  <button class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 delete-media">Delete</button>
-                                `
+                                menu.className = 'absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 min-w-48'
+                                
+                                // Different options based on whether we're in a folder or not
+                                if (currentFolderId) {
+                                  menu.innerHTML = `
+                                    <button class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 remove-from-folder">Remove from folder</button>
+                                    <button class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 text-red-600 delete-media">Delete from library</button>
+                                  `
+                                } else {
+                                  menu.innerHTML = `
+                                    <button class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 text-red-600 delete-media">Delete from library</button>
+                                  `
+                                }
                                 
                                 // Add event listeners
+                                menu.querySelector('.remove-from-folder')?.addEventListener('click', () => {
+                                  handleRemoveFromFolder(asset.id)
+                                  menu.remove()
+                                })
                                 menu.querySelector('.delete-media')?.addEventListener('click', () => {
                                   handleMediaDelete(asset.id)
                                   menu.remove()
@@ -785,12 +824,25 @@ export default function MediaPage() {
                               e.stopPropagation()
                               // Create a simple context menu for media actions
                               const menu = document.createElement('div')
-                              menu.className = 'absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 min-w-32'
-                              menu.innerHTML = `
-                                <button class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 delete-media">Delete</button>
-                              `
+                              menu.className = 'absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 min-w-48'
+                              
+                              // Different options based on whether we're in a folder or not
+                              if (currentFolderId) {
+                                menu.innerHTML = `
+                                  <button class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 remove-from-folder">Remove from folder</button>
+                                  <button class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 text-red-600 delete-media">Delete from library</button>
+                                `
+                              } else {
+                                menu.innerHTML = `
+                                  <button class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 text-red-600 delete-media">Delete from library</button>
+                                `
+                              }
                               
                               // Add event listeners
+                              menu.querySelector('.remove-from-folder')?.addEventListener('click', () => {
+                                handleRemoveFromFolder(asset.id)
+                                menu.remove()
+                              })
                               menu.querySelector('.delete-media')?.addEventListener('click', () => {
                                 handleMediaDelete(asset.id)
                                 menu.remove()
@@ -883,6 +935,8 @@ export default function MediaPage() {
         mediaId={selectedMediaId}
         onEdit={handleMediaEdit}
         onDelete={handleMediaDelete}
+        onRemoveFromFolder={handleRemoveFromFolder}
+        currentFolderId={currentFolderId}
       />
 
       <MediaEditModal
