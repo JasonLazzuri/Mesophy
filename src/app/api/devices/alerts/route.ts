@@ -114,35 +114,16 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
-    // Determine who should receive email notifications based on severity and hierarchy
+    // Send all alerts to super admins only (simplified for this use case)
     let recipientEmails: string[] = []
 
-    if (severity === 'critical') {
-      // Critical alerts go to super admins, district managers, and location managers
-      const { data: users } = await supabase
-        .from('user_profiles')
-        .select('id, email, role, organization_id, district_id, location_id')
-        .or(`role.eq.super_admin,and(role.eq.district_manager,district_id.eq.${deviceInfo.locations?.districts?.id}),and(role.eq.location_manager,location_id.eq.${deviceInfo.location_id})`)
+    // Get all super admin users regardless of severity
+    const { data: users } = await supabase
+      .from('user_profiles')
+      .select('id, email, role')
+      .eq('role', 'super_admin')
 
-      recipientEmails = users?.map(u => u.email).filter(email => email) || []
-    } else if (severity === 'high') {
-      // High alerts go to district managers and location managers
-      const { data: users } = await supabase
-        .from('user_profiles')
-        .select('id, email, role')
-        .or(`and(role.eq.district_manager,district_id.eq.${deviceInfo.locations?.districts?.id}),and(role.eq.location_manager,location_id.eq.${deviceInfo.location_id})`)
-
-      recipientEmails = users?.map(u => u.email).filter(email => email) || []
-    } else {
-      // Medium/low alerts only go to location managers
-      const { data: users } = await supabase
-        .from('user_profiles')
-        .select('id, email')
-        .eq('role', 'location_manager')
-        .eq('location_id', deviceInfo.location_id)
-
-      recipientEmails = users?.map(u => u.email).filter(email => email) || []
-    }
+    recipientEmails = users?.map(u => u.email).filter(email => email) || []
 
     // Send email notifications if there are recipients
     const emailsSent: string[] = []
