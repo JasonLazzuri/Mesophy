@@ -41,24 +41,24 @@ export async function POST(request: NextRequest) {
     
     const supabase = createClient(supabaseUrl, serviceKey)
     
-    // First, find the device by token to get device_id
-    const { data: device, error: deviceError } = await supabase
-      .from('devices')
-      .select('id, screen_id, name')
-      .eq('device_token', deviceToken)
+    // Find the screen by screen_id from header
+    const { data: screen, error: screenError } = await supabase
+      .from('screens')
+      .select('id, name, device_id, location_id, locations(name)')
+      .eq('id', screenId)
       .single()
     
-    if (deviceError || !device) {
-      console.error('Device not found for token:', deviceError)
+    if (screenError || !screen) {
+      console.error('Screen not found for ID:', screenId, screenError)
       return new NextResponse('Device not found', { status: 404 })
     }
     
-    console.log('Device found:', device.name, 'ID:', device.id)
+    console.log('Screen found:', screen.name, 'ID:', screen.id)
     
     // Transform Android health metrics to database format
     const dbHealthMetrics = {
-      device_id: device.id,
-      screen_id: device.screen_id || screenId,
+      device_id: screen.device_id,
+      screen_id: screenId,
       timestamp: new Date(healthMetrics.timestamp).toISOString(),
       
       // Device Information
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       return new NextResponse('Failed to store health metrics', { status: 500 })
     }
     
-    console.log('Health metrics stored successfully for device:', device.name)
+    console.log('Health metrics stored successfully for screen:', screen.name)
     
     // Check if we need to create any alerts based on health status
     const alerts = []
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
     if (healthMetrics.healthStatus?.overall === 'CRITICAL') {
       alerts.push({
         type: 'critical_health',
-        message: `Device ${device.name} is in critical health state`,
+        message: `Screen ${screen.name} is in critical health state`,
         details: healthMetrics.healthStatus.issues.join(', ')
       })
     }
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
     if (healthMetrics.memoryInfo?.freeRAMPercentage < 0.1) {
       alerts.push({
         type: 'low_memory',
-        message: `Device ${device.name} has critically low memory`,
+        message: `Screen ${screen.name} has critically low memory`,
         details: `${Math.round(healthMetrics.memoryInfo.freeRAMPercentage * 100)}% free RAM`
       })
     }
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
     if (healthMetrics.storageInfo?.freeStoragePercentage < 0.05) {
       alerts.push({
         type: 'low_storage', 
-        message: `Device ${device.name} has critically low storage`,
+        message: `Screen ${screen.name} has critically low storage`,
         details: `${Math.round(healthMetrics.storageInfo.freeStoragePercentage * 100)}% free storage`
       })
     }
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Health metrics received successfully',
-      device_name: device.name,
+      device_name: screen.name,
       health_level: healthMetrics.healthStatus?.overall,
       alerts: alerts,
       timestamp: new Date().toISOString()
