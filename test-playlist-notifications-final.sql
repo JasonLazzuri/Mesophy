@@ -29,7 +29,11 @@ INSERT INTO device_notifications (
     'Notification System Fixed!',
     'If you see this in Android TV logs, notifications are working',
     3,
-    '{"test": "manual_verification", "timestamp": "' || NOW()::text || '"}'::jsonb
+    jsonb_build_object(
+        'test', 'manual_verification', 
+        'timestamp', NOW()::text,
+        'source', 'sql_fix'
+    )
 );
 
 -- STEP 4: Simulate a playlist update (this should trigger automatic notification)
