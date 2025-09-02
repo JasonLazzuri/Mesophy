@@ -28,7 +28,7 @@ class ServerSentEventsManager(private val context: Context) {
         private const val MAX_RECONNECT_ATTEMPTS = 5
         
         // Always-on SSE service configuration
-        private const val ALWAYS_ON_SSE_BASE = "https://your-render-app.onrender.com"
+        private const val ALWAYS_ON_SSE_BASE = "https://mesophy.onrender.com"
         private const val USE_ALWAYS_ON_SERVICE = true  // Set to true for bulletproof notifications
     }
     
