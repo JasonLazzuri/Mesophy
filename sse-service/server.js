@@ -85,9 +85,9 @@ app.get('/stream', async (req, res) => {
  */
 async function setupDatabaseListener(res, screenId) {
   try {
-    // Get Supabase configuration
-    const supabaseUrl = process.env.SUPABASE_URL
-    const serviceKey = process.env.SUPABASE_SERVICE_KEY
+    // Get Supabase configuration (match Render environment variable names)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+    const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_KEY
     
     if (!supabaseUrl || !serviceKey) {
       console.error('SSE: Missing Supabase configuration')
