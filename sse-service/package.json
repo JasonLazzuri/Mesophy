@@ -1,0 +1,22 @@
+{
+  "name": "mesophy-sse-service",
+  "version": "1.0.0",
+  "description": "Always-on SSE service for Mesophy Digital Signage notifications",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["sse", "server-sent-events", "notifications", "digital-signage"],
+  "author": "Mesophy",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "@supabase/supabase-js": "^2.39.3",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

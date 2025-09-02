@@ -14,7 +14,9 @@ import timber.log.Timber
  * 
  * Uses SSE to receive instant notifications when content changes,
  * providing much better efficiency than polling while being simpler
- * than WebSockets and compatible with Vercel serverless deployment.
+ * than WebSockets. Now supports both:
+ * - Vercel serverless endpoint (5-minute timeout limitation)  
+ * - Always-on dedicated SSE service (no timeout, bulletproof)
  */
 class ServerSentEventsManager(private val context: Context) {
     
@@ -24,6 +26,10 @@ class ServerSentEventsManager(private val context: Context) {
         private const val CONNECTION_TIMEOUT_SECONDS = 30L
         private const val RECONNECT_DELAY_MS = 5000L
         private const val MAX_RECONNECT_ATTEMPTS = 5
+        
+        // Always-on SSE service configuration
+        private const val ALWAYS_ON_SSE_BASE = "https://your-render-app.onrender.com"
+        private const val USE_ALWAYS_ON_SERVICE = true  // Set to true for bulletproof notifications
     }
     
     private val sharedPrefs: SharedPreferences = 
@@ -92,10 +98,18 @@ class ServerSentEventsManager(private val context: Context) {
     
     /**
      * Connect to Server-Sent Events endpoint
+     * Uses either the always-on dedicated service (bulletproof) or Vercel endpoint
      */
     private fun connectToSSE(apiBase: String, deviceToken: String, screenId: String) {
         try {
-            val sseUrl = "$apiBase/api/devices/notifications/stream"
+            val sseUrl = if (USE_ALWAYS_ON_SERVICE) {
+                "$ALWAYS_ON_SSE_BASE/stream"  // Always-on service (no timeout)
+            } else {
+                "$apiBase/api/devices/notifications/stream"  // Vercel endpoint (5-minute timeout)
+            }
+            
+            val serviceType = if (USE_ALWAYS_ON_SERVICE) "always-on" else "vercel"
+            Timber.i("🔗 Connecting to $serviceType SSE service: $sseUrl")
             
             val request = Request.Builder()
                 .url(sseUrl)
@@ -107,7 +121,8 @@ class ServerSentEventsManager(private val context: Context) {
             
             val eventSourceListener = object : EventSourceListener() {
                 override fun onOpen(eventSource: EventSource, response: Response) {
-                    Timber.i("✅ SSE connection opened")
+                    val serviceType = if (USE_ALWAYS_ON_SERVICE) "always-on" else "vercel"
+                    Timber.i("✅ $serviceType SSE connection opened")
                     reconnectAttempts = 0
                     notifyConnectionStatus(true)
                 }
@@ -203,6 +218,15 @@ class ServerSentEventsManager(private val context: Context) {
      */
     fun isConnected(): Boolean {
         return eventSource != null
+    }
+    
+    /**
+     * Get current SSE service configuration info
+     */
+    fun getServiceInfo(): String {
+        val serviceType = if (USE_ALWAYS_ON_SERVICE) "Always-On" else "Vercel"
+        val endpoint = if (USE_ALWAYS_ON_SERVICE) ALWAYS_ON_SSE_BASE else getApiBase()
+        return "$serviceType service at $endpoint"
     }
     
     // Notification methods
