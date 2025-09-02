@@ -120,6 +120,9 @@ async function setupDatabaseListener(
         if (notifications && notifications.length > 0) {
           console.log(`SSE: Found ${notifications.length} new notifications for screen:`, screenId)
           
+          // Collect notification IDs to mark as delivered
+          const notificationIds = []
+          
           for (const notification of notifications) {
             try {
               // Send content update notification via SSE
@@ -136,17 +139,33 @@ async function setupDatabaseListener(
                 timestamp: notification.created_at
               })}\n\n`))
               
-              // Mark notification as delivered
-              await supabase
-                .from('device_notifications')
-                .update({ delivered_at: new Date().toISOString() })
-                .eq('id', notification.id)
-              
               console.log('SSE: Content update sent for screen:', screenId, '- title:', notification.title)
+              
+              // Add to batch for marking as delivered
+              notificationIds.push(notification.id)
               
             } catch (error) {
               console.error('SSE: Error delivering notification:', error)
+              // Don't break the loop, continue with other notifications
             }
+          }
+          
+          // Batch update all delivered notifications (avoid await in loop)
+          if (notificationIds.length > 0) {
+            supabase
+              .from('device_notifications')
+              .update({ delivered_at: new Date().toISOString() })
+              .in('id', notificationIds)
+              .then(({ error }) => {
+                if (error) {
+                  console.error('SSE: Error marking notifications as delivered:', error)
+                } else {
+                  console.log(`SSE: Marked ${notificationIds.length} notifications as delivered`)
+                }
+              })
+              .catch((error) => {
+                console.error('SSE: Error in batch update:', error)
+              })
           }
           
           lastCheckedTime = new Date()
