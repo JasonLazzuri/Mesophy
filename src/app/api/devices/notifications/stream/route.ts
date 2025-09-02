@@ -33,11 +33,12 @@ export async function GET(request: NextRequest) {
         controller.enqueue(encoder.encode('event: connected\n'))
         controller.enqueue(encoder.encode('data: {"status":"connected","timestamp":"' + new Date().toISOString() + '"}\n\n'))
         
-        // Send periodic heartbeat to keep connection alive
+        // Send periodic heartbeat to keep connection alive and check for notifications
         const heartbeatInterval = setInterval(() => {
           try {
             controller.enqueue(encoder.encode('event: ping\n'))
             controller.enqueue(encoder.encode('data: {"timestamp":"' + new Date().toISOString() + '"}\n\n'))
+            
           } catch (error) {
             console.log('SSE heartbeat failed, client likely disconnected')
             clearInterval(heartbeatInterval)
@@ -175,19 +176,33 @@ async function setupDatabaseListener(
       }
     }
     
-    // Check for notifications every 2 seconds
-    const notificationInterval = setInterval(checkForNotifications, 2000)
+    // Replace the 2-second polling with heartbeat-based notification checking
+    // Clear the original heartbeat interval and create a combined one
+    clearInterval(heartbeatInterval)
     
-    // Send confirmation that polling is active
-    controller.enqueue(encoder.encode('event: realtime_ready\n'))
-    controller.enqueue(encoder.encode('data: {"status":"polling_active","screen_id":"' + screenId + '","check_interval":"2s"}\n\n'))
+    // Create combined heartbeat + notification checking interval
+    const combinedHeartbeatInterval = setInterval(() => {
+      try {
+        // Send heartbeat ping
+        controller.enqueue(encoder.encode("event: ping\n"))
+        controller.enqueue(encoder.encode("data: {\"timestamp\":\"" + new Date().toISOString() + "\"}\n\n"))
+        
+        // Check for notifications during heartbeat
+        checkForNotifications()
+      } catch (error) {
+        console.log("SSE heartbeat failed, client likely disconnected")
+        clearInterval(combinedHeartbeatInterval)
+      }
+    }, 30000) // 30 second heartbeat
     
+    // Send confirmation that heartbeat-based polling is active
+    controller.enqueue(encoder.encode("event: realtime_ready\n"))
+    controller.enqueue(encoder.encode("data: {\"status\":\"heartbeat_polling_active\",\"screen_id\":\"" + screenId + "\",\"check_interval\":\"30s\"}\n\n"))    
     // Handle cleanup when stream closes
     const originalClose = controller.close.bind(controller)
     controller.close = () => {
       console.log('SSE: Cleaning up polling for screen:', screenId)
       clearInterval(heartbeatInterval)
-      clearInterval(notificationInterval)
       originalClose()
     }
     
