@@ -59,6 +59,9 @@ app.get('/stream', async (req, res) => {
     res.write('event: connected\\n')
     res.write(`data: {"status":"connected","timestamp":"${new Date().toISOString()}","service":"always-on"}\\n\\n`)
     
+    // Flush the connection confirmation immediately
+    res.flushHeaders()
+    
     // Set up database listener for content changes
     await setupDatabaseListener(res, screenId)
     
@@ -258,6 +261,27 @@ app.get('/health', (req, res) => {
 })
 
 /**
+ * GET /test-stream - Simple SSE test endpoint
+ */
+app.get('/test-stream', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*'
+  })
+  
+  res.write('event: test\\n')
+  res.write('data: {"message":"SSE test working"}\\n\\n')
+  
+  setTimeout(() => {
+    res.write('event: test\\n')
+    res.write('data: {"message":"Second test message"}\\n\\n')
+    res.end()
+  }, 1000)
+})
+
+/**
  * GET / - Root endpoint with service info
  */
 app.get('/', (req, res) => {
@@ -269,7 +293,8 @@ app.get('/', (req, res) => {
     activeConnections: activeConnections.size,
     endpoints: {
       stream: '/stream',
-      health: '/health'
+      health: '/health',
+      'test-stream': '/test-stream'
     },
     features: [
       'Always-on connections (no timeouts)',
