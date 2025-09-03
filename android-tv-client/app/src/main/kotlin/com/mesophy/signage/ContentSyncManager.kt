@@ -48,12 +48,12 @@ class ContentSyncManager(
     private val apiClient = ApiClient()
     private val sharedPrefs: SharedPreferences = 
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    private val sseManager = ServerSentEventsManager(context)
+    private val pollingManager = ContentPollingManager(context)
     
     private var syncJob: Job? = null
     private var isRunning = false
     private var listeners = mutableListOf<ContentSyncListener>()
-    private var isRealtimeConnected = false
+    private var isPollingActive = false
     private var isOnline = true
     private var cacheDir: File
     
@@ -109,32 +109,32 @@ class ContentSyncManager(
         }
         
         isRunning = true
-        Timber.i("🚀 Starting ContentSyncManager with real-time support...")
+        Timber.i("🚀 Starting ContentSyncManager with polling-based notifications...")
         
-        // Set up SSE notification listener
-        sseManager.addListener(object : ServerSentEventsManager.NotificationListener {
+        // Set up polling notification listener
+        pollingManager.addListener(object : ContentPollingManager.NotificationListener {
             override fun onNotificationReceived(type: String, data: String) {
-                handleSSENotification(type, data)
+                handlePollingNotification(type, data)
             }
             
             override fun onConnectionStatusChanged(connected: Boolean) {
-                isRealtimeConnected = connected
-                Timber.i("📡 SSE connection: ${if (connected) "Connected" else "Disconnected"}")
+                isPollingActive = connected
+                Timber.i("📡 Polling connection: ${if (connected) "Active" else "Inactive"}")
                 
                 if (connected) {
-                    // Reset sync backoff when SSE connects
+                    // Reset sync backoff when polling is active
                     consecutiveNoChanges = 0
                 } 
             }
             
             override fun onError(error: String) {
-                Timber.w("⚠️ SSE error: $error")
+                Timber.w("⚠️ Polling error: $error")
             }
         })
         
-        // Start SSE connection for real-time updates
-        sseManager.start()
-        Timber.i("📡 SSE enabled - real-time notifications active")
+        // Start polling for real-time updates (15-30 second intervals)
+        pollingManager.start()
+        Timber.i("📡 Content polling enabled - reliable notification delivery active")
         
         // Start continuous sync loop with dynamic intervals (now as fallback)
         syncJob = CoroutineScope(Dispatchers.IO).launch {
@@ -162,8 +162,8 @@ class ContentSyncManager(
     fun stop() {
         isRunning = false
         syncJob?.cancel()
-        sseManager.stop()
-        isRealtimeConnected = false
+        pollingManager.stop()
+        isPollingActive = false
         Timber.i("⏹️ ContentSyncManager stopped")
     }
     
@@ -187,10 +187,10 @@ class ContentSyncManager(
     fun getSyncStatus(): ContentSyncStatus = currentSyncStatus
     
     /**
-     * Handle SSE notification from server
+     * Handle polling notification from server
      */
-    private fun handleSSENotification(type: String, data: String) {
-        Timber.i("🔔 SSE notification: type=$type")
+    private fun handlePollingNotification(type: String, data: String) {
+        Timber.i("🔔 Polling notification: type=$type")
         Timber.d("   Data: $data")
         
         // Trigger immediate content sync after a short delay for any content-related updates
@@ -200,7 +200,7 @@ class ContentSyncManager(
                     delay(REALTIME_TRIGGER_SYNC_DELAY_MS)
                     
                     val deviceToken = getDeviceToken() ?: return@launch
-                    Timber.i("🚀 Triggering sync due to SSE notification...")
+                    Timber.i("🚀 Triggering sync due to polling notification...")
                     
                     performContentSync(deviceToken)
                     
@@ -208,7 +208,7 @@ class ContentSyncManager(
                     consecutiveNoChanges = 0
                     
                 } catch (e: Exception) {
-                    Timber.e(e, "❌ Failed to sync after SSE notification")
+                    Timber.e(e, "❌ Failed to sync after polling notification")
                 }
             }
         }
@@ -648,10 +648,10 @@ class ContentSyncManager(
         syncCount++
         
         return when {
-            // If real-time is connected, use much longer intervals since it handles updates
-            isRealtimeConnected && consecutiveNoChanges >= 1 -> {
-                Timber.d("Real-time connected - using long fallback interval")
-                MAX_SYNC_INTERVAL_MS // 1 hour fallback when real-time is working
+            // If polling is active, use much longer intervals since it handles updates
+            isPollingActive && consecutiveNoChanges >= 1 -> {
+                Timber.d("Content polling active - using long fallback interval")
+                MAX_SYNC_INTERVAL_MS // 1 hour fallback when polling is working
             }
             
             // First few syncs - check frequently for initial setup
@@ -660,7 +660,7 @@ class ContentSyncManager(
             // Recent changes detected - sync more frequently
             consecutiveNoChanges == 0 -> INITIAL_SYNC_INTERVAL_MS
             
-            // No real-time and no changes - use regular polling intervals
+            // No polling active and no changes - use regular sync intervals
             consecutiveNoChanges <= 2 -> REGULAR_SYNC_INTERVAL_MS
             
             // No changes for 3+ syncs - exponential backoff
