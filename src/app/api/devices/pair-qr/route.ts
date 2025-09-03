@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { detectDeviceType, generateDeviceId, getDeviceTypeLabel } from '@/lib/device-utils'
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,7 +33,9 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log('Pi device QR pairing request:', { screen_id, code, device_info, device_ip })
+    const deviceType = detectDeviceType(device_info)
+    const deviceTypeLabel = getDeviceTypeLabel(deviceType)
+    console.log(`${deviceTypeLabel} device QR pairing request:`, { screen_id, code, device_info, device_ip })
 
     // Use service role client to bypass RLS
     const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY ||
@@ -117,8 +120,8 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
-    // Generate unique device_id from pairing info
-    const deviceId = `pi-${pairing.id.split('-')[0]}-${Date.now().toString(36)}`
+    // Generate unique device_id based on device type
+    const deviceId = generateDeviceId(deviceType, pairing.id)
 
     try {
       // Update screen and mark pairing as used
@@ -182,7 +185,7 @@ export async function POST(request: NextRequest) {
           }
         })
 
-      console.log('Device successfully paired via QR:', deviceId, 'to screen:', screen.name)
+      console.log(`Device successfully paired via QR: ${deviceId} (${deviceType.toUpperCase()}) to screen: ${screen.name}`)
 
       // Return device configuration
       return NextResponse.json({
@@ -225,7 +228,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Allow CORS for Pi devices
+// Allow CORS for all devices
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, {
     status: 200,

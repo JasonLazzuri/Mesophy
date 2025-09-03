@@ -136,9 +136,36 @@ Database Triggers → device_notification_log → /api/devices/notifications/pol
 ✅ CRUD operations for organizations/districts/locations/users/screens/media/playlists/schedules
 ✅ **SECURITY HARDENING COMPLETED** (August 2025)
 ✅ **NOTIFICATION SYSTEM COMPLETED** (September 2025)
+✅ **DEVICE NAMING SYSTEM UPDATED** (September 2025)
 🚧 Media management system
 ⏳ Scheduling system  
 ⏳ Raspberry Pi device integration
+
+## Device Naming Convention (September 2025)
+
+**✅ SMART DEVICE TYPE DETECTION IMPLEMENTED**
+
+The platform now automatically detects device types and assigns appropriate prefixes:
+
+**Device ID Format:**
+- **Android TV**: `atv-{shortId}-{timestamp}` (e.g., `atv-abc123-xyz789`)
+- **Raspberry Pi**: `pi-{shortId}-{timestamp}` (e.g., `pi-def456-uvw012`)
+- **Unknown/Generic**: `dev-{shortId}-{timestamp}` (e.g., `dev-ghi789-rst345`)
+
+**Detection Logic:**
+- **Android TV**: Detects Android platform, TV models, Android user agents
+- **Raspberry Pi**: Detects Linux, Raspberry Pi models, Pi-specific indicators
+- **Fallback**: Uses generic "dev" prefix for unrecognized devices
+
+**Backwards Compatibility:**
+- ✅ All existing `pi-*` device IDs continue to work normally
+- ✅ No breaking changes to device authentication or functionality
+- ✅ Database queries and device management unaffected
+
+**Implementation:**
+- Utility functions: `src/lib/device-utils.ts`
+- Updated endpoints: `/api/devices/pair`, `/api/devices/pair-qr`, `/api/devices/register`
+- Database schema: Updated comments in `supabase/device_commands*.sql`
 
 ## Security Improvements (August 2025)
 

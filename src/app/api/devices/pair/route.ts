@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { detectDeviceType, generateDeviceId, getDeviceTypeLabel } from '@/lib/device-utils'
 
 export async function POST(request: NextRequest) {
   try {
@@ -131,8 +132,10 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
-    // Generate unique device_id from pairing info
-    const deviceId = `pi-${pairing.id.split('-')[0]}-${Date.now().toString(36)}`
+    // Generate unique device_id based on device type
+    const deviceInfo = pairing.device_info || {}
+    const deviceType = detectDeviceType(deviceInfo)
+    const deviceId = generateDeviceId(deviceType, pairing.id)
 
     try {
       // Start transaction - update screen and mark pairing as used
@@ -195,7 +198,7 @@ export async function POST(request: NextRequest) {
           }
         })
 
-      console.log('Device successfully paired:', deviceId, 'to screen:', screen.name)
+      console.log(`Device successfully paired: ${deviceId} (${deviceType.toUpperCase()}) to screen: ${screen.name}`)
 
       return NextResponse.json({
         success: true,

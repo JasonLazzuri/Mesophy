@@ -4,7 +4,7 @@
 -- Device commands table for queuing and tracking remote commands
 CREATE TABLE IF NOT EXISTS device_commands (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    device_id TEXT NOT NULL, -- Pi device identifier (pi-{serial} format)
+    device_id TEXT NOT NULL, -- Device identifier (atv-{id}, pi-{id}, or dev-{id} format)
     screen_id UUID REFERENCES screens(id) ON DELETE CASCADE,
     command_type TEXT NOT NULL CHECK (command_type IN (
         'restart',           -- Restart Pi client service

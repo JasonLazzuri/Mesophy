@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { detectDeviceType, getDeviceTypeLabel } from '@/lib/device-utils'
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,7 +28,9 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log('Pi device registration attempt:', { device_id, screen_id, device_info })
+    const deviceType = detectDeviceType(device_info)
+    const deviceTypeLabel = getDeviceTypeLabel(deviceType)
+    console.log(`${deviceTypeLabel} device registration attempt:`, { device_id, screen_id, device_info })
 
     // Check if screen exists and is available
     const { data: screen, error: screenError } = await supabase
@@ -130,7 +133,7 @@ export async function POST(request: NextRequest) {
         }
       })
 
-    console.log('Pi device registered successfully:', device_id)
+    console.log(`${deviceTypeLabel} device registered successfully:`, device_id)
 
     // Return registration success with device config
     return NextResponse.json({
