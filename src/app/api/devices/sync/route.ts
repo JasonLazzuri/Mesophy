@@ -40,6 +40,13 @@ export async function GET(request: NextRequest) {
         device_id,
         last_sync_at,
         sync_version,
+        power_schedule_enabled,
+        power_on_time,
+        power_off_time,
+        power_timezone,
+        power_energy_saving,
+        power_warning_minutes,
+        power_last_updated,
         locations (
           id,
           name,
@@ -286,6 +293,15 @@ export async function GET(request: NextRequest) {
             }))
         } : null
       })),
+      power_schedule: screen.power_schedule_enabled ? {
+        enabled: screen.power_schedule_enabled,
+        on_time: screen.power_on_time,
+        off_time: screen.power_off_time,
+        timezone: screen.power_timezone || 'America/Los_Angeles',
+        energy_saving: screen.power_energy_saving || true,
+        warning_minutes: screen.power_warning_minutes || 5,
+        last_updated: screen.power_last_updated
+      } : null,
       next_sync_recommended: 120 // seconds
     }
 

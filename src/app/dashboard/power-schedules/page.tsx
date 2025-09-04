@@ -1,0 +1,520 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger 
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { toast } from '@/hooks/use-toast'
+import { Plus, Clock, Zap, Settings, Play, Trash2 } from 'lucide-react'
+
+interface PowerScheduleProfile {
+  id: string
+  profile_name: string
+  device_type: string
+  power_on_time: string
+  power_off_time: string
+  power_timezone: string
+  power_energy_saving: boolean
+  power_warning_minutes: number
+  organization: {
+    id: string
+    name: string
+  }
+  created_at: string
+  updated_at: string
+}
+
+const DEVICE_TYPES = {
+  'menu_board': { label: 'Menu Board', icon: '🍽️', description: 'Main menu displays' },
+  'drive_thru': { label: 'Drive Thru', icon: '🚗', description: 'Drive-through displays' },
+  'lobby_display': { label: 'Lobby Display', icon: '🏢', description: 'Customer lobby screens' },
+  'kitchen_display': { label: 'Kitchen Display', icon: '👨‍🍳', description: 'Kitchen order screens' },
+  'promotional': { label: 'Promotional', icon: '📢', description: 'Marketing displays' }
+}
+
+const DEFAULT_SCHEDULES = {
+  'menu_board': { on: '06:00', off: '23:00', warning: 5 },
+  'drive_thru': { on: '05:30', off: '23:30', warning: 10 },
+  'lobby_display': { on: '07:00', off: '22:00', warning: 5 },
+  'kitchen_display': { on: '05:00', off: '23:59', warning: 15 },
+  'promotional': { on: '11:00', off: '21:00', warning: 3 }
+}
+
+export default function PowerSchedulesPage() {
+  const [profiles, setProfiles] = useState<PowerScheduleProfile[]>([])
+  const [loading, setLoading] = useState(true)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [applyDialogOpen, setApplyDialogOpen] = useState(false)
+  const [selectedProfile, setSelectedProfile] = useState<PowerScheduleProfile | null>(null)
+  
+  // Form states
+  const [formData, setFormData] = useState({
+    profile_name: '',
+    device_type: '',
+    power_on_time: '',
+    power_off_time: '',
+    power_energy_saving: true,
+    power_warning_minutes: 5
+  })
+
+  const [applyData, setApplyData] = useState({
+    target_device_type: '',
+    apply_to_all: false
+  })
+
+  useEffect(() => {
+    fetchProfiles()
+  }, [])
+
+  const fetchProfiles = async () => {
+    try {
+      const response = await fetch('/api/power-schedules')
+      if (!response.ok) throw new Error('Failed to fetch profiles')
+      
+      const result = await response.json()
+      setProfiles(result.data?.profiles || [])
+    } catch (error) {
+      console.error('Error fetching profiles:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load power schedule profiles",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeviceTypeChange = (deviceType: string) => {
+    const defaultSchedule = DEFAULT_SCHEDULES[deviceType as keyof typeof DEFAULT_SCHEDULES]
+    setFormData(prev => ({
+      ...prev,
+      device_type: deviceType,
+      power_on_time: defaultSchedule?.on || '06:00',
+      power_off_time: defaultSchedule?.off || '23:00',
+      power_warning_minutes: defaultSchedule?.warning || 5
+    }))
+  }
+
+  const handleCreateProfile = async () => {
+    try {
+      if (!formData.profile_name || !formData.device_type) {
+        toast({
+          title: "Error",
+          description: "Please fill in all required fields",
+          variant: "destructive"
+        })
+        return
+      }
+
+      const response = await fetch('/api/power-schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...formData,
+          power_timezone: 'America/Los_Angeles' // PST default
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to create profile')
+      }
+
+      toast({
+        title: "Success",
+        description: "Power schedule profile created successfully"
+      })
+
+      setCreateDialogOpen(false)
+      setFormData({
+        profile_name: '',
+        device_type: '',
+        power_on_time: '',
+        power_off_time: '',
+        power_energy_saving: true,
+        power_warning_minutes: 5
+      })
+      fetchProfiles()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleApplyProfile = async () => {
+    if (!selectedProfile) return
+
+    try {
+      const response = await fetch('/api/power-schedules/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile_id: selectedProfile.id,
+          target_device_type: applyData.target_device_type || selectedProfile.device_type,
+          apply_to_all: applyData.apply_to_all
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to apply profile')
+      }
+
+      const result = await response.json()
+      
+      toast({
+        title: "Success",
+        description: result.data.message
+      })
+
+      setApplyDialogOpen(false)
+      setSelectedProfile(null)
+      setApplyData({
+        target_device_type: '',
+        apply_to_all: false
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleDeleteProfile = async (profileId: string) => {
+    if (!confirm('Are you sure you want to delete this power schedule profile?')) return
+
+    try {
+      const response = await fetch(`/api/power-schedules/${profileId}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete profile')
+      }
+
+      toast({
+        title: "Success",
+        description: "Power schedule profile deleted successfully"
+      })
+
+      fetchProfiles()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      })
+    }
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64">Loading...</div>
+  }
+
+  return (
+    <div className="container mx-auto p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Power Schedules</h1>
+          <p className="text-muted-foreground">
+            Manage automatic power scheduling for digital signage displays by device type
+          </p>
+        </div>
+        
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Profile
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Create Power Schedule Profile</DialogTitle>
+              <DialogDescription>
+                Create a reusable power schedule profile that can be applied to multiple devices of the same type.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="profile_name" className="text-right">
+                  Profile Name
+                </Label>
+                <Input
+                  id="profile_name"
+                  value={formData.profile_name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, profile_name: e.target.value }))}
+                  className="col-span-3"
+                  placeholder="e.g. Standard Restaurant Hours"
+                />
+              </div>
+              
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="device_type" className="text-right">
+                  Device Type
+                </Label>
+                <Select value={formData.device_type} onValueChange={handleDeviceTypeChange}>
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select device type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(DEVICE_TYPES).map(([key, value]) => (
+                      <SelectItem key={key} value={key}>
+                        <div className="flex items-center gap-2">
+                          <span>{value.icon}</span>
+                          <div>
+                            <div className="font-medium">{value.label}</div>
+                            <div className="text-sm text-muted-foreground">{value.description}</div>
+                          </div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="power_on_time" className="text-right">
+                  Power ON Time
+                </Label>
+                <Input
+                  id="power_on_time"
+                  type="time"
+                  value={formData.power_on_time}
+                  onChange={(e) => setFormData(prev => ({ ...prev, power_on_time: e.target.value }))}
+                  className="col-span-3"
+                />
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="power_off_time" className="text-right">
+                  Power OFF Time
+                </Label>
+                <Input
+                  id="power_off_time"
+                  type="time"
+                  value={formData.power_off_time}
+                  onChange={(e) => setFormData(prev => ({ ...prev, power_off_time: e.target.value }))}
+                  className="col-span-3"
+                />
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="power_energy_saving" className="text-right">
+                  Energy Saving
+                </Label>
+                <div className="col-span-3">
+                  <Switch
+                    id="power_energy_saving"
+                    checked={formData.power_energy_saving}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, power_energy_saving: checked }))}
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Enable additional power-saving features during off hours
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="power_warning_minutes" className="text-right">
+                  Warning Minutes
+                </Label>
+                <Input
+                  id="power_warning_minutes"
+                  type="number"
+                  min="0"
+                  max="30"
+                  value={formData.power_warning_minutes}
+                  onChange={(e) => setFormData(prev => ({ ...prev, power_warning_minutes: parseInt(e.target.value) || 0 }))}
+                  className="col-span-3"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreateProfile}>
+                Create Profile
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Power Schedule Profiles Grid */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {profiles.map((profile) => (
+          <Card key={profile.id} className="relative">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">{DEVICE_TYPES[profile.device_type as keyof typeof DEVICE_TYPES]?.icon}</span>
+                  <div>
+                    <CardTitle className="text-lg">{profile.profile_name}</CardTitle>
+                    <CardDescription>
+                      {DEVICE_TYPES[profile.device_type as keyof typeof DEVICE_TYPES]?.label}
+                    </CardDescription>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDeleteProfile(profile.id)}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-green-600" />
+                  <span className="text-sm font-medium">ON: {profile.power_on_time}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-red-600" />
+                  <span className="text-sm font-medium">OFF: {profile.power_off_time}</span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4" />
+                    <span className="text-sm">Energy Saving</span>
+                  </div>
+                  <Badge variant={profile.power_energy_saving ? "default" : "secondary"}>
+                    {profile.power_energy_saving ? "Enabled" : "Disabled"}
+                  </Badge>
+                </div>
+
+                <div className="text-sm text-muted-foreground">
+                  Warning: {profile.power_warning_minutes} minutes
+                </div>
+
+                <div className="pt-2">
+                  <Button 
+                    className="w-full" 
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedProfile(profile)
+                      setApplyData({ target_device_type: profile.device_type, apply_to_all: false })
+                      setApplyDialogOpen(true)
+                    }}
+                  >
+                    <Play className="w-4 h-4 mr-2" />
+                    Apply to Devices
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+        {profiles.length === 0 && (
+          <div className="col-span-full">
+            <Card>
+              <CardContent className="text-center py-12">
+                <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No Power Schedule Profiles</h3>
+                <p className="text-muted-foreground mb-4">
+                  Create your first power schedule profile to manage device operating hours
+                </p>
+                <Button onClick={() => setCreateDialogOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Profile
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
+
+      {/* Apply Profile Dialog */}
+      <Dialog open={applyDialogOpen} onOpenChange={setApplyDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Apply Power Schedule Profile</DialogTitle>
+            <DialogDescription>
+              Apply "{selectedProfile?.profile_name}" to multiple devices
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="apply_device_type" className="text-right">
+                Device Type
+              </Label>
+              <Select 
+                value={applyData.target_device_type} 
+                onValueChange={(value) => setApplyData(prev => ({ ...prev, target_device_type: value }))}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select device type to apply to" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(DEVICE_TYPES).map(([key, value]) => (
+                    <SelectItem key={key} value={key}>
+                      <div className="flex items-center gap-2">
+                        <span>{value.icon}</span>
+                        <span>{value.label}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="apply_to_all" className="text-right">
+                Apply to All
+              </Label>
+              <div className="col-span-3">
+                <Switch
+                  id="apply_to_all"
+                  checked={applyData.apply_to_all}
+                  onCheckedChange={(checked) => setApplyData(prev => ({ ...prev, apply_to_all: checked }))}
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Apply to all devices of this type in your organization
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApplyDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleApplyProfile}>
+              Apply Schedule
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
