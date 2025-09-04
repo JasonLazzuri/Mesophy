@@ -187,6 +187,17 @@ export async function handleApiOperation<T>(
 }
 
 /**
+ * Legacy apiResponse function for backward compatibility
+ * @deprecated Use createSuccessResponse or createErrorResponse instead
+ */
+export function apiResponse(data?: any, error?: string, status?: number): NextResponse {
+  if (error) {
+    return createErrorResponse(error, status || 500)
+  }
+  return createSuccessResponse(data, undefined, status || 200)
+}
+
+/**
  * Middleware helper for standard error headers
  */
 export function addStandardHeaders(response: NextResponse): NextResponse {
