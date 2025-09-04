@@ -52,6 +52,7 @@ class ContentSyncManager(
     
     private var syncJob: Job? = null
     private var isRunning = false
+    private var isUnpairing = false
     private var listeners = mutableListOf<ContentSyncListener>()
     private var isPollingActive = false
     private var isOnline = true
@@ -93,6 +94,14 @@ class ContentSyncManager(
     }
     
     /**
+     * Reset unpairing state when device is successfully paired
+     */
+    fun resetUnpairingState() {
+        isUnpairing = false
+        Timber.d("🔄 Unpairing state reset - ContentSyncManager ready to start")
+    }
+    
+    /**
      * Start content synchronization process
      */
     fun start() {
@@ -101,10 +110,15 @@ class ContentSyncManager(
             return
         }
         
+        if (isUnpairing) {
+            Timber.w("Device is being unpaired - ignoring start request")
+            return
+        }
+        
         val deviceToken = getDeviceToken()
         if (deviceToken == null) {
             Timber.e("No device token found - device not paired")
-            notifyError("Device not paired - please restart pairing process")
+            handleAuthenticationFailure()
             return
         }
         
@@ -237,14 +251,30 @@ class ContentSyncManager(
                 isOnline = false
                 updateSyncStatus(currentSyncStatus.copy(isConnected = false))
                 
-                // Load from cache
-                val cachedResponse = loadCachedSchedules()
-                if (cachedResponse != null) {
-                    Timber.i("📱 Using cached schedules (offline mode)")
-                    cachedResponse
-                } else {
-                    Timber.e("❌ No cached data available and network failed")
-                    throw e
+                // Check if this is an authentication failure (device unpaired from portal)
+                val errorMessage = e.message?.lowercase() ?: ""
+                when {
+                    errorMessage.contains("401") || errorMessage.contains("unauthorized") -> {
+                        Timber.e("🚨 AUTHENTICATION FAILED - Device may have been unpaired from portal")
+                        handleAuthenticationFailure()
+                        throw e
+                    }
+                    errorMessage.contains("null") && errorMessage.contains("device") -> {
+                        Timber.e("🚨 DEVICE CONFIGURATION INVALID - Device appears to be unpaired")
+                        handleAuthenticationFailure()
+                        throw e
+                    }
+                    else -> {
+                        // Regular network error - try cache
+                        val cachedResponse = loadCachedSchedules()
+                        if (cachedResponse != null) {
+                            Timber.i("📱 Using cached schedules (offline mode)")
+                            cachedResponse
+                        } else {
+                            Timber.e("❌ No cached data available and network failed")
+                            throw e
+                        }
+                    }
                 }
             }
             
@@ -253,8 +283,14 @@ class ContentSyncManager(
             Timber.i("  • Schedules: ${syncResponse.allSchedules.size}")
             Timber.i("  • Schedule changed: ${syncResponse.scheduleChanged}")
             Timber.i("  • Media changed: ${syncResponse.mediaChanged}")
+            Timber.i("  • Power schedule: ${if (syncResponse.powerSchedule?.enabled == true) "enabled" else "disabled"}")
             
-            // 2. Check if content actually changed by comparing hash
+            // 2. Process power schedule updates
+            syncResponse.powerSchedule?.let { powerSchedule ->
+                processPowerScheduleUpdate(powerSchedule)
+            }
+            
+            // 3. Check if content actually changed by comparing hash
             val contentHash = generateContentHash(syncResponse)
             val hasRealChanges = contentHash != lastContentHash
             
@@ -592,6 +628,53 @@ class ContentSyncManager(
     }
     
     /**
+     * Handle authentication failure by clearing stored credentials and notifying MainActivity
+     */
+    private fun handleAuthenticationFailure() {
+        Timber.i("🔧 AUTHENTICATION FAILURE DETECTED - Clearing credentials and returning to pairing mode")
+        
+        // Set flag to prevent recursive starts during unpairing process
+        isUnpairing = true
+        
+        // Clear all stored authentication data immediately
+        sharedPrefs.edit()
+            .remove("device_token")
+            .remove("screen_id")
+            .remove("device_id")
+            .remove("screen_name")
+            .remove("api_base")
+            .remove("is_paired")
+            .apply()
+        
+        Timber.i("🗑️ Device credentials cleared successfully")
+        
+        // Clear any cached content
+        try {
+            val cacheDir = java.io.File(context.cacheDir, "content_cache")
+            if (cacheDir.exists()) {
+                cacheDir.deleteRecursively()
+                Timber.d("🗑️ Content cache cleared")
+            }
+        } catch (e: Exception) {
+            Timber.w("Failed to clear cache: ${e.message}")
+        }
+        
+        // Stop the sync manager
+        stop()
+        
+        // Notify listeners that device has been unpaired (MainActivity will handle transition)
+        listeners.forEach { listener ->
+            try {
+                listener.onSyncError("DEVICE_UNPAIRED")
+            } catch (e: Exception) {
+                Timber.e(e, "Error notifying listener of device unpaired")
+            }
+        }
+        
+        Timber.i("📡 DEVICE UNPAIRED - MainActivity should now show pairing screen")
+    }
+    
+    /**
      * Get saved device token from SharedPreferences
      */
     private fun getDeviceToken(): String? {
@@ -725,6 +808,39 @@ class ContentSyncManager(
         } catch (e: Exception) {
             Timber.w("Failed to check memory state: ${e.message}")
             false
+        }
+    }
+    
+    /**
+     * Process power schedule updates from the server
+     */
+    private fun processPowerScheduleUpdate(powerSchedule: PowerSchedule) {
+        try {
+            Timber.i("🔌 Processing power schedule update:")
+            Timber.i("  • Enabled: ${powerSchedule.enabled}")
+            Timber.i("  • ON time: ${powerSchedule.onTime}")
+            Timber.i("  • OFF time: ${powerSchedule.offTime}")
+            Timber.i("  • Timezone: ${powerSchedule.timezone}")
+            Timber.i("  • Energy saving: ${powerSchedule.energySaving}")
+            Timber.i("  • Warning minutes: ${powerSchedule.warningMinutes}")
+            
+            // Update PowerScheduleManager via internal broadcast
+            val intent = android.content.Intent("com.mesophy.signage.INTERNAL_POWER_SCHEDULE_UPDATE").apply {
+                putExtra("schedule_enabled", powerSchedule.enabled)
+                putExtra("schedule_on_time", powerSchedule.onTime)
+                putExtra("schedule_off_time", powerSchedule.offTime)
+                putExtra("schedule_timezone", powerSchedule.timezone)
+                putExtra("schedule_energy_saving", powerSchedule.energySaving)
+                putExtra("schedule_warning_minutes", powerSchedule.warningMinutes)
+                putExtra("source", "content_sync")
+                putExtra("last_updated", powerSchedule.lastUpdated)
+            }
+            context.sendBroadcast(intent)
+            
+            Timber.i("🔌 Power schedule broadcast sent successfully")
+            
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Failed to process power schedule update")
         }
     }
 }

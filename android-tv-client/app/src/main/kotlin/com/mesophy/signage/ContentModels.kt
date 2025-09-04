@@ -19,6 +19,7 @@ data class SyncResponse(
     @Json(name = "media_changed") val mediaChanged: Boolean,
     @Json(name = "current_schedule") val currentSchedule: Schedule?,
     @Json(name = "all_schedules") val allSchedules: List<Schedule>,
+    @Json(name = "power_schedule") val powerSchedule: PowerSchedule?,
     @Json(name = "next_sync_recommended") val nextSyncRecommended: Int // seconds
 )
 
@@ -33,6 +34,17 @@ data class Schedule(
     @Json(name = "days_of_week") val daysOfWeek: List<Int>,
     val priority: Int,
     val playlist: Playlist?
+)
+
+@JsonClass(generateAdapter = true)
+data class PowerSchedule(
+    val enabled: Boolean,
+    @Json(name = "on_time") val onTime: String,
+    @Json(name = "off_time") val offTime: String,
+    val timezone: String,
+    @Json(name = "energy_saving") val energySaving: Boolean,
+    @Json(name = "warning_minutes") val warningMinutes: Int,
+    @Json(name = "last_updated") val lastUpdated: String?
 )
 
 @JsonClass(generateAdapter = true)

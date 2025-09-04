@@ -1,5 +1,9 @@
 package com.mesophy.signage
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
 import android.view.View
 import android.widget.TextView
@@ -39,6 +43,23 @@ class MainActivity : FragmentActivity() {
     private var errorRecoveryManager: ErrorRecoveryManager? = null
     private var isMediaPlaying = false
     
+    // Internal broadcast receiver for power management commands
+    private val powerCommandReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                "com.mesophy.signage.INTERNAL_POWER_SCHEDULE_UPDATE" -> {
+                    handlePowerScheduleUpdate(intent)
+                }
+                "com.mesophy.signage.INTERNAL_FORCE_POWER_STATE" -> {
+                    handleForcePowerState(intent)
+                }
+                "com.mesophy.signage.INTERNAL_GET_POWER_STATUS" -> {
+                    handleGetPowerStatus()
+                }
+            }
+        }
+    }
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -51,6 +72,14 @@ class MainActivity : FragmentActivity() {
         Timber.i("🚀 Mesophy Digital Signage - MainActivity created")
         Timber.d("Running on Android ${android.os.Build.VERSION.RELEASE}")
         Timber.d("Device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+        
+        // Check if this is an auto-start from boot
+        val isAutoStart = intent?.getBooleanExtra("auto_start", false) ?: false
+        val startReason = intent?.getStringExtra("start_reason") ?: "manual"
+        
+        if (isAutoStart) {
+            Timber.i("🔄 AUTO-START DETECTED - Launched via $startReason")
+        }
         
         // Initialize views
         pairingCodeText = findViewById(R.id.pairingCodeText)
@@ -68,6 +97,14 @@ class MainActivity : FragmentActivity() {
         updateConnectionStatus("Initializing...")
         updateStatusIndicator(StatusType.CONNECTING)
         
+        // Register internal broadcast receiver for power commands
+        val powerCommandFilter = IntentFilter().apply {
+            addAction("com.mesophy.signage.INTERNAL_POWER_SCHEDULE_UPDATE")
+            addAction("com.mesophy.signage.INTERNAL_FORCE_POWER_STATE") 
+            addAction("com.mesophy.signage.INTERNAL_GET_POWER_STATUS")
+        }
+        registerReceiver(powerCommandReceiver, powerCommandFilter)
+        
         // Check if device is already paired
         checkPairingStatusAndProceed()
     }
@@ -83,6 +120,14 @@ class MainActivity : FragmentActivity() {
         deviceHealthMonitor?.stop()
         powerScheduleManager?.stop()
         errorRecoveryManager?.stop()
+        
+        // Unregister internal broadcast receiver
+        try {
+            unregisterReceiver(powerCommandReceiver)
+        } catch (e: Exception) {
+            Timber.w("Failed to unregister power command receiver: ${e.message}")
+        }
+        
         Timber.i("MainActivity destroyed")
     }
     
@@ -320,6 +365,70 @@ class MainActivity : FragmentActivity() {
     }
     
     /**
+     * Transition back to pairing mode when device becomes unpaired
+     */
+    private fun transitionBackToPairingMode() {
+        Timber.i("🔄 TRANSITIONING BACK TO PAIRING MODE")
+        
+        try {
+            // Stop all running services
+            errorRecoveryManager?.stop()
+            deviceHealthMonitor?.stop()  
+            powerScheduleManager?.stop()
+            mediaDownloadManager?.stopDownloads()
+            
+            // Stop and hide media playback
+            if (isMediaPlaying) {
+                mediaPlayerFragment?.stopPlayback()
+                isMediaPlaying = false
+            }
+            
+            // Show the pairing UI again
+            findViewById<View>(R.id.headerSection).visibility = View.VISIBLE
+            findViewById<View>(R.id.mainCard).visibility = View.VISIBLE
+            findViewById<View>(R.id.footerSection).visibility = View.VISIBLE
+            
+            // Remove media fragment if it exists
+            mediaPlayerFragment?.let { fragment ->
+                supportFragmentManager.beginTransaction()
+                    .remove(fragment)
+                    .commit()
+                mediaPlayerFragment = null
+            }
+            
+            // Reset UI to pairing state
+            statusText.text = "Device unpaired - generating new code..."
+            pairingCodeText.text = "..."
+            updateConnectionStatus("Preparing to pair...")
+            updateStatusIndicator(StatusType.CONNECTING)
+            
+            // Clear any stored configuration (should already be cleared by ContentSyncManager)
+            val sharedPrefs = getSharedPreferences("mesophy_config", MODE_PRIVATE)
+            with(sharedPrefs.edit()) {
+                clear()
+                apply()
+            }
+            
+            // Reset internal state
+            currentPairingCode = null
+            isPolling = false
+            
+            // Start fresh pairing process after a short delay
+            lifecycleScope.launch {
+                delay(1000) // Brief delay to show unpaired message
+                startPairingProcess()
+            }
+            
+            Timber.i("✅ Successfully transitioned back to pairing mode")
+            
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error during transition to pairing mode")
+            updateConnectionStatus("Error returning to pairing mode")
+            updateStatusIndicator(StatusType.ERROR)
+        }
+    }
+    
+    /**
      * Initialize and start ContentSyncManager
      */
     private fun startContentSyncManager() {
@@ -446,6 +555,9 @@ class MainActivity : FragmentActivity() {
             // Create ContentSyncManager 
             val contentSyncManager = ContentSyncManager(this, mediaDownloadManager!!)
             
+            // Reset unpairing state from any previous authentication failures
+            contentSyncManager.resetUnpairingState()
+            
             // Register components with error recovery manager
             errorRecoveryManager!!.registerComponents(contentSyncManager, null) // SSE manager will be registered separately
             
@@ -466,8 +578,10 @@ class MainActivity : FragmentActivity() {
                 override fun onSyncError(error: String) {
                     runOnUiThread {
                         handleContentSyncError(error)
-                        // Report to error recovery manager
-                        errorRecoveryManager?.handleComponentError("ContentSyncManager", error)
+                        // Only report to error recovery manager if NOT a device unpaired error
+                        if (error != "DEVICE_UNPAIRED" && !error.contains("Device not paired")) {
+                            errorRecoveryManager?.handleComponentError("ContentSyncManager", error)
+                        }
                     }
                 }
             })
@@ -604,6 +718,15 @@ class MainActivity : FragmentActivity() {
      */
     private fun handleContentSyncError(error: String) {
         Timber.e("❌ Content sync error: $error")
+        
+        // Check if this is a device unpaired error
+        if (error == "DEVICE_UNPAIRED") {
+            Timber.i("🔧 DEVICE UNPAIRED DETECTED - Returning to pairing screen")
+            transitionBackToPairingMode()
+            return
+        }
+        
+        // Handle other sync errors normally
         statusText.text = "Sync error"
         updateConnectionStatus(error)
         updateStatusIndicator(StatusType.ERROR)
@@ -741,6 +864,83 @@ class MainActivity : FragmentActivity() {
                 }.joinToString("")
             }
             else -> cleanCode
+        }
+    }
+    
+    /**
+     * Handle power schedule update command
+     */
+    private fun handlePowerScheduleUpdate(intent: Intent) {
+        try {
+            val enabled = intent.getBooleanExtra("schedule_enabled", true)
+            val onTime = intent.getStringExtra("schedule_on_time") ?: "09:00"
+            val offTime = intent.getStringExtra("schedule_off_time") ?: "18:00"
+            val energySaving = intent.getBooleanExtra("schedule_energy_saving", true)
+            val warningMinutes = intent.getIntExtra("schedule_warning_minutes", 5)
+            
+            Timber.i("🔌 Updating power schedule: ON=$onTime, OFF=$offTime, enabled=$enabled")
+            
+            val newSchedule = PowerScheduleManager.PowerSchedule(
+                enabled = enabled,
+                onTime = onTime,
+                offTime = offTime,
+                timezone = "UTC",
+                weekdaySchedule = PowerScheduleManager.WeekSchedule(),
+                energySavingMode = energySaving,
+                gracefulShutdown = true,
+                preShutdownWarningMinutes = warningMinutes
+            )
+            
+            powerScheduleManager?.updateSchedule(newSchedule)
+            updateConnectionStatus("Power schedule updated: $onTime - $offTime")
+            
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to update power schedule")
+        }
+    }
+    
+    /**
+     * Handle force power state command
+     */
+    private fun handleForcePowerState(intent: Intent) {
+        try {
+            val stateString = intent.getStringExtra("power_state") ?: "ON"
+            val powerState = PowerScheduleManager.PowerState.valueOf(stateString)
+            
+            Timber.i("🔌 Forcing power state: $powerState")
+            
+            powerScheduleManager?.forcePowerState(powerState)
+            
+            val statusText = when (powerState) {
+                PowerScheduleManager.PowerState.ON -> "Display forced ON"
+                PowerScheduleManager.PowerState.OFF -> "Display forced OFF"
+                else -> "Power state: $powerState"
+            }
+            updateConnectionStatus(statusText)
+            
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to force power state")
+            updateConnectionStatus("Power control failed")
+        }
+    }
+    
+    /**
+     * Handle get power status command
+     */
+    private fun handleGetPowerStatus() {
+        try {
+            val currentState = powerScheduleManager?.getCurrentPowerState() ?: PowerScheduleManager.PowerState.UNKNOWN
+            val currentSchedule = powerScheduleManager?.getCurrentSchedule()
+            
+            Timber.i("📊 Current power state: $currentState")
+            if (currentSchedule != null) {
+                Timber.i("📊 Current schedule: ${currentSchedule.onTime} - ${currentSchedule.offTime} (enabled: ${currentSchedule.enabled})")
+            }
+            
+            updateConnectionStatus("Power status: $currentState")
+            
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get power status")
         }
     }
 }
