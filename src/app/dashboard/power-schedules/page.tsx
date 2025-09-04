@@ -40,18 +40,14 @@ interface PowerScheduleProfile {
 
 const DEVICE_TYPES = {
   'menu_board': { label: 'Menu Board', icon: '🍽️', description: 'Main menu displays' },
-  'drive_thru': { label: 'Drive Thru', icon: '🚗', description: 'Drive-through displays' },
-  'lobby_display': { label: 'Lobby Display', icon: '🏢', description: 'Customer lobby screens' },
-  'kitchen_display': { label: 'Kitchen Display', icon: '👨‍🍳', description: 'Kitchen order screens' },
-  'promotional': { label: 'Promotional', icon: '📢', description: 'Marketing displays' }
+  'promo_board': { label: 'Promo Board', icon: '📢', description: 'Promotional displays' },
+  'employee_board': { label: 'Employee Board', icon: '👨‍🍳', description: 'Employee information screens' }
 }
 
 const DEFAULT_SCHEDULES = {
   'menu_board': { on: '06:00', off: '23:00', warning: 5 },
-  'drive_thru': { on: '05:30', off: '23:30', warning: 10 },
-  'lobby_display': { on: '07:00', off: '22:00', warning: 5 },
-  'kitchen_display': { on: '05:00', off: '23:59', warning: 15 },
-  'promotional': { on: '11:00', off: '21:00', warning: 3 }
+  'promo_board': { on: '11:00', off: '21:00', warning: 3 },
+  'employee_board': { on: '05:00', off: '23:59', warning: 15 }
 }
 
 export default function PowerSchedulesPage() {
