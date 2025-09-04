@@ -1,9 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { 
   Dialog, 
   DialogContent, 
@@ -240,10 +238,10 @@ export default function PowerSchedulesPage() {
         
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
               <Plus className="w-4 h-4 mr-2" />
               Create Profile
-            </Button>
+            </button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
@@ -350,12 +348,18 @@ export default function PowerSchedulesPage() {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+              <button 
+                onClick={() => setCreateDialogOpen(false)}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+              >
                 Cancel
-              </Button>
-              <Button onClick={handleCreateProfile}>
+              </button>
+              <button 
+                onClick={handleCreateProfile}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+              >
                 Create Profile
-              </Button>
+              </button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -364,7 +368,7 @@ export default function PowerSchedulesPage() {
       {/* Power Schedule Profiles Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {profiles.map((profile) => (
-          <Card key={profile.id} className="relative">
+          <Card key={profile.id} className="relative hover:shadow-md transition-shadow">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -376,14 +380,12 @@ export default function PowerSchedulesPage() {
                     </CardDescription>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <button
                   onClick={() => handleDeleteProfile(profile.id)}
-                  className="text-red-500 hover:text-red-700"
+                  className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
-                </Button>
+                </button>
               </div>
             </CardHeader>
             <CardContent>
@@ -402,9 +404,9 @@ export default function PowerSchedulesPage() {
                     <Zap className="w-4 h-4" />
                     <span className="text-sm">Energy Saving</span>
                   </div>
-                  <Badge variant={profile.power_energy_saving ? "default" : "secondary"}>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${profile.power_energy_saving ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
                     {profile.power_energy_saving ? "Enabled" : "Disabled"}
-                  </Badge>
+                  </span>
                 </div>
 
                 <div className="text-sm text-muted-foreground">
@@ -412,9 +414,8 @@ export default function PowerSchedulesPage() {
                 </div>
 
                 <div className="pt-2">
-                  <Button 
-                    className="w-full" 
-                    variant="outline"
+                  <button 
+                    className="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors" 
                     onClick={() => {
                       setSelectedProfile(profile)
                       setApplyData({ target_device_type: profile.device_type, apply_to_all: false })
@@ -423,7 +424,7 @@ export default function PowerSchedulesPage() {
                   >
                     <Play className="w-4 h-4 mr-2" />
                     Apply to Devices
-                  </Button>
+                  </button>
                 </div>
               </div>
             </CardContent>
@@ -439,10 +440,13 @@ export default function PowerSchedulesPage() {
                 <p className="text-muted-foreground mb-4">
                   Create your first power schedule profile to manage device operating hours
                 </p>
-                <Button onClick={() => setCreateDialogOpen(true)}>
+                <button 
+                  onClick={() => setCreateDialogOpen(true)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Create Profile
-                </Button>
+                </button>
               </CardContent>
             </Card>
           </div>
@@ -502,12 +506,18 @@ export default function PowerSchedulesPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setApplyDialogOpen(false)}>
+            <button 
+              onClick={() => setApplyDialogOpen(false)}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+            >
               Cancel
-            </Button>
-            <Button onClick={handleApplyProfile}>
+            </button>
+            <button 
+              onClick={handleApplyProfile}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+            >
               Apply Schedule
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
