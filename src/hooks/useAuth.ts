@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
 import { Database } from '@/types/database'
@@ -13,6 +14,7 @@ export function useAuth() {
   const [loading, setLoading] = useState(true)
   const [initialized, setInitialized] = useState(false)
   const mountedRef = useRef(true)
+  const router = useRouter()
 
   const fetchProfile = useCallback(async (userId: string, supabase: any) => {
     if (!mountedRef.current) return null
@@ -126,18 +128,24 @@ export function useAuth() {
       try {
         await supabase.auth.signOut()
         // State will be updated by the auth state change listener
+        // Redirect to hero page after sign out
+        router.push('/')
       } catch (error) {
         console.error('Sign out error:', error)
         // Force local state update on error
         setUser(null)
         setProfile(null)
+        // Still redirect even on error
+        router.push('/')
       }
     } else {
       // Force local state update if no client
       setUser(null)
       setProfile(null)
+      // Redirect to hero page
+      router.push('/')
     }
-  }, [])
+  }, [router])
 
   return {
     user,
