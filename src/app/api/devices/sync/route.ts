@@ -97,7 +97,6 @@ export async function GET(request: NextRequest) {
         target_screen_types,
         target_locations
       `)
-      .eq('is_active', true)
       .lte('start_date', currentDate)
       .or(`end_date.is.null,end_date.gte.${currentDate}`)
       .order('priority', { ascending: false })

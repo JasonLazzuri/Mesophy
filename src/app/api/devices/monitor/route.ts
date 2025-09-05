@@ -55,7 +55,6 @@ export async function GET(request: NextRequest) {
         )
       `)
       .not('device_id', 'is', null)
-      .eq('is_active', true)
 
     if (devicesError) {
       console.error('Error fetching devices:', devicesError)

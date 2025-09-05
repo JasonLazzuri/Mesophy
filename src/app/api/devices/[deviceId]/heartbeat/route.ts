@@ -113,7 +113,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         )
       `)
       .eq('screen_id', screen.id)
-      .eq('is_active', true)
       .gte('end_date', new Date().toISOString().split('T')[0])
       .lte('start_date', new Date().toISOString().split('T')[0])
 
