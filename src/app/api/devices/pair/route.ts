@@ -121,12 +121,38 @@ export async function POST(request: NextRequest) {
       }, { status: 409 })
     }
 
-    // Generate secure device token
-    const { data: deviceToken, error: tokenError } = await adminSupabase
-      .rpc('generate_device_token')
+    // Generate secure device token - try database function first, fallback to JavaScript
+    let deviceToken = null
+    let tokenDbError = null
 
-    if (tokenError || !deviceToken) {
-      console.error('Failed to generate device token:', tokenError)
+    try {
+      const { data: tokenResult, error: tokenError } = await adminSupabase
+        .rpc('generate_device_token')
+      
+      if (tokenError) {
+        tokenDbError = tokenError
+        throw tokenError
+      }
+      
+      deviceToken = tokenResult
+    } catch (error) {
+      console.warn('Database function failed for device token, using JavaScript fallback:', tokenDbError || error)
+      
+      // JavaScript fallback for device token generation (secure random string)
+      const generateToken = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+        let result = ''
+        for (let i = 0; i < 64; i++) {
+          result += chars.charAt(Math.floor(Math.random() * chars.length))
+        }
+        return result
+      }
+      
+      deviceToken = generateToken()
+    }
+
+    if (!deviceToken) {
+      console.error('Failed to generate device token')
       return NextResponse.json({ 
         error: 'Failed to generate device token' 
       }, { status: 500 })

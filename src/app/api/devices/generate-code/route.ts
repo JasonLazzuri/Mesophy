@@ -31,18 +31,61 @@ export async function POST(request: NextRequest) {
       serviceKey
     )
 
-    // Generate unique pairing code
-    const { data: codeResult, error: codeError } = await adminSupabase
-      .rpc('generate_pairing_code')
+    // Generate unique pairing code - try database function first, fallback to JavaScript
+    let pairingCode = null
+    let dbError = null
 
-    if (codeError || !codeResult) {
-      console.error('Failed to generate pairing code:', codeError)
-      return NextResponse.json({ 
-        error: 'Failed to generate pairing code' 
-      }, { status: 500 })
+    try {
+      const { data: codeResult, error: codeError } = await adminSupabase
+        .rpc('generate_pairing_code')
+      
+      if (codeError) {
+        dbError = codeError
+        throw codeError
+      }
+      
+      pairingCode = codeResult
+    } catch (error) {
+      console.warn('Database function failed, using JavaScript fallback:', dbError || error)
+      
+      // JavaScript fallback for pairing code generation
+      const generateCode = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        let result = ''
+        for (let i = 0; i < 6; i++) {
+          result += chars.charAt(Math.floor(Math.random() * chars.length))
+        }
+        return result
+      }
+
+      // Generate code with collision detection
+      let attempts = 0
+      const maxAttempts = 10
+      
+      while (attempts < maxAttempts) {
+        const candidate = generateCode()
+        
+        // Check if code already exists
+        const { data: existing } = await adminSupabase
+          .from('device_pairing_codes')
+          .select('code')
+          .eq('code', candidate)
+          .single()
+        
+        if (!existing) {
+          pairingCode = candidate
+          break
+        }
+        attempts++
+      }
+
+      if (!pairingCode) {
+        console.error('Failed to generate unique pairing code after', maxAttempts, 'attempts')
+        return NextResponse.json({ 
+          error: 'Failed to generate pairing code' 
+        }, { status: 500 })
+      }
     }
-
-    const pairingCode = codeResult
 
     // Store pairing code with 15 minute expiration
     const expiresAt = new Date()
