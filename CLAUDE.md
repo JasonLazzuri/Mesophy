@@ -226,3 +226,94 @@ The platform now automatically detects device types and assigns appropriate pref
 - `src/app/api/screens/route.ts` - Removed insecure simple-auth
 - `src/app/api/debug/*/route.ts` - Secured debug endpoints
 - `src/lib/simple-auth.ts` - Deprecated with secure replacement
+
+## Critical Incident: Android TV Pairing Failure (September 2025)
+
+**⚠️ RESOLVED - September 5, 2025**
+
+**Issue**: Android TV devices experienced pairing loops - devices would successfully pair but immediately reset and request new pairing codes, making them unusable.
+
+### Root Cause Analysis
+
+**Primary Issue**: Health monitor implementation introduced administrative `is_active` field requirements into device-facing API endpoints, breaking the post-pairing sync process.
+
+**Contributing Factors**:
+1. **Administrative Field Contamination**: Added `is_active=true` filters to device APIs
+2. **Database Schema Time Travel**: Rollback introduced dependency on non-existent power scheduling fields  
+3. **Missing Infrastructure**: Rollback removed JavaScript fallbacks for database functions
+
+### The Failure Cascade
+
+```
+Health Monitor Changes
+       ↓
+Added is_active field requirements to device APIs  
+       ↓
+Pairing succeeds but sync fails (devices not marked is_active=true)
+       ↓  
+Device detects sync failure, resets to pairing screen
+       ↓
+User sees "pairing loop" - device pairs then resets
+       ↓
+Rollback attempted but goes too far back
+       ↓
+Missing database function fallbacks + schema mismatch
+       ↓
+Complete API failure - devices show "ERROR" state
+```
+
+### Resolution Applied
+
+**1. Complete Rollback** (Commits: c98cf68, 52be278):
+- Removed `is_active` requirements from critical device endpoints:
+  - `/api/devices/sync/route.ts` - Schedules query filter
+  - `/api/devices/monitor/route.ts` - Screens query filter  
+  - `/api/devices/[deviceId]/heartbeat/route.ts` - Schedules query filter
+
+**2. Restore Infrastructure** (Commit: 0757a01):
+- Added JavaScript fallbacks for database functions:
+  - `generate_pairing_code()` - 6-character uppercase code generation
+  - `generate_device_token()` - 64-character secure token generation
+- Implemented collision detection and retry logic
+
+**3. Fix Schema Mismatch** (Commit: 4dbf6e4):  
+- Removed non-existent power scheduling fields from sync endpoint SELECT:
+  - `power_schedule_enabled`, `power_on_time`, `power_off_time`
+  - `power_timezone`, `power_energy_saving`, `power_warning_minutes`
+- Set `power_schedule: null` in API responses
+
+### Key Lessons Learned
+
+**❌ Anti-Patterns Identified**:
+1. **Administrative Fields in Operational APIs**: Never use admin-only fields like `is_active` in device authentication flows
+2. **Incomplete Feature Rollbacks**: Rolling back requires checking dependencies on both newer and older code
+3. **Mixed Concerns**: Health monitoring shouldn't affect core device functionality
+4. **Database Function Dependencies**: Always provide JavaScript fallbacks
+
+**✅ Best Practices Established**:
+1. **API Segregation**: Keep device APIs completely separate from admin/dashboard APIs
+2. **Database Migrations**: Ensure forward/backward compatibility for schema changes
+3. **End-to-End Testing**: Test complete device flows (pairing → sync → content display)
+4. **Feature Flags**: Gradual rollout for features touching core functionality
+
+### Current Status
+
+**✅ FULLY RESOLVED**: Android TV pairing system operational
+- ✅ Code generation working with JavaScript fallbacks
+- ✅ Device authentication working without `is_active` requirements  
+- ✅ Sync endpoint working with correct database schema
+- ✅ No more pairing loops - devices stay paired after successful pairing
+
+**Files Modified**:
+- `src/app/api/devices/sync/route.ts` - Removed `is_active` filters & power fields
+- `src/app/api/devices/monitor/route.ts` - Removed `is_active` filter
+- `src/app/api/devices/[deviceId]/heartbeat/route.ts` - Removed `is_active` filter
+- `src/app/api/devices/generate-code/route.ts` - Added JavaScript fallback
+- `src/app/api/devices/pair/route.ts` - Added JavaScript fallback
+- `src/app/api/devices/pair-qr/route.ts` - Added JavaScript fallback
+
+**Prevention Measures**:
+- Document device API isolation requirements
+- Add end-to-end pairing tests to CI/CD pipeline
+- Implement feature flags for core functionality changes
+- Database migration review process for device-facing schema changes
