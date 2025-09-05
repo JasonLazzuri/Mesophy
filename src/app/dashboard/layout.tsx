@@ -2,7 +2,7 @@
 
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/hooks/useAuth'
-import { Building2, Monitor, Users, LogOut, Menu, X, Tv, Image, Calendar, Play, Download, Smartphone, Activity, Clock } from 'lucide-react'
+import { Building2, Monitor, Users, LogOut, Menu, X, Tv, Image, Calendar, Play, Download, Smartphone, Activity, Clock, ChevronDown, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
@@ -15,6 +15,8 @@ export default function DashboardLayout({
   const { profile, signOut, loading } = useAuth()
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [schedulesOpen, setSchedulesOpen] = useState(false)
+  const [devicesOpen, setDevicesOpen] = useState(false)
 
   // Debug logging to help troubleshoot navigation issues
   useEffect(() => {
@@ -29,7 +31,7 @@ export default function DashboardLayout({
     }
   }, [profile, loading])
 
-  const navigation = [
+  const baseNavigation = [
     { name: 'Overview', href: '/dashboard', icon: Monitor },
     ...(profile?.role === 'super_admin' || profile?.role === 'district_manager'
       ? [
@@ -38,26 +40,42 @@ export default function DashboardLayout({
         ]
       : []),
     { name: 'Screens', href: '/dashboard/screens', icon: Tv },
-    { name: 'Devices', href: '/dashboard/devices', icon: Activity },
-    { name: 'Health Monitor', href: '/dashboard/health', icon: Activity },
     { name: 'Media', href: '/dashboard/media', icon: Image },
     { name: 'Playlists', href: '/dashboard/playlists', icon: Play },
-    { name: 'Schedules', href: '/dashboard/schedules', icon: Calendar },
-    ...(profile?.role === 'super_admin' || profile?.role === 'district_manager'
-      ? [{ name: 'Power Schedules', href: '/dashboard/power-schedules', icon: Clock }]
-      : []),
     ...(profile?.role === 'super_admin' || profile?.role === 'district_manager'
       ? [{ name: 'Users', href: '/dashboard/users', icon: Users }]
       : []),
   ]
 
+  const schedulesGroup = {
+    name: 'Schedules',
+    icon: Calendar,
+    href: '/dashboard/schedules',
+    children: [
+      ...(profile?.role === 'super_admin' || profile?.role === 'district_manager'
+        ? [{ name: 'Power Schedules', href: '/dashboard/power-schedules', icon: Clock }]
+        : [])
+    ]
+  }
+
+  const devicesGroup = {
+    name: 'Devices',
+    icon: Activity,
+    href: '/dashboard/devices',
+    children: [
+      { name: 'Health Monitor', href: '/dashboard/health', icon: Activity }
+    ]
+  }
+
   // Debug navigation rendering
   useEffect(() => {
     if (!loading) {
-      console.log('Navigation items being rendered:', navigation.map(item => ({
+      console.log('Navigation items being rendered:', baseNavigation.map(item => ({
         name: item.name,
         href: item.href
       })))
+      console.log('Schedules group:', schedulesGroup)
+      console.log('Devices group:', devicesGroup)
       console.log('Role check results:', {
         isSuperAdmin: profile?.role === 'super_admin',
         isDistrictManager: profile?.role === 'district_manager',
@@ -65,7 +83,7 @@ export default function DashboardLayout({
         shouldShowUsers: profile?.role === 'super_admin'
       })
     }
-  }, [navigation, profile, loading])
+  }, [baseNavigation, schedulesGroup, devicesGroup, profile, loading])
 
   return (
     <ProtectedRoute>
@@ -104,7 +122,8 @@ export default function DashboardLayout({
                 </div>
               ) : (
                 <>
-                  {navigation.map((item) => {
+                  {/* Regular navigation items */}
+                  {baseNavigation.map((item) => {
                     const isActive = pathname === item.href || 
                       (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
                     return (
@@ -127,6 +146,144 @@ export default function DashboardLayout({
                       </Link>
                     )
                   })}
+
+                  {/* Schedules dropdown */}
+                  <div>
+                    <button
+                      onClick={() => setSchedulesOpen(!schedulesOpen)}
+                      className={`group w-full flex items-center px-3 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
+                        pathname === schedulesGroup.href || pathname.startsWith('/dashboard/power-schedules')
+                          ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg'
+                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                    >
+                      <schedulesGroup.icon className={`mr-3 h-5 w-5 transition-colors ${
+                        pathname === schedulesGroup.href || pathname.startsWith('/dashboard/power-schedules')
+                          ? 'text-white' 
+                          : 'text-gray-400 group-hover:text-gray-600'
+                      }`} />
+                      {schedulesGroup.name}
+                      {schedulesOpen ? (
+                        <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${
+                          pathname === schedulesGroup.href || pathname.startsWith('/dashboard/power-schedules')
+                            ? 'text-white' 
+                            : 'text-gray-400 group-hover:text-gray-600'
+                        }`} />
+                      ) : (
+                        <ChevronRight className={`ml-auto h-4 w-4 transition-transform ${
+                          pathname === schedulesGroup.href || pathname.startsWith('/dashboard/power-schedules')
+                            ? 'text-white' 
+                            : 'text-gray-400 group-hover:text-gray-600'
+                        }`} />
+                      )}
+                    </button>
+
+                    {/* Main Schedules link */}
+                    <Link
+                      href={schedulesGroup.href}
+                      className={`group flex items-center px-6 py-2 text-sm font-medium rounded-xl transition-all duration-200 mt-1 ${
+                        pathname === schedulesGroup.href
+                          ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md ml-3'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800 ml-3'
+                      }`}
+                    >
+                      <Calendar className={`mr-3 h-4 w-4 transition-colors ${
+                        pathname === schedulesGroup.href ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'
+                      }`} />
+                      Schedules
+                    </Link>
+
+                    {/* Submenu items */}
+                    {schedulesOpen && schedulesGroup.children.map((child) => {
+                      const isChildActive = pathname === child.href || 
+                        (child.href !== '/dashboard' && pathname.startsWith(child.href + '/'))
+                      return (
+                        <Link
+                          key={child.name}
+                          href={child.href}
+                          className={`group flex items-center px-6 py-2 text-sm font-medium rounded-xl transition-all duration-200 mt-1 ${
+                            isChildActive
+                              ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md ml-3'
+                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800 ml-3'
+                          }`}
+                        >
+                          <child.icon className={`mr-3 h-4 w-4 transition-colors ${
+                            isChildActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'
+                          }`} />
+                          {child.name}
+                        </Link>
+                      )
+                    })}
+                  </div>
+
+                  {/* Devices dropdown */}
+                  <div>
+                    <button
+                      onClick={() => setDevicesOpen(!devicesOpen)}
+                      className={`group w-full flex items-center px-3 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
+                        pathname === devicesGroup.href || pathname.startsWith('/dashboard/health')
+                          ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg'
+                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                    >
+                      <devicesGroup.icon className={`mr-3 h-5 w-5 transition-colors ${
+                        pathname === devicesGroup.href || pathname.startsWith('/dashboard/health')
+                          ? 'text-white' 
+                          : 'text-gray-400 group-hover:text-gray-600'
+                      }`} />
+                      {devicesGroup.name}
+                      {devicesOpen ? (
+                        <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${
+                          pathname === devicesGroup.href || pathname.startsWith('/dashboard/health')
+                            ? 'text-white' 
+                            : 'text-gray-400 group-hover:text-gray-600'
+                        }`} />
+                      ) : (
+                        <ChevronRight className={`ml-auto h-4 w-4 transition-transform ${
+                          pathname === devicesGroup.href || pathname.startsWith('/dashboard/health')
+                            ? 'text-white' 
+                            : 'text-gray-400 group-hover:text-gray-600'
+                        }`} />
+                      )}
+                    </button>
+
+                    {/* Main Devices link */}
+                    <Link
+                      href={devicesGroup.href}
+                      className={`group flex items-center px-6 py-2 text-sm font-medium rounded-xl transition-all duration-200 mt-1 ${
+                        pathname === devicesGroup.href
+                          ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md ml-3'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800 ml-3'
+                      }`}
+                    >
+                      <Activity className={`mr-3 h-4 w-4 transition-colors ${
+                        pathname === devicesGroup.href ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'
+                      }`} />
+                      Devices
+                    </Link>
+
+                    {/* Submenu items */}
+                    {devicesOpen && devicesGroup.children.map((child) => {
+                      const isChildActive = pathname === child.href || 
+                        (child.href !== '/dashboard' && pathname.startsWith(child.href + '/'))
+                      return (
+                        <Link
+                          key={child.name}
+                          href={child.href}
+                          className={`group flex items-center px-6 py-2 text-sm font-medium rounded-xl transition-all duration-200 mt-1 ${
+                            isChildActive
+                              ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md ml-3'
+                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800 ml-3'
+                          }`}
+                        >
+                          <child.icon className={`mr-3 h-4 w-4 transition-colors ${
+                            isChildActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'
+                          }`} />
+                          {child.name}
+                        </Link>
+                      )
+                    })}
+                  </div>
                   
                   {/* Pi Device Section */}
                   <div className="pt-6">
@@ -179,7 +336,7 @@ export default function DashboardLayout({
                   <div><span className="font-medium">Role:</span> {profile?.role || 'none'}</div>
                   <div><span className="font-medium">Loading:</span> {loading.toString()}</div>
                   <div><span className="font-medium">Profile ID:</span> {profile?.id?.slice(0, 8) || 'none'}...</div>
-                  <div><span className="font-medium">Nav Items:</span> {navigation.length}</div>
+                  <div><span className="font-medium">Nav Items:</span> {baseNavigation.length + 2} (+ 2 dropdowns)</div>
                 </div>
               </div>
             )}
