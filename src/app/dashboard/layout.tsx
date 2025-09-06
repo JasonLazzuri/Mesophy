@@ -178,42 +178,47 @@ export default function DashboardLayout({
                       )}
                     </button>
 
-                    {/* Main Schedules link */}
-                    <Link
-                      href={schedulesGroup.href}
-                      className={`group flex items-center px-6 py-2 text-sm font-medium rounded-xl transition-all duration-200 mt-1 ${
-                        pathname === schedulesGroup.href
-                          ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md ml-3'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800 ml-3'
-                      }`}
-                    >
-                      <Calendar className={`mr-3 h-4 w-4 transition-colors ${
-                        pathname === schedulesGroup.href ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'
-                      }`} />
-                      Schedules
-                    </Link>
-
-                    {/* Submenu items */}
-                    {schedulesOpen && schedulesGroup.children.map((child) => {
-                      const isChildActive = pathname === child.href || 
-                        (child.href !== '/dashboard' && pathname.startsWith(child.href + '/'))
-                      return (
+                    {/* Submenu items - only show when expanded */}
+                    {schedulesOpen && (
+                      <>
+                        {/* Main Schedules link */}
                         <Link
-                          key={child.name}
-                          href={child.href}
+                          href={schedulesGroup.href}
                           className={`group flex items-center px-6 py-2 text-sm font-medium rounded-xl transition-all duration-200 mt-1 ${
-                            isChildActive
+                            pathname === schedulesGroup.href
                               ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md ml-3'
                               : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800 ml-3'
                           }`}
                         >
-                          <child.icon className={`mr-3 h-4 w-4 transition-colors ${
-                            isChildActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'
+                          <Calendar className={`mr-3 h-4 w-4 transition-colors ${
+                            pathname === schedulesGroup.href ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'
                           }`} />
-                          {child.name}
+                          Schedules
                         </Link>
-                      )
-                    })}
+
+                        {/* Child menu items */}
+                        {schedulesGroup.children.map((child) => {
+                          const isChildActive = pathname === child.href || 
+                            (child.href !== '/dashboard' && pathname.startsWith(child.href + '/'))
+                          return (
+                            <Link
+                              key={child.name}
+                              href={child.href}
+                              className={`group flex items-center px-6 py-2 text-sm font-medium rounded-xl transition-all duration-200 mt-1 ${
+                                isChildActive
+                                  ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md ml-3'
+                                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800 ml-3'
+                              }`}
+                            >
+                              <child.icon className={`mr-3 h-4 w-4 transition-colors ${
+                                isChildActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'
+                              }`} />
+                              {child.name}
+                            </Link>
+                          )
+                        })}
+                      </>
+                    )}
                   </div>
 
                   {/* Devices dropdown */}
@@ -247,42 +252,47 @@ export default function DashboardLayout({
                       )}
                     </button>
 
-                    {/* Main Devices link */}
-                    <Link
-                      href={devicesGroup.href}
-                      className={`group flex items-center px-6 py-2 text-sm font-medium rounded-xl transition-all duration-200 mt-1 ${
-                        pathname === devicesGroup.href
-                          ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md ml-3'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800 ml-3'
-                      }`}
-                    >
-                      <Activity className={`mr-3 h-4 w-4 transition-colors ${
-                        pathname === devicesGroup.href ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'
-                      }`} />
-                      Devices
-                    </Link>
-
-                    {/* Submenu items */}
-                    {devicesOpen && devicesGroup.children.map((child) => {
-                      const isChildActive = pathname === child.href || 
-                        (child.href !== '/dashboard' && pathname.startsWith(child.href + '/'))
-                      return (
+                    {/* Submenu items - only show when expanded */}
+                    {devicesOpen && (
+                      <>
+                        {/* Main Devices link */}
                         <Link
-                          key={child.name}
-                          href={child.href}
+                          href={devicesGroup.href}
                           className={`group flex items-center px-6 py-2 text-sm font-medium rounded-xl transition-all duration-200 mt-1 ${
-                            isChildActive
+                            pathname === devicesGroup.href
                               ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md ml-3'
                               : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800 ml-3'
                           }`}
                         >
-                          <child.icon className={`mr-3 h-4 w-4 transition-colors ${
-                            isChildActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'
+                          <Activity className={`mr-3 h-4 w-4 transition-colors ${
+                            pathname === devicesGroup.href ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'
                           }`} />
-                          {child.name}
+                          Devices
                         </Link>
-                      )
-                    })}
+
+                        {/* Child menu items */}
+                        {devicesGroup.children.map((child) => {
+                          const isChildActive = pathname === child.href || 
+                            (child.href !== '/dashboard' && pathname.startsWith(child.href + '/'))
+                          return (
+                            <Link
+                              key={child.name}
+                              href={child.href}
+                              className={`group flex items-center px-6 py-2 text-sm font-medium rounded-xl transition-all duration-200 mt-1 ${
+                                isChildActive
+                                  ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md ml-3'
+                                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800 ml-3'
+                              }`}
+                            >
+                              <child.icon className={`mr-3 h-4 w-4 transition-colors ${
+                                isChildActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'
+                              }`} />
+                              {child.name}
+                            </Link>
+                          )
+                        })}
+                      </>
+                    )}
                   </div>
                   
                   {/* Pi Device Section */}
