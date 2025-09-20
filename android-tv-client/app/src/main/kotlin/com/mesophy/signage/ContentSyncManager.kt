@@ -116,9 +116,29 @@ class ContentSyncManager(
         }
         
         val deviceToken = getDeviceToken()
-        if (deviceToken == null) {
+        if (deviceToken == null || deviceToken.isBlank()) {
             Timber.e("No device token found - device not paired")
-            handleAuthenticationFailure()
+            
+            // Check if we have is_paired flag but missing token (corruption case)
+            val isPaired = sharedPrefs.getBoolean("is_paired", false)
+            if (isPaired) {
+                Timber.e("🚨 DEVICE TOKEN CORRUPTION DETECTED - Device marked as paired but token is missing")
+                // This indicates SharedPreferences corruption, not server-side unpairing
+                // Reset pairing state to prevent confusion
+                sharedPrefs.edit().putBoolean("is_paired", false).apply()
+                
+                // Notify listeners that device needs to be re-paired due to corruption
+                listeners.forEach { listener ->
+                    try {
+                        listener.onSyncError("DEVICE_TOKEN_CORRUPTED")
+                    } catch (e: Exception) {
+                        Timber.e(e, "Error notifying listener of device token corruption")
+                    }
+                }
+            } else {
+                // Device was never paired or properly unpaired
+                Timber.i("Device not paired - normal state")
+            }
             return
         }
         
@@ -251,16 +271,20 @@ class ContentSyncManager(
                 isOnline = false
                 updateSyncStatus(currentSyncStatus.copy(isConnected = false))
                 
-                // Check if this is an authentication failure (device unpaired from portal)
+                // Check if this is a genuine device deletion from database
                 val errorMessage = e.message?.lowercase() ?: ""
+                val originalMessage = e.message ?: ""
+                Timber.d("🔍 Analyzing error message: '$errorMessage'")
+                Timber.d("🔍 Original error message: '$originalMessage'")
                 when {
-                    errorMessage.contains("401") || errorMessage.contains("unauthorized") -> {
-                        Timber.e("🚨 AUTHENTICATION FAILED - Device may have been unpaired from portal")
+                    errorMessage.contains("invalid device token") -> {
+                        Timber.e("🚨 DEVICE DELETED FROM DATABASE - Device token no longer exists in server")
                         handleAuthenticationFailure()
                         throw e
                     }
-                    errorMessage.contains("null") && errorMessage.contains("device") -> {
-                        Timber.e("🚨 DEVICE CONFIGURATION INVALID - Device appears to be unpaired")
+                    errorMessage.contains("401") || errorMessage.contains("unauthorized") -> {
+                        // For any 401 error, treat as potential device deletion since device was deleted from portal
+                        Timber.e("🚨 401 error detected - treating as device deletion since device was removed from portal")
                         handleAuthenticationFailure()
                         throw e
                     }
@@ -277,6 +301,8 @@ class ContentSyncManager(
                     }
                 }
             }
+            
+            // Successful sync - device is properly connected
             
             Timber.i("📊 Sync response received:")
             Timber.i("  • Screen: ${syncResponse.screenName}")
@@ -842,5 +868,12 @@ class ContentSyncManager(
         } catch (e: Exception) {
             Timber.e(e, "❌ Failed to process power schedule update")
         }
+    }
+    
+    /**
+     * Check if ContentSyncManager is currently running
+     */
+    fun isRunning(): Boolean {
+        return this.isRunning
     }
 }

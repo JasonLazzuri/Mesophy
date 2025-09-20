@@ -1,0 +1,37 @@
+<svg width="190" height="50" viewBox="0 0 190 50" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="videoGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="glowEffect" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.3" />
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Simple, clean media logo inspired by modern streaming platforms -->
+  <g transform="translate(8, 8)">
+    <!-- Sleek play button -->
+    <rect x="0" y="8" width="32" height="20" rx="10" fill="url(#videoGradient)"/>
+    <polygon points="10,13 10,23 20,18" fill="white"/>
+    <!-- Glossy effect -->
+    <rect x="0" y="8" width="32" height="10" rx="10" fill="url(#glowEffect)"/>
+    
+    <!-- Stylized "M" that looks like media controls -->
+    <g transform="translate(38, 2)">
+      <rect x="0" y="4" width="3" height="20" fill="url(#videoGradient)"/>
+      <rect x="6" y="4" width="3" height="20" fill="url(#videoGradient)"/>
+      <rect x="12" y="4" width="3" height="20" fill="url(#videoGradient)"/>
+      <rect x="18" y="4" width="3" height="20" fill="url(#videoGradient)"/>
+      
+      <!-- Connect to form M shape -->
+      <rect x="3" y="4" width="3" height="3" fill="url(#videoGradient)"/>
+      <rect x="9" y="8" width="3" height="3" fill="url(#videoGradient)"/>
+      <rect x="15" y="4" width="3" height="3" fill="url(#videoGradient)"/>
+    </g>
+  </g>
+  
+  <!-- MESOPHY text -->
+  <text x="70" y="32" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="600" fill="url(#videoGradient)" letter-spacing="1px">MESOPHY</text>
+</svg>

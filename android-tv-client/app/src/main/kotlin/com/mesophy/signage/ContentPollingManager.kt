@@ -255,10 +255,10 @@ class ContentPollingManager(private val context: Context) {
         notifyConnectionStatus(false)
         notifyError("Polling failed: ${error.message}")
         
-        // Stop if too many consecutive errors
+        // Log warning for many consecutive errors but keep polling
         if (errorCount >= 10) {
-            Timber.e("⛔ Too many consecutive errors, stopping polling")
-            stop()
+            Timber.w("⚠️ Many consecutive errors (${errorCount}) - network may be down, continuing to poll...")
+            // Don't stop - keep trying indefinitely with max backoff interval
         }
     }
     

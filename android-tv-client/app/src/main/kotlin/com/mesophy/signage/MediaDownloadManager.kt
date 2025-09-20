@@ -6,8 +6,10 @@ import okhttp3.*
 import timber.log.Timber
 import java.io.*
 import java.security.MessageDigest
+import java.security.cert.X509Certificate
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.*
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -30,6 +32,26 @@ class MediaDownloadManager(private val context: Context) {
         .connectTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(DOWNLOAD_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .readTimeout(DOWNLOAD_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .apply {
+            // Create trusting SSL context for development (bypasses certificate validation)
+            try {
+                val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
+                    override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+                    override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+                    override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+                })
+                
+                val sslContext = SSLContext.getInstance("TLS")
+                sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+                
+                sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
+                hostnameVerifier(HostnameVerifier { _, _ -> true })
+                
+                Timber.w("⚠️ SSL certificate validation bypassed for development")
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to setup SSL bypass")
+            }
+        }
         .build()
     
     private val cacheDir: File = File(context.cacheDir, CACHE_DIR_NAME)

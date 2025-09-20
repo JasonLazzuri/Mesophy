@@ -41,6 +41,7 @@ class MainActivity : FragmentActivity() {
     private var deviceHealthMonitor: DeviceHealthMonitor? = null
     private var powerScheduleManager: PowerScheduleManager? = null
     private var errorRecoveryManager: ErrorRecoveryManager? = null
+    private var contentSyncManager: ContentSyncManager? = null
     private var isMediaPlaying = false
     
     // Internal broadcast receiver for power management commands
@@ -112,6 +113,34 @@ class MainActivity : FragmentActivity() {
     override fun onResume() {
         super.onResume()
         Timber.d("MainActivity resumed - ready for digital signage functionality")
+        
+        // Health check: ensure services are still running
+        lifecycleScope.launch {
+            delay(5000) // Wait 5 seconds after resume
+            healthCheckServices()
+        }
+    }
+    
+    /**
+     * Health check to ensure critical services are running
+     */
+    private fun healthCheckServices() {
+        try {
+            val sharedPrefs = getSharedPreferences("mesophy_config", MODE_PRIVATE)
+            val isPaired = sharedPrefs.getBoolean("is_paired", false)
+            
+            if (isPaired) {
+                // Check if ContentSyncManager is running
+                if (contentSyncManager?.isRunning() != true) {
+                    Timber.w("🔧 ContentSyncManager stopped - restarting...")
+                    startContentSyncManager()
+                }
+                
+                Timber.d("✅ Health check completed - all services running")
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Health check failed")
+        }
     }
     
     override fun onDestroy() {
@@ -119,6 +148,7 @@ class MainActivity : FragmentActivity() {
         isPolling = false
         deviceHealthMonitor?.stop()
         powerScheduleManager?.stop()
+        contentSyncManager?.stop()
         errorRecoveryManager?.stop()
         
         // Unregister internal broadcast receiver
@@ -375,6 +405,7 @@ class MainActivity : FragmentActivity() {
             errorRecoveryManager?.stop()
             deviceHealthMonitor?.stop()  
             powerScheduleManager?.stop()
+            contentSyncManager?.stop()
             mediaDownloadManager?.stopDownloads()
             
             // Stop and hide media playback
@@ -553,16 +584,16 @@ class MainActivity : FragmentActivity() {
             Timber.i("🔌 Power Schedule Manager started")
             
             // Create ContentSyncManager 
-            val contentSyncManager = ContentSyncManager(this, mediaDownloadManager!!)
+            contentSyncManager = ContentSyncManager(this, mediaDownloadManager!!)
             
             // Reset unpairing state from any previous authentication failures
-            contentSyncManager.resetUnpairingState()
+            contentSyncManager!!.resetUnpairingState()
             
             // Register components with error recovery manager
-            errorRecoveryManager!!.registerComponents(contentSyncManager, null) // SSE manager will be registered separately
+            errorRecoveryManager!!.registerComponents(contentSyncManager!!, null) // SSE manager will be registered separately
             
             // Add content sync listener
-            contentSyncManager.addListener(object : ContentSyncManager.ContentSyncListener {
+            contentSyncManager!!.addListener(object : ContentSyncManager.ContentSyncListener {
                 override fun onSyncStatusChanged(status: ContentSyncStatus) {
                     runOnUiThread {
                         updateContentSyncStatus(status)
@@ -619,7 +650,7 @@ class MainActivity : FragmentActivity() {
             })
             
             // Start content synchronization
-            contentSyncManager.start()
+            contentSyncManager!!.start()
             
             Timber.i("🚀 ContentSyncManager started successfully")
             

@@ -1,0 +1,29 @@
+<svg width="200" height="55" viewBox="0 0 200 55" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tubeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#a855f7;stop-opacity:1" />
+    </linearGradient>
+    <radialGradient id="playButtonGrad" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f8fafc;stop-opacity:0.9" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Circle play button (YouTube-style) -->
+  <g transform="translate(8, 8)">
+    <!-- Outer glow circle -->
+    <circle cx="19" cy="19" r="19" fill="url(#tubeGradient)" opacity="0.2"/>
+    <!-- Main circle -->
+    <circle cx="19" cy="19" r="16" fill="url(#tubeGradient)"/>
+    <!-- Play triangle -->
+    <polygon points="14,12 14,26 26,19" fill="url(#playButtonGrad)"/>
+    
+    <!-- "M" integrated into design -->
+    <path d="M42 30 L42 8 L46 8 L50 22 L54 8 L58 8 L58 30 L54 30 L54 16 L51 28 L49 28 L46 16 L46 30 Z" fill="url(#tubeGradient)" opacity="0.8"/>
+  </g>
+  
+  <!-- MESOPHY text -->
+  <text x="75" y="35" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="600" fill="url(#tubeGradient)" letter-spacing="1px">MESOPHY</text>
+</svg>

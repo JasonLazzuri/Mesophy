@@ -1,0 +1,36 @@
+<svg width="180" height="50" viewBox="0 0 180 50" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a855f7;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6366f1;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Geometric M with digital grid -->
+  <g transform="translate(8, 8)">
+    <!-- Modern M letterform -->
+    <path d="M0 30 L0 4 L4 4 L12 22 L20 4 L24 4 L24 30 L20 30 L20 12 L14 28 L10 28 L4 12 L4 30 Z" fill="url(#brandGradient)" stroke="none"/>
+    
+    <!-- Digital grid pattern -->
+    <g opacity="0.6">
+      <rect x="28" y="6" width="3" height="3" fill="url(#accentGradient)"/>
+      <rect x="32" y="6" width="3" height="3" fill="url(#accentGradient)" opacity="0.8"/>
+      <rect x="36" y="6" width="3" height="3" fill="url(#accentGradient)" opacity="0.6"/>
+      
+      <rect x="28" y="12" width="3" height="3" fill="url(#accentGradient)" opacity="0.8"/>
+      <rect x="32" y="12" width="3" height="3" fill="url(#accentGradient)"/>
+      <rect x="36" y="12" width="3" height="3" fill="url(#accentGradient)" opacity="0.7"/>
+      
+      <rect x="28" y="18" width="3" height="3" fill="url(#accentGradient)" opacity="0.5"/>
+      <rect x="32" y="18" width="3" height="3" fill="url(#accentGradient)" opacity="0.9"/>
+      <rect x="36" y="18" width="3" height="3" fill="url(#accentGradient)"/>
+    </g>
+  </g>
+  
+  <!-- MESOPHY text -->
+  <text x="52" y="32" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="600" fill="url(#brandGradient)" letter-spacing="0.5px">MESOPHY</text>
+</svg>

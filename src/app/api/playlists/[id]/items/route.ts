@@ -79,6 +79,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const nextOrderIndex = (maxOrderData?.[0]?.order_index || -1) + 1
 
+    // Log the data being inserted for debugging
+    const insertData = {
+      playlist_id: params.id,
+      media_asset_id,
+      order_index: nextOrderIndex,
+      duration_override,
+      transition_type
+    }
+    console.log('Inserting playlist item:', insertData)
+
     // Add item to playlist
     const { data: playlistItem, error: insertError } = await supabase
       .from('playlist_items')
@@ -105,7 +115,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (insertError) {
       console.error('Error adding playlist item:', insertError)
-      return NextResponse.json({ error: 'Failed to add item to playlist' }, { status: 500 })
+      return NextResponse.json({ 
+        error: 'Failed to add item to playlist',
+        details: insertError.message,
+        code: insertError.code,
+        hint: insertError.hint
+      }, { status: 500 })
     }
 
     return NextResponse.json({ playlist_item: playlistItem }, { status: 201 })
