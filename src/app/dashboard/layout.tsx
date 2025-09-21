@@ -2,7 +2,7 @@
 
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/hooks/useAuth'
-import { Building2, Monitor, Users, LogOut, Menu, X, Tv, Image, Calendar, Play, Download, Smartphone, Activity, Clock, ChevronDown, ChevronRight } from 'lucide-react'
+import { Building2, Monitor, Users, LogOut, Menu, X, Tv, Image, Calendar, Play, Download, Smartphone, Activity, Clock, ChevronDown, ChevronRight, Settings, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
@@ -17,6 +17,7 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [schedulesOpen, setSchedulesOpen] = useState(false)
   const [devicesOpen, setDevicesOpen] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
 
   // Debug logging to help troubleshoot navigation issues
   useEffect(() => {
@@ -64,6 +65,15 @@ export default function DashboardLayout({
     href: '/dashboard/devices',
     children: [
       { name: 'Health Monitor', href: '/dashboard/health', icon: Activity }
+    ]
+  }
+
+  const adminGroup = {
+    name: 'Admin',
+    icon: Settings,
+    href: '/dashboard/admin',
+    children: [
+      { name: 'Polling Config', href: '/dashboard/admin/polling-config', icon: Clock }
     ]
   }
 
@@ -294,6 +304,65 @@ export default function DashboardLayout({
                       </>
                     )}
                   </div>
+
+                  {/* Admin dropdown - Super Admin Only */}
+                  {profile?.role === 'super_admin' && (
+                    <div>
+                      <button
+                        onClick={() => setAdminOpen(!adminOpen)}
+                        className={`group w-full flex items-center px-3 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
+                          pathname.startsWith('/dashboard/admin')
+                            ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg'
+                            : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                        }`}
+                      >
+                        <adminGroup.icon className={`mr-3 h-5 w-5 transition-colors ${
+                          pathname.startsWith('/dashboard/admin')
+                            ? 'text-white' 
+                            : 'text-gray-400 group-hover:text-gray-600'
+                        }`} />
+                        {adminGroup.name}
+                        {adminOpen ? (
+                          <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${
+                            pathname.startsWith('/dashboard/admin')
+                              ? 'text-white' 
+                              : 'text-gray-400 group-hover:text-gray-600'
+                          }`} />
+                        ) : (
+                          <ChevronRight className={`ml-auto h-4 w-4 transition-transform ${
+                            pathname.startsWith('/dashboard/admin')
+                              ? 'text-white' 
+                              : 'text-gray-400 group-hover:text-gray-600'
+                          }`} />
+                        )}
+                      </button>
+
+                      {/* Admin submenu items */}
+                      {adminOpen && (
+                        <>
+                          {adminGroup.children.map((child) => {
+                            const isChildActive = pathname === child.href
+                            return (
+                              <Link
+                                key={child.name}
+                                href={child.href}
+                                className={`group flex items-center px-6 py-2 text-sm font-medium rounded-xl transition-all duration-200 mt-1 ${
+                                  isChildActive
+                                    ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md ml-3'
+                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800 ml-3'
+                                }`}
+                              >
+                                <child.icon className={`mr-3 h-4 w-4 transition-colors ${
+                                  isChildActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'
+                                }`} />
+                                {child.name}
+                              </Link>
+                            )
+                          })}
+                        </>
+                      )}
+                    </div>
+                  )}
                   
                   {/* Pi Device Section */}
                   <div className="pt-6">

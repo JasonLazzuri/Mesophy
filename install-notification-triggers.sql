@@ -98,7 +98,7 @@ BEGIN
     AND s.screen_id IS NOT NULL;
 
     -- Create notifications for each affected screen
-    IF affected_screen_ids IS NOT NULL THEN
+    IF affected_screen_ids IS NOT NULL AND array_length(affected_screen_ids, 1) > 0 THEN
         FOREACH screen_id IN ARRAY affected_screen_ids
         LOOP
             INSERT INTO device_notifications (
@@ -127,6 +127,9 @@ BEGIN
                 3  -- Very high priority for playlist content changes
             );
         END LOOP;
+    ELSE
+        -- Log that no screens were affected (playlist not in use yet)
+        RAISE NOTICE 'Playlist item % - no screens affected (playlist % not scheduled)', change_type, COALESCE(NEW.playlist_id, OLD.playlist_id);
     END IF;
 
     RETURN COALESCE(NEW, OLD);

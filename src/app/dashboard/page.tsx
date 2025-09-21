@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/hooks/useAuth'
 import { Building2, Monitor, Users, Activity, TrendingUp, AlertCircle, CheckCircle2, MapPin } from 'lucide-react'
+import EmergencyOverrideControl from '@/components/EmergencyOverrideControl'
 
 export default function DashboardPage() {
   const { profile, loading } = useAuth()
@@ -102,6 +103,13 @@ export default function DashboardPage() {
             <div><strong>Full Name:</strong> {profile?.full_name || 'None'}</div>
             <div><strong>Is Active:</strong> {profile?.is_active?.toString() || 'None'}</div>
           </div>
+        </div>
+      )}
+
+      {/* Emergency Override Control - Super Admin Only */}
+      {profile?.role === 'super_admin' && (
+        <div className="mb-6">
+          <EmergencyOverrideControl />
         </div>
       )}
 
