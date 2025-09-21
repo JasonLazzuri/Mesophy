@@ -35,6 +35,17 @@ interface PollingConfig {
 export default function PollingConfigPage() {
   const { user, profile } = useAuth()
   const [config, setConfig] = useState<PollingConfig | null>(null)
+  
+  // Debug logging for auth state
+  console.log('PollingConfigPage render - Auth state:', {
+    user: user ? 'present' : 'null',
+    profile: profile ? {
+      id: profile.id,
+      email: profile.email,
+      role: profile.role,
+      organization_id: profile.organization_id
+    } : 'null'
+  })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -52,12 +63,31 @@ export default function PollingConfigPage() {
   ]
 
   useEffect(() => {
-    if (profile?.role !== 'super_admin') {
+    console.log('Polling config page - Auth check:', {
+      profile,
+      role: profile?.role,
+      hasProfile: !!profile,
+      isLoading: loading
+    })
+    
+    // Wait for profile to load
+    if (!profile) {
+      console.log('Profile not loaded yet, waiting...')
+      return
+    }
+    
+    if (profile.role !== 'super_admin') {
+      console.log('Access denied - role check failed:', {
+        currentRole: profile.role,
+        requiredRole: 'super_admin'
+      })
       setError('Super admin access required')
       setLoading(false)
       return
     }
 
+    console.log('Super admin access confirmed, fetching config...')
+    setError(null) // Clear any previous errors
     fetchConfig()
   }, [profile])
 
