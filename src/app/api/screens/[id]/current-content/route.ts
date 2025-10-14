@@ -142,8 +142,23 @@ export async function GET(
       })
     }
 
-    // 6. Get the first active schedule (you could implement priority logic here)
-    const activeSchedule = activeSchedules[0]
+    // 6. Prioritize schedules: exact screen type match first, then by priority
+    // This ensures screen type targeting is respected before priority
+    const sortedSchedules = activeSchedules.sort((a, b) => {
+      // First priority: Exact screen type match
+      const aHasScreenType = a.target_screen_types && a.target_screen_types.includes(screen.screen_type)
+      const bHasScreenType = b.target_screen_types && b.target_screen_types.includes(screen.screen_type)
+
+      if (aHasScreenType && !bHasScreenType) return -1  // a wins (has screen type match)
+      if (!aHasScreenType && bHasScreenType) return 1   // b wins (has screen type match)
+
+      // Both have same screen type matching status, use priority
+      const aPriority = a.priority || 0
+      const bPriority = b.priority || 0
+      return bPriority - aPriority  // Higher priority first
+    })
+
+    const activeSchedule = sortedSchedules[0]
     
     console.log(`🎬 Using schedule: "${activeSchedule.name}" with playlist: "${activeSchedule.playlists?.name}"`)
 

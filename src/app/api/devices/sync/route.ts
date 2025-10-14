@@ -210,8 +210,22 @@ export async function GET(request: NextRequest) {
       return isToday && isInTimeRange
     })
 
+    // Prioritize schedules: exact screen type match first, then by priority
+    // This ensures screen type targeting is respected before priority
+    const sortedSchedules = activeSchedules.sort((a, b) => {
+      // First priority: Exact screen type match
+      const aHasScreenType = a.target_screen_types && a.target_screen_types.includes(screen.screen_type)
+      const bHasScreenType = b.target_screen_types && b.target_screen_types.includes(screen.screen_type)
+
+      if (aHasScreenType && !bHasScreenType) return -1  // a wins (has screen type match)
+      if (!aHasScreenType && bHasScreenType) return 1   // b wins (has screen type match)
+
+      // Both have same screen type matching status, use priority
+      return (b.priority || 0) - (a.priority || 0)  // Higher priority first
+    })
+
     // Find the highest priority active schedule
-    const currentSchedule = activeSchedules.length > 0 ? activeSchedules[0] : null
+    const currentSchedule = sortedSchedules.length > 0 ? sortedSchedules[0] : null
 
     // Check what has changed since last sync
     let scheduleChanged = false
