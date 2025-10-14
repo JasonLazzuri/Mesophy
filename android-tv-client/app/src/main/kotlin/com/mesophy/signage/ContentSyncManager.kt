@@ -37,7 +37,7 @@ class ContentSyncManager(
         private const val CACHE_DIR = "content_cache"
         private const val SCHEDULES_CACHE_FILE = "schedules.json"
         private const val CURRENT_CONTENT_CACHE_FILE = "current_content.json"
-        private const val CACHE_MAX_AGE_MS = 86400000L // 24 hours
+        private const val CACHE_MAX_AGE_MS = 2592000000L // 30 days - allow device to work offline for weeks
         
         // Performance optimization constants
         private const val MEMORY_CLEANUP_INTERVAL_MS = 600000L // 10 minutes
@@ -260,42 +260,64 @@ class ContentSyncManager(
                 val response = apiClient.syncDeviceContent(deviceToken)
                 isOnline = true
                 updateSyncStatus(currentSyncStatus.copy(isConnected = true))
-                
+
                 // Cache successful response
                 cacheSchedulesData(response)
                 Timber.d("💾 Schedules cached successfully")
-                
+
                 response
             } catch (e: Exception) {
                 Timber.w("⚠️ Network sync failed: ${e.message}")
                 isOnline = false
                 updateSyncStatus(currentSyncStatus.copy(isConnected = false))
-                
-                // Check if this is a genuine device deletion from database
+
+                // ONLY unpair if device was explicitly deleted from database (404 error)
+                // All other errors (401, network timeouts, server errors) should keep device paired
                 val errorMessage = e.message?.lowercase() ?: ""
                 val originalMessage = e.message ?: ""
-                Timber.d("🔍 Analyzing error message: '$errorMessage'")
-                Timber.d("🔍 Original error message: '$originalMessage'")
+
+                Timber.d("🔍 Error analysis: '$errorMessage'")
+
                 when {
-                    errorMessage.contains("invalid device token") -> {
-                        Timber.e("🚨 DEVICE DELETED FROM DATABASE - Device token no longer exists in server")
+                    // 404 = Device token not found in database (device was deleted from portal)
+                    errorMessage.contains("404") || errorMessage.contains("not found") -> {
+                        Timber.e("🚨 DEVICE DELETED FROM DATABASE - HTTP 404 received")
+                        Timber.e("   Device was removed from admin portal - unpairing device")
                         handleAuthenticationFailure()
                         throw e
                     }
-                    errorMessage.contains("401") || errorMessage.contains("unauthorized") -> {
-                        // For any 401 error, treat as potential device deletion since device was deleted from portal
-                        Timber.e("🚨 401 error detected - treating as device deletion since device was removed from portal")
+                    // 401 with "invalid device token" or "unpaired" = pairing code was deleted/device was unpaired
+                    errorMessage.contains("401") && (errorMessage.contains("invalid device token") || errorMessage.contains("unpaired")) -> {
+                        Timber.e("🚨 DEVICE TOKEN INVALID OR UNPAIRED - HTTP 401 received")
+                        Timber.e("   Pairing code was deleted or device_id was cleared - returning to pairing screen")
                         handleAuthenticationFailure()
                         throw e
                     }
+                    // All other errors: stay paired and use cache
                     else -> {
-                        // Regular network error - try cache
+                        when {
+                            errorMessage.contains("401") ->
+                                Timber.w("⚠️ 401 error - possible RLS policy issue, staying paired and using cache")
+                            errorMessage.contains("403") ->
+                                Timber.w("⚠️ 403 error - authorization issue, staying paired and using cache")
+                            errorMessage.contains("timeout") ->
+                                Timber.w("⚠️ Network timeout - staying paired and using cache")
+                            errorMessage.contains("refused") ->
+                                Timber.w("⚠️ Connection refused - server may be down, staying paired and using cache")
+                            errorMessage.contains("500") ->
+                                Timber.w("⚠️ Server error 500 - staying paired and using cache")
+                            else ->
+                                Timber.w("⚠️ Network error: $originalMessage - staying paired and using cache")
+                        }
+
+                        // Try to use cached content for offline operation
                         val cachedResponse = loadCachedSchedules()
                         if (cachedResponse != null) {
-                            Timber.i("📱 Using cached schedules (offline mode)")
+                            Timber.i("📱 OFFLINE MODE: Using cached schedules")
+                            Timber.i("   Cache age: ${(System.currentTimeMillis() - File(cacheDir, SCHEDULES_CACHE_FILE).lastModified()) / 60000} minutes")
                             cachedResponse
                         } else {
-                            Timber.e("❌ No cached data available and network failed")
+                            Timber.w("❌ No cached data available - will retry on next sync cycle")
                             throw e
                         }
                     }
@@ -429,10 +451,14 @@ class ContentSyncManager(
             }
             
             val ageMs = System.currentTimeMillis() - cacheFile.lastModified()
+            val ageDays = ageMs / (1000 * 60 * 60 * 24)
+
             if (ageMs > CACHE_MAX_AGE_MS) {
-                Timber.w("⏰ Cached schedules too old (${ageMs / 60000} minutes), ignoring")
+                Timber.w("⏰ Cached schedules too old (${ageDays} days), ignoring")
                 return null
             }
+
+            Timber.i("📱 Cache age: ${ageDays} days old (max ${CACHE_MAX_AGE_MS / (1000 * 60 * 60 * 24)} days)")
             
             val json = cacheFile.readText()
             val cachedData = Json.decodeFromString<SyncResponse>(json)
@@ -470,10 +496,14 @@ class ContentSyncManager(
             }
             
             val ageMs = System.currentTimeMillis() - cacheFile.lastModified()
+            val ageDays = ageMs / (1000 * 60 * 60 * 24)
+
             if (ageMs > CACHE_MAX_AGE_MS) {
-                Timber.w("⏰ Cached current content too old (${ageMs / 60000} minutes), ignoring")
+                Timber.w("⏰ Cached current content too old (${ageDays} days), ignoring")
                 return null
             }
+
+            Timber.i("📱 Cache age: ${ageDays} days old (max ${CACHE_MAX_AGE_MS / (1000 * 60 * 60 * 24)} days)")
             
             val json = cacheFile.readText()
             val cachedData = Json.decodeFromString<CurrentContentResponse>(json)

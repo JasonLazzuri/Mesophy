@@ -51,8 +51,16 @@ export async function GET(request: NextRequest) {
 
     if (screenError || !screen) {
       console.error('Screen not found for device token:', screenError)
-      return NextResponse.json({ 
-        error: 'Invalid device token' 
+      return NextResponse.json({
+        error: 'Invalid device token'
+      }, { status: 401 })
+    }
+
+    // Check if device_id has been cleared (device was unpaired from portal)
+    if (!screen.device_id || screen.device_id.trim() === '') {
+      console.log('Device unpaired: device_id cleared for screen:', screen.id)
+      return NextResponse.json({
+        error: 'Device has been unpaired'
       }, { status: 401 })
     }
 

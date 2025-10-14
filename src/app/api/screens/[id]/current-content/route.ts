@@ -55,6 +55,15 @@ export async function GET(
     console.log(`✅ Screen found: ${screen.name} (${screen.screen_type})`)
     console.log(`🏢 Screen location_id: ${screen.location_id}`)
 
+    // Check if device_id has been cleared (device was unpaired from portal)
+    if (!screen.device_id || screen.device_id.trim() === '') {
+      console.log(`❌ Device unpaired: device_id cleared for screen ${screen_id}`)
+      return NextResponse.json(
+        { error: 'Device has been unpaired' },
+        { status: 401 }
+      )
+    }
+
     // 2. Get current time in the screen's timezone (PDT/PST for Pi devices)
     const now = new Date()
     // Convert to PDT timezone for Pi devices
