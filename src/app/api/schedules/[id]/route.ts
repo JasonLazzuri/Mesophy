@@ -105,19 +105,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const body = await request.json()
-    const { 
-      name, 
-      playlist_id, 
-      screen_id, 
-      screen_ids = [], 
-      start_date, 
-      end_date, 
-      start_time, 
-      end_time, 
-      days_of_week, 
-      timezone, 
-      priority, 
-      is_active 
+    const {
+      name,
+      playlist_id,
+      screen_id,
+      screen_ids = [],
+      target_screen_types,
+      target_locations,
+      start_date,
+      end_date,
+      start_time,
+      end_time,
+      days_of_week,
+      timezone,
+      priority,
+      is_active
     } = body
 
     // Check if schedule exists and user has permission
@@ -172,6 +174,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (name !== undefined) updateData.name = name.trim()
     if (playlist_id !== undefined) updateData.playlist_id = playlist_id
     if (screen_id !== undefined) updateData.screen_id = screen_id
+    if (target_screen_types !== undefined) updateData.target_screen_types = target_screen_types
+    if (target_locations !== undefined) updateData.target_locations = target_locations
     if (start_date !== undefined) updateData.start_date = start_date
     if (end_date !== undefined) updateData.end_date = end_date
     if (start_time !== undefined) updateData.start_time = start_time

@@ -33,6 +33,8 @@ interface Schedule {
   name: string
   playlist_id: string
   screen_id: string | null
+  target_screen_types: string[] | null
+  target_locations: string[] | null
   start_date: string
   end_date: string | null
   start_time: string
@@ -152,6 +154,23 @@ export default function SchedulesPage() {
         return schedule.screen_schedules[0].screens.name
       }
       return `${schedule.screen_schedules.length} screens`
+    }
+    // Check if target_screen_types is set
+    if (schedule.target_screen_types && schedule.target_screen_types.length > 0) {
+      const screenTypeNames = schedule.target_screen_types.map(type => {
+        // Convert screen type to display name
+        switch(type) {
+          case 'employee_board': return 'Employee boards'
+          case 'menu_board': return 'Menu Board'
+          case 'reception_display': return 'Reception Display'
+          default: return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+        }
+      })
+      return screenTypeNames.join(', ')
+    }
+    // Check if target_locations is set
+    if (schedule.target_locations && schedule.target_locations.length > 0) {
+      return `${schedule.target_locations.length} location${schedule.target_locations.length > 1 ? 's' : ''}`
     }
     return 'All screens'
   }
