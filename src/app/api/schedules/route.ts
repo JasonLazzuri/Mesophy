@@ -35,6 +35,8 @@ export async function GET(request: NextRequest) {
         name,
         playlist_id,
         screen_id,
+        target_screen_types,
+        target_locations,
         start_date,
         end_date,
         start_time,
