@@ -211,135 +211,66 @@ export default function EditPlaylistPage({ params }: RouteParams) {
     }
   }
 
-  const addMediaToPlaylist = async (media: MediaAsset) => {
-    try {
-      const response = await fetch(`/api/playlists/${params.id}/items`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          media_asset_id: media.id,
-          transition_type: 'fade'
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to add media to playlist')
-      }
-
-      const data = await response.json()
-      const newItem = data.playlist_item
-      
-      setSelectedItems(prev => [...prev, newItem])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add media')
+  const addMediaToPlaylist = (media: MediaAsset) => {
+    // Create a new playlist item with temporary ID and default values
+    const newItem: PlaylistItem = {
+      id: `temp-${Date.now()}`, // Temporary ID for local state
+      media_asset_id: media.id,
+      order_index: selectedItems.length,
+      duration_override: null,
+      transition_type: 'fade',
+      media_assets: media
     }
+
+    setSelectedItems(prev => [...prev, newItem])
   }
 
-  const removeMediaFromPlaylist = async (itemId: string) => {
-    try {
-      const response = await fetch(`/api/playlists/${params.id}/items/${itemId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to remove media from playlist')
-      }
-
-      setSelectedItems(prev => prev.filter(item => item.id !== itemId))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove media')
-    }
+  const removeMediaFromPlaylist = (itemId: string) => {
+    setSelectedItems(prev => prev.filter(item => item.id !== itemId))
   }
 
-  const updateItemInDatabase = async (itemId: string, updates: Record<string, unknown>) => {
-    try {
-      const response = await fetch(`/api/playlists/${params.id}/items/${itemId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updates),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to update playlist item')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update item')
-    }
-  }
-
-  const moveItemUp = async (index: number) => {
+  const moveItemUp = (index: number) => {
     if (index === 0) return
-    
+
     const items = [...selectedItems]
     const item = items[index]
     items.splice(index, 1)
     items.splice(index - 1, 0, item)
-    
+
+    // Update order_index for all items
+    items.forEach((item, idx) => {
+      item.order_index = idx
+    })
+
     setSelectedItems(items)
-    
-    // Update order in database
-    await reorderItems(items)
   }
 
-  const moveItemDown = async (index: number) => {
+  const moveItemDown = (index: number) => {
     if (index === selectedItems.length - 1) return
-    
+
     const items = [...selectedItems]
     const item = items[index]
     items.splice(index, 1)
     items.splice(index + 1, 0, item)
-    
+
+    // Update order_index for all items
+    items.forEach((item, idx) => {
+      item.order_index = idx
+    })
+
     setSelectedItems(items)
-    
-    // Update order in database
-    await reorderItems(items)
   }
 
-  const reorderItems = async (items: PlaylistItem[]) => {
-    try {
-      const itemOrders = items.map((item, index) => ({
-        id: item.id,
-        order_index: index
-      }))
-
-      const response = await fetch(`/api/playlists/${params.id}/reorder`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ item_orders: itemOrders }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to reorder items')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reorder items')
-    }
-  }
-
-  const updateItemDuration = async (itemId: string, duration: number | null) => {
-    setSelectedItems(prev => prev.map(item => 
+  const updateItemDuration = (itemId: string, duration: number | null) => {
+    setSelectedItems(prev => prev.map(item =>
       item.id === itemId ? { ...item, duration_override: duration } : item
     ))
-    
-    await updateItemInDatabase(itemId, { duration_override: duration })
   }
 
-  const updateItemTransition = async (itemId: string, transition: string) => {
-    setSelectedItems(prev => prev.map(item => 
+  const updateItemTransition = (itemId: string, transition: string) => {
+    setSelectedItems(prev => prev.map(item =>
       item.id === itemId ? { ...item, transition_type: transition } : item
     ))
-    
-    await updateItemInDatabase(itemId, { transition_type: transition })
   }
 
   const calculateTotalDuration = () => {
@@ -368,7 +299,8 @@ export default function EditPlaylistPage({ params }: RouteParams) {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`/api/playlists/${params.id}`, {
+      // Save playlist metadata
+      const metadataResponse = await fetch(`/api/playlists/${params.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -381,15 +313,38 @@ export default function EditPlaylistPage({ params }: RouteParams) {
         }),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
+      if (!metadataResponse.ok) {
+        const errorData = await metadataResponse.json()
         throw new Error(errorData.error || 'Failed to update playlist')
       }
 
-      const data = await response.json()
+      // Save playlist items using batch update
+      const itemsToSave = selectedItems.map((item, index) => ({
+        media_asset_id: item.media_asset_id,
+        order_index: index,
+        duration_override: item.duration_override,
+        transition_type: item.transition_type
+      }))
+
+      const itemsResponse = await fetch(`/api/playlists/${params.id}/items/batch`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          items: itemsToSave
+        }),
+      })
+
+      if (!itemsResponse.ok) {
+        const errorData = await itemsResponse.json()
+        throw new Error(errorData.error || 'Failed to save playlist items')
+      }
+
+      const data = await metadataResponse.json()
       setPlaylist(data.playlist)
       setHasChanges(false)
-      
+
       // Redirect back to playlists list after successful save
       router.push('/dashboard/playlists')
     } catch (err) {
