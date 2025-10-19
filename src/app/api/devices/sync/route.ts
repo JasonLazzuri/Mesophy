@@ -119,12 +119,25 @@ export async function GET(request: NextRequest) {
       const screenIdMatch = schedule.screen_id === screen.id
       const screenTypeMatch = schedule.target_screen_types && schedule.target_screen_types.includes(screen.screen_type)
       const locationMatch = schedule.target_locations && schedule.target_locations.includes(screen.locations?.id)
+
+      // Check if schedule explicitly targets DIFFERENT screen types
+      // This prevents menu_board schedules from playing on employee_board devices, etc.
+      const targetsDifferentScreenType = schedule.target_screen_types &&
+                                         schedule.target_screen_types.length > 0 &&
+                                         !schedule.target_screen_types.includes(screen.screen_type)
+
+      if (targetsDifferentScreenType) {
+        console.log(`🔍 Schedule "${schedule.name}": EXCLUDED - targets ${JSON.stringify(schedule.target_screen_types)} but screen is ${screen.screen_type}`)
+        return false
+      }
+
       // If no specific screen assignments, assume "All screens"
-      const allScreensMatch = !schedule.screen_id && 
+      const allScreensMatch = !schedule.screen_id &&
                              (!schedule.target_screen_types || schedule.target_screen_types.length === 0) &&
                              (!schedule.target_locations || schedule.target_locations.length === 0)
+
       const matches = screenIdMatch || screenTypeMatch || locationMatch || allScreensMatch
-      console.log(`🔍 Schedule "${schedule.name}": screen_id=${schedule.screen_id}, target_screen_types=${JSON.stringify(schedule.target_screen_types)}, target_locations=${JSON.stringify(schedule.target_locations)}, screen_type=${screen.screen_type}, location_id=${screen.locations?.id}, matches=${matches}`)
+      console.log(`🔍 Schedule "${schedule.name}": matches=${matches} (screen_type=${screen.screen_type}, target_types=${JSON.stringify(schedule.target_screen_types)}, screen_type_match=${screenTypeMatch}, all_screens=${allScreensMatch})`)
       return matches
     })
 
