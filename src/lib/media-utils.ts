@@ -299,22 +299,8 @@ export function getYoutubeEmbedUrl(videoId: string): string {
 }
 
 /**
- * Parse ISO 8601 duration format (PT1H2M10S) to seconds
- */
-function parseISO8601Duration(duration: string): number {
-  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
-  if (!match) return 0
-
-  const hours = parseInt(match[1] || '0')
-  const minutes = parseInt(match[2] || '0')
-  const seconds = parseInt(match[3] || '0')
-
-  return hours * 3600 + minutes * 60 + seconds
-}
-
-/**
- * Fetch YouTube video metadata by scraping the video page
- * This extracts duration from JSON-LD structured data in the page HTML
+ * Fetch YouTube video metadata using oEmbed API (no API key required)
+ * Note: oEmbed doesn't provide duration, so videos will use manual duration or default
  */
 export async function fetchYoutubeMetadata(url: string): Promise<YouTubeMetadata | null> {
   try {
@@ -323,52 +309,23 @@ export async function fetchYoutubeMetadata(url: string): Promise<YouTubeMetadata
       throw new Error('Invalid YouTube URL')
     }
 
-    // First, try oEmbed API for title
+    // Use YouTube oEmbed API (no API key required)
     const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
-    const oembedResponse = await fetch(oembedUrl)
-    let title = 'YouTube Video'
 
-    if (oembedResponse.ok) {
-      const oembedData = await oembedResponse.json()
-      title = oembedData.title || title
+    const response = await fetch(oembedUrl)
+    if (!response.ok) {
+      throw new Error('Failed to fetch YouTube metadata')
     }
 
-    // Fetch the video page HTML to extract duration from JSON-LD
-    const videoPageUrl = `https://www.youtube.com/watch?v=${videoId}`
-    const pageResponse = await fetch(videoPageUrl)
-    let duration: number | undefined
-
-    if (pageResponse.ok) {
-      const html = await pageResponse.text()
-
-      // Extract duration from JSON-LD structured data
-      // YouTube includes <script type="application/ld+json"> with video metadata
-      const jsonLdMatch = html.match(/<script type="application\/ld\+json"[^>]*>(.*?)<\/script>/s)
-      if (jsonLdMatch) {
-        try {
-          const jsonLd = JSON.parse(jsonLdMatch[1])
-          if (jsonLd.duration) {
-            duration = parseISO8601Duration(jsonLd.duration)
-          }
-        } catch (e) {
-          console.warn('Failed to parse JSON-LD duration:', e)
-        }
-      }
-
-      // Fallback: try to extract from itemprop="duration"
-      if (!duration) {
-        const durationMatch = html.match(/itemprop="duration"[^>]*content="([^"]+)"/)
-        if (durationMatch) {
-          duration = parseISO8601Duration(durationMatch[1])
-        }
-      }
-    }
+    const data = await response.json()
 
     return {
       videoId,
-      title,
+      title: data.title || 'YouTube Video',
       thumbnailUrl: getYoutubeThumbnail(videoId),
-      duration,
+      // Duration cannot be fetched without YouTube Data API (requires API key)
+      // Users should manually set duration in playlist editor
+      duration: undefined,
       embedUrl: getYoutubeEmbedUrl(videoId)
     }
   } catch (error) {
