@@ -258,29 +258,32 @@ class MediaPlayerFragment : Fragment() {
         }
         
         Timber.i("🎵 Playing media: ${asset.name} (${currentIndex + 1}/${currentPlaylist.size})")
-        
-        // Find the local file path for this asset
+
+        listener?.onMediaStarted(playlistItem)
+
+        // Check if this is a YouTube video (doesn't need local file)
+        if (asset.mimeType == "video/youtube" || asset.youtubeUrl != null) {
+            playYouTube(playlistItem)
+            return
+        }
+
+        // For non-YouTube media, find the local file path
         val mediaDownloadManager = (activity as? MainActivity)?.getMediaDownloadManager()
         val localPath = mediaDownloadManager?.getCachedFilePath(asset)
-        
+
         if (localPath == null || !File(localPath).exists()) {
             Timber.e("❌ Media file not found: ${asset.name}")
             listener?.onMediaError(playlistItem, "Media file not found locally")
             playNextMedia()
             return
         }
-        
-        listener?.onMediaStarted(playlistItem)
 
         when {
             asset.mimeType.startsWith("image/") -> {
                 playImage(playlistItem, localPath)
             }
-            asset.mimeType.startsWith("video/") && asset.youtubeUrl == null -> {
+            asset.mimeType.startsWith("video/") -> {
                 playVideo(playlistItem, localPath)
-            }
-            asset.mimeType == "video/youtube" || asset.youtubeUrl != null -> {
-                playYouTube(playlistItem)
             }
             else -> {
                 Timber.w("⚠️ Unsupported media type: ${asset.mimeType}")
