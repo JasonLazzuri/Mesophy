@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Release signing files (NEVER COMMIT THESE!)
+android-tv-client/mesophy-release-key.keystore
+android-tv-client/keystore.properties
+android-tv-client/app/mesophy-release-key.keystore

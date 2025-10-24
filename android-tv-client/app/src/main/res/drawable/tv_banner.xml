@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TV Banner (320x180 dp) - Replace with actual banner image -->
+<!-- This is a temporary placeholder - you need to create a proper 320x180 PNG -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    
+    <!-- Background -->
+    <path
+        android:fillColor="#1976D2"
+        android:pathData="M0,0h320v180h-320z"/>
+    
+    <!-- Mesophy text placeholder -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M80,70h160v40h-160z"/>
+    
+    <!-- Digital Signage text placeholder -->
+    <path
+        android:fillColor="#E3F2FD"
+        android:pathData="M100,120h120v20h-120z"/>
+    
+</vector>

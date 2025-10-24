@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
+import android.os.PowerManager
 import android.view.View
+import android.view.WindowManager
 import android.widget.TextView
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
@@ -24,18 +26,21 @@ class MainActivity : FragmentActivity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val POLLING_INTERVAL_MS = 3000L // Poll every 3 seconds
+        private const val INITIAL_PAIRING_RETRY_DELAY_MS = 5000L // 5 seconds initial
+        private const val MAX_PAIRING_RETRY_DELAY_MS = 120000L // 2 minutes max
     }
-    
+
     private lateinit var pairingCodeText: TextView
     private lateinit var deviceInfoText: TextView
     private lateinit var statusText: TextView
     private lateinit var connectionStatus: TextView
     private lateinit var statusIndicator: android.view.View
     private lateinit var connectionIndicator: android.view.View
-    
+
     private val apiClient = ApiClient()
     private var currentPairingCode: String? = null
     private var isPolling = false
+    private var pairingRetryCount = 0
     private var mediaDownloadManager: MediaDownloadManager? = null
     private var mediaPlayerFragment: MediaPlayerFragment? = null
     private var deviceHealthMonitor: DeviceHealthMonitor? = null
@@ -43,7 +48,8 @@ class MainActivity : FragmentActivity() {
     private var errorRecoveryManager: ErrorRecoveryManager? = null
     private var contentSyncManager: ContentSyncManager? = null
     private var isMediaPlaying = false
-    
+    private var wakeLock: PowerManager.WakeLock? = null
+
     // Internal broadcast receiver for power management commands
     private val powerCommandReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -64,15 +70,27 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        
+
+        // Keep screen on for digital signage - prevent sleep
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        // Acquire wake lock to ensure screen stays on
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            "MesophySignage:ScreenOnWakeLock"
+        )
+        wakeLock?.acquire()
+
         // Initialize Timber logging for debug
         if (!Timber.forest().isNotEmpty()) {
             Timber.plant(Timber.DebugTree())
         }
-        
+
         Timber.i("🚀 Mesophy Digital Signage - MainActivity created")
         Timber.d("Running on Android ${android.os.Build.VERSION.RELEASE}")
         Timber.d("Device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+        Timber.i("💡 Screen wake lock acquired - screen will stay on")
         
         // Check if this is an auto-start from boot
         val isAutoStart = intent?.getBooleanExtra("auto_start", false) ?: false
@@ -101,10 +119,15 @@ class MainActivity : FragmentActivity() {
         // Register internal broadcast receiver for power commands
         val powerCommandFilter = IntentFilter().apply {
             addAction("com.mesophy.signage.INTERNAL_POWER_SCHEDULE_UPDATE")
-            addAction("com.mesophy.signage.INTERNAL_FORCE_POWER_STATE") 
+            addAction("com.mesophy.signage.INTERNAL_FORCE_POWER_STATE")
             addAction("com.mesophy.signage.INTERNAL_GET_POWER_STATUS")
         }
-        registerReceiver(powerCommandReceiver, powerCommandFilter)
+        // Android 14+ requires explicit RECEIVER_EXPORTED or RECEIVER_NOT_EXPORTED flag
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(powerCommandReceiver, powerCommandFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(powerCommandReceiver, powerCommandFilter)
+        }
         
         // Check if device is already paired
         checkPairingStatusAndProceed()
@@ -150,14 +173,22 @@ class MainActivity : FragmentActivity() {
         powerScheduleManager?.stop()
         contentSyncManager?.stop()
         errorRecoveryManager?.stop()
-        
+
+        // Release wake lock
+        wakeLock?.let {
+            if (it.isHeld) {
+                it.release()
+                Timber.i("💡 Screen wake lock released")
+            }
+        }
+
         // Unregister internal broadcast receiver
         try {
             unregisterReceiver(powerCommandReceiver)
         } catch (e: Exception) {
             Timber.w("Failed to unregister power command receiver: ${e.message}")
         }
-        
+
         Timber.i("MainActivity destroyed")
     }
     
@@ -240,22 +271,35 @@ class MainActivity : FragmentActivity() {
                 statusText.text = "Code expires in ${response.expiresInMinutes} minutes"
                 updateConnectionStatus("Connected")
                 updateStatusIndicator(StatusType.ONLINE)
-                
+
+                // Reset retry count on success
+                pairingRetryCount = 0
+
                 Timber.i("✅ Received pairing code: ${response.pairingCode}")
                 Timber.d("Dashboard URL: ${response.dashboardUrl}")
-                
+
                 // Start polling for pairing completion
                 startPairingPolling()
                 
             } catch (e: Exception) {
-                Timber.e(e, "❌ Failed to request pairing code")
-                statusText.text = "Connection failed - retrying..."
+                Timber.e(e, "❌ Failed to request pairing code (attempt ${pairingRetryCount + 1})")
+
+                // Calculate exponential backoff delay
+                pairingRetryCount++
+                val retryDelay = minOf(
+                    INITIAL_PAIRING_RETRY_DELAY_MS * (1 shl minOf(pairingRetryCount - 1, 4)), // 2^n with max 2^4
+                    MAX_PAIRING_RETRY_DELAY_MS
+                )
+
+                statusText.text = "Connection failed - retry in ${retryDelay / 1000}s..."
                 pairingCodeText.text = "ERROR"
-                updateConnectionStatus("Connection failed")
+                updateConnectionStatus("Network error - attempt ${pairingRetryCount}")
                 updateStatusIndicator(StatusType.ERROR)
-                
-                // Retry after delay
-                delay(5000)
+
+                Timber.w("⏱️ Retrying pairing after ${retryDelay}ms (attempt ${pairingRetryCount})")
+
+                // Retry after exponential backoff delay
+                delay(retryDelay)
                 startPairingProcess()
             }
         }
@@ -835,9 +879,10 @@ class MainActivity : FragmentActivity() {
             })
             
             // Add fragment to container
+            // Use commitAllowingStateLoss to avoid IllegalStateException during state changes
             supportFragmentManager.beginTransaction()
                 .replace(android.R.id.content, mediaPlayerFragment!!)
-                .commit()
+                .commitAllowingStateLoss()
             
             // Start playing the playlist items
             mediaPlayerFragment?.startPlaylist(playlistItems)
@@ -869,33 +914,16 @@ class MainActivity : FragmentActivity() {
     }
     
     /**
-     * Clean pairing code to ensure only alpranumeric characters
-     * Removes any problematic characters like /, +, =
+     * Clean pairing code to ensure only alphanumeric characters
+     * The backend already generates clean codes, so we just sanitize and validate
      */
     private fun cleanPairingCode(code: String): String {
-        // Remove any non-alphanumeric characters and ensure 6 characters
-        var cleanCode = code.replace(Regex("[^A-Za-z0-9]"), "").uppercase()
-        
-        // Replace confusing characters with safe alternatives
-        cleanCode = cleanCode
-            .replace("0", "2")  // Zero -> 2
-            .replace("O", "3")  // O -> 3  
-            .replace("1", "4")  // 1 -> 4
-            .replace("I", "5")  // I -> 5
-            .replace("L", "6")  // L -> 6
-        
-        // Ensure exactly 6 characters
-        return when {
-            cleanCode.length >= 6 -> cleanCode.substring(0, 6)
-            cleanCode.length < 6 -> {
-                // Pad with random alphanumeric chars if too short
-                val padding = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
-                cleanCode + (1..6-cleanCode.length).map { 
-                    padding.random() 
-                }.joinToString("")
-            }
-            else -> cleanCode
-        }
+        // Remove any non-alphanumeric characters and uppercase
+        // Backend already avoids confusing characters (0, O, 1, I, L), so no need to replace
+        val cleanCode = code.replace(Regex("[^A-Za-z0-9]"), "").uppercase()
+
+        // Return the code as-is from backend (should already be 6 characters)
+        return cleanCode
     }
     
     /**

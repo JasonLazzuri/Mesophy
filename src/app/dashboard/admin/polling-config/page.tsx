@@ -33,7 +33,7 @@ interface PollingConfig {
 }
 
 export default function PollingConfigPage() {
-  const { user, profile } = useAuth()
+  const { user, profile, loading: authLoading, isAuthenticated, isSuperAdmin } = useAuth()
   const [config, setConfig] = useState<PollingConfig | null>(null)
   
   // Debug logging for auth state
@@ -44,7 +44,10 @@ export default function PollingConfigPage() {
       email: profile.email,
       role: profile.role,
       organization_id: profile.organization_id
-    } : 'null'
+    } : 'null',
+    authLoading,
+    isAuthenticated,
+    isSuperAdmin
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -67,8 +70,25 @@ export default function PollingConfigPage() {
       profile,
       role: profile?.role,
       hasProfile: !!profile,
-      isLoading: loading
+      authLoading,
+      isAuthenticated,
+      isSuperAdmin,
+      pageLoading: loading
     })
+    
+    // Wait for auth to finish loading
+    if (authLoading) {
+      console.log('Auth still loading, waiting...')
+      return
+    }
+    
+    // Check if user is authenticated
+    if (!isAuthenticated) {
+      console.log('User not authenticated')
+      setError('Authentication required')
+      setLoading(false)
+      return
+    }
     
     // Wait for profile to load
     if (!profile) {
@@ -76,10 +96,12 @@ export default function PollingConfigPage() {
       return
     }
     
-    if (profile.role !== 'super_admin') {
+    // Use the isSuperAdmin flag from useAuth
+    if (!isSuperAdmin) {
       console.log('Access denied - role check failed:', {
         currentRole: profile.role,
-        requiredRole: 'super_admin'
+        requiredRole: 'super_admin',
+        isSuperAdmin
       })
       setError('Super admin access required')
       setLoading(false)
@@ -89,7 +111,7 @@ export default function PollingConfigPage() {
     console.log('Super admin access confirmed, fetching config...')
     setError(null) // Clear any previous errors
     fetchConfig()
-  }, [profile])
+  }, [profile, authLoading, isAuthenticated, isSuperAdmin])
 
   const fetchConfig = async () => {
     try {
@@ -200,7 +222,7 @@ export default function PollingConfigPage() {
     }
   }
 
-  if (profile?.role !== 'super_admin') {
+  if (!authLoading && !isSuperAdmin) {
     return (
       <div className="p-6">
         <Alert variant="destructive">
