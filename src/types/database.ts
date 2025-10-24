@@ -11,7 +11,7 @@ export type ScreenType = 'promo_board' | 'menu_board' | 'employee_board'
 export type DeviceStatus = 'online' | 'offline' | 'error' | 'maintenance'
 export type Orientation = 'landscape' | 'portrait'
 export type LogLevel = 'info' | 'warning' | 'error' | 'debug'
-export type MediaType = 'image' | 'video'
+export type MediaType = 'image' | 'video' | 'youtube'
 export type LoopMode = 'loop' | 'once' | 'shuffle'
 export type TransitionType = 'fade' | 'slide' | 'cut' | 'dissolve'
 
@@ -196,9 +196,9 @@ export interface Database {
           organization_id: string
           name: string
           description: string | null
-          file_name: string
+          file_name: string | null
           file_path: string | null
-          file_url: string
+          file_url: string | null
           file_size: number | null
           mime_type: string
           media_type: MediaType | null
@@ -208,6 +208,7 @@ export interface Database {
           resolution: string | null
           tags: string[] | null
           folder_id: string | null
+          youtube_url: string | null
           is_active: boolean
           created_by: string | null
           created_at: string
@@ -218,9 +219,9 @@ export interface Database {
           organization_id: string
           name: string
           description?: string | null
-          file_name: string
+          file_name?: string | null
           file_path?: string | null
-          file_url: string
+          file_url?: string | null
           file_size?: number | null
           mime_type: string
           media_type?: MediaType | null
@@ -230,6 +231,7 @@ export interface Database {
           resolution?: string | null
           tags?: string[] | null
           folder_id?: string | null
+          youtube_url?: string | null
           is_active?: boolean
           created_by?: string | null
           created_at?: string
@@ -240,9 +242,9 @@ export interface Database {
           organization_id?: string
           name?: string
           description?: string | null
-          file_name?: string
+          file_name?: string | null
           file_path?: string | null
-          file_url?: string
+          file_url?: string | null
           file_size?: number | null
           mime_type?: string
           media_type?: MediaType | null
@@ -252,6 +254,7 @@ export interface Database {
           resolution?: string | null
           tags?: string[] | null
           folder_id?: string | null
+          youtube_url?: string | null
           is_active?: boolean
           created_by?: string | null
           created_at?: string

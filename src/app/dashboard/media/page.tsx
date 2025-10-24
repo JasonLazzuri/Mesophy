@@ -1,15 +1,15 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { 
-  Image, 
-  Video, 
-  Upload, 
-  Search, 
-  Filter, 
-  Grid3X3, 
-  List, 
-  Plus, 
+import {
+  Image,
+  Video,
+  Upload,
+  Search,
+  Filter,
+  Grid3X3,
+  List,
+  Plus,
   FolderPlus,
   Folder,
   ChevronRight,
@@ -23,10 +23,12 @@ import {
   Square,
   FolderMinus,
   Move,
-  X
+  X,
+  Youtube
 } from 'lucide-react'
 import { Database } from '@/types/database'
 import MediaUpload from '@/components/MediaUpload'
+import YouTubeAddModal from '@/components/YouTubeAddModal'
 import MediaDetailModal from '@/components/MediaDetailModal'
 import MediaEditModal from '@/components/MediaEditModal'
 import FolderModal from '@/components/FolderModal'
@@ -54,7 +56,7 @@ export default function MediaPage() {
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [searchQuery, setSearchQuery] = useState('')
-  const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'image' | 'video'>('all')
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'image' | 'video' | 'youtube'>('all')
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [folderPath, setFolderPath] = useState<MediaFolder[]>([])
   const [pagination, setPagination] = useState<Pagination>({
@@ -65,6 +67,7 @@ export default function MediaPage() {
   })
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
   const [showUpload, setShowUpload] = useState(false)
+  const [showYouTubeAdd, setShowYouTubeAdd] = useState(false)
   const [showFolderModal, setShowFolderModal] = useState(false)
   const [editingFolder, setEditingFolder] = useState<MediaFolder | null>(null)
   const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null)
@@ -381,6 +384,10 @@ export default function MediaPage() {
     fetchMediaAssets()
   }
 
+  const handleYouTubeAddComplete = () => {
+    fetchMediaAssets()
+  }
+
   const handleMediaAddToFolder = async (selectedMediaIds: string[]) => {
     if (!currentFolderId || selectedMediaIds.length === 0) return
     
@@ -447,7 +454,14 @@ export default function MediaPage() {
             <Upload className="h-4 w-4 mr-2" />
             Upload Media
           </button>
-          <button 
+          <button
+            onClick={() => setShowYouTubeAdd(true)}
+            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center"
+          >
+            <Youtube className="h-4 w-4 mr-2" />
+            Add YouTube Video
+          </button>
+          <button
             onClick={() => setShowFolderModal(true)}
             className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center"
           >
@@ -520,6 +534,7 @@ export default function MediaPage() {
               <option value="all">All Media</option>
               <option value="image">Images</option>
               <option value="video">Videos</option>
+              <option value="youtube">YouTube Videos</option>
             </select>
           </div>
 
@@ -836,6 +851,25 @@ export default function MediaPage() {
                                 <Image className="h-12 w-12 text-gray-400" />
                               </div>
                             </>
+                          ) : asset.media_type === 'youtube' ? (
+                            <div className="relative w-full h-full">
+                              {asset.thumbnail_url ? (
+                                <>
+                                  <img
+                                    src={asset.thumbnail_url}
+                                    alt={asset.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
+                                    <Youtube className="h-16 w-16 text-white opacity-90" />
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <Youtube className="h-12 w-12 text-red-600" />
+                                </div>
+                              )}
+                            </div>
                           ) : (
                             <div className="text-center">
                               {asset.thumbnail_url ? (
@@ -978,6 +1012,8 @@ export default function MediaPage() {
                         <div className="flex-shrink-0 w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mr-4">
                           {asset.media_type === 'image' ? (
                             <Image className="h-6 w-6 text-blue-600" />
+                          ) : asset.media_type === 'youtube' ? (
+                            <Youtube className="h-6 w-6 text-red-600" />
                           ) : (
                             <Video className="h-6 w-6 text-purple-600" />
                           )}
@@ -1101,6 +1137,13 @@ export default function MediaPage() {
         onClose={() => setShowUpload(false)}
         currentFolderId={currentFolderId}
         onUploadComplete={handleUploadComplete}
+      />
+
+      <YouTubeAddModal
+        isOpen={showYouTubeAdd}
+        onClose={() => setShowYouTubeAdd(false)}
+        currentFolderId={currentFolderId}
+        onAddComplete={handleYouTubeAddComplete}
       />
 
       <FolderModal

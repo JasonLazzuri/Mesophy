@@ -9,6 +9,10 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.ImageView
 import android.widget.VideoView
 import androidx.fragment.app.Fragment
@@ -36,11 +40,13 @@ class MediaPlayerFragment : Fragment() {
     
     private lateinit var imageView: ImageView
     private lateinit var videoView: VideoView
-    
+    private lateinit var youtubeWebView: WebView
+
     private var currentPlaylist: List<PlaylistItem> = emptyList()
     private var currentIndex = 0
     private var isPlaying = false
-    
+    private var retryAttempted = false
+
     private val handler = Handler(Looper.getMainLooper())
     private var nextMediaRunnable: Runnable? = null
     
@@ -64,20 +70,21 @@ class MediaPlayerFragment : Fragment() {
     
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
+
         imageView = view.findViewById(R.id.imageView)
         videoView = view.findViewById(R.id.videoView)
-        
+        youtubeWebView = view.findViewById(R.id.youtubeWebView)
+
         // Configure video view
         videoView.setOnPreparedListener { mediaPlayer ->
             mediaPlayer.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
             mediaPlayer.isLooping = false
         }
-        
+
         videoView.setOnCompletionListener {
             onCurrentMediaCompleted()
         }
-        
+
         videoView.setOnErrorListener { _, what, extra ->
             val currentItem = getCurrentPlaylistItem()
             if (currentItem != null) {
@@ -88,7 +95,40 @@ class MediaPlayerFragment : Fragment() {
             playNextMedia()
             true
         }
-        
+
+        // Configure WebView for YouTube playback
+        youtubeWebView.settings.apply {
+            javaScriptEnabled = true
+            mediaPlaybackRequiresUserGesture = false
+            domStorageEnabled = true
+        }
+
+        youtubeWebView.webChromeClient = WebChromeClient()
+        youtubeWebView.webViewClient = WebViewClient()
+
+        // Add JavaScript interface to detect video end
+        youtubeWebView.addJavascriptInterface(object {
+            @JavascriptInterface
+            fun onVideoEnded() {
+                handler.post {
+                    Timber.d("📺 YouTube video ended")
+                    onCurrentMediaCompleted()
+                }
+            }
+
+            @JavascriptInterface
+            fun onVideoError(error: String) {
+                handler.post {
+                    val currentItem = getCurrentPlaylistItem()
+                    if (currentItem != null) {
+                        listener?.onMediaError(currentItem, "YouTube error: $error")
+                        Timber.e("❌ YouTube playback error: $error")
+                        handleYouTubeError(currentItem)
+                    }
+                }
+            }
+        }, "Android")
+
         Timber.i("🎬 MediaPlayerFragment initialized")
     }
     
@@ -158,22 +198,26 @@ class MediaPlayerFragment : Fragment() {
      */
     fun stopPlayback() {
         Timber.i("⏹️ Stopping media playback")
-        
+
         isPlaying = false
-        
+
         // Cancel any pending transitions
         nextMediaRunnable?.let { handler.removeCallbacks(it) }
         nextMediaRunnable = null
-        
+
         // Stop video if playing
         if (videoView.isPlaying) {
             videoView.stopPlayback()
         }
-        
-        // Hide both views
+
+        // Stop WebView playback
+        youtubeWebView.loadUrl("about:blank")
+
+        // Hide all views
         imageView.visibility = View.GONE
         videoView.visibility = View.GONE
-        
+        youtubeWebView.visibility = View.GONE
+
         // Clear image cache
         Glide.with(this).clear(imageView)
     }
@@ -215,13 +259,16 @@ class MediaPlayerFragment : Fragment() {
         }
         
         listener?.onMediaStarted(playlistItem)
-        
+
         when {
             asset.mimeType.startsWith("image/") -> {
                 playImage(playlistItem, localPath)
             }
-            asset.mimeType.startsWith("video/") -> {
+            asset.mimeType.startsWith("video/") && asset.youtubeUrl == null -> {
                 playVideo(playlistItem, localPath)
+            }
+            asset.mimeType == "video/youtube" || asset.youtubeUrl != null -> {
+                playYouTube(playlistItem)
             }
             else -> {
                 Timber.w("⚠️ Unsupported media type: ${asset.mimeType}")
@@ -344,6 +391,155 @@ class MediaPlayerFragment : Fragment() {
     }
     
     /**
+     * Play a YouTube video
+     */
+    private fun playYouTube(playlistItem: PlaylistItem) {
+        val asset = playlistItem.media ?: return
+        val youtubeUrl = asset.youtubeUrl
+
+        if (youtubeUrl == null) {
+            Timber.e("❌ YouTube URL is null for media: ${asset.name}")
+            listener?.onMediaError(playlistItem, "YouTube URL is missing")
+            playNextMedia()
+            return
+        }
+
+        Timber.d("📺 Playing YouTube video: ${asset.name}")
+
+        // Hide other views and show WebView
+        imageView.visibility = View.GONE
+        videoView.visibility = View.GONE
+        youtubeWebView.visibility = View.VISIBLE
+
+        // Extract video ID from YouTube URL
+        val videoId = extractYouTubeVideoId(youtubeUrl)
+        if (videoId == null) {
+            Timber.e("❌ Invalid YouTube URL: $youtubeUrl")
+            listener?.onMediaError(playlistItem, "Invalid YouTube URL")
+            playNextMedia()
+            return
+        }
+
+        // Create HTML with YouTube iframe API for fullscreen playback
+        val html = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body {
+                        margin: 0;
+                        padding: 0;
+                        background: #000;
+                        overflow: hidden;
+                    }
+                    #player {
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                    }
+                </style>
+            </head>
+            <body>
+                <div id="player"></div>
+                <script>
+                    var tag = document.createElement('script');
+                    tag.src = "https://www.youtube.com/iframe_api";
+                    var firstScriptTag = document.getElementsByTagName('script')[0];
+                    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+                    var player;
+                    function onYouTubeIframeAPIReady() {
+                        player = new YT.Player('player', {
+                            videoId: '$videoId',
+                            playerVars: {
+                                'autoplay': 1,
+                                'controls': 0,
+                                'rel': 0,
+                                'modestbranding': 1,
+                                'playsinline': 1,
+                                'fs': 0,
+                                'enablejsapi': 1
+                            },
+                            events: {
+                                'onReady': onPlayerReady,
+                                'onStateChange': onPlayerStateChange,
+                                'onError': onPlayerError
+                            }
+                        });
+                    }
+
+                    function onPlayerReady(event) {
+                        event.target.playVideo();
+                    }
+
+                    function onPlayerStateChange(event) {
+                        if (event.data == YT.PlayerState.ENDED) {
+                            Android.onVideoEnded();
+                        }
+                    }
+
+                    function onPlayerError(event) {
+                        Android.onVideoError('YouTube Player Error: ' + event.data);
+                    }
+                </script>
+            </body>
+            </html>
+        """.trimIndent()
+
+        try {
+            youtubeWebView.loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "UTF-8", null)
+            Timber.d("✅ YouTube video loaded: ${asset.name}")
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Failed to load YouTube video: ${asset.name}")
+            listener?.onMediaError(playlistItem, "Failed to load YouTube video: ${e.message}")
+            playNextMedia()
+        }
+    }
+
+    /**
+     * Extract YouTube video ID from various URL formats
+     */
+    private fun extractYouTubeVideoId(url: String): String? {
+        return try {
+            when {
+                url.contains("youtube.com/watch?v=") -> {
+                    url.substringAfter("v=").substringBefore("&")
+                }
+                url.contains("youtu.be/") -> {
+                    url.substringAfter("youtu.be/").substringBefore("?")
+                }
+                url.contains("youtube.com/embed/") -> {
+                    url.substringAfter("embed/").substringBefore("?")
+                }
+                else -> null
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to extract video ID from URL: $url")
+            null
+        }
+    }
+
+    /**
+     * Handle YouTube playback errors with retry logic
+     */
+    private fun handleYouTubeError(playlistItem: PlaylistItem) {
+        if (!retryAttempted) {
+            Timber.w("⚠️ YouTube error, attempting retry...")
+            retryAttempted = true
+            handler.postDelayed({
+                playYouTube(playlistItem)
+            }, 2000) // Retry after 2 seconds
+        } else {
+            Timber.e("❌ YouTube playback failed after retry, skipping to next media")
+            retryAttempted = false
+            playNextMedia()
+        }
+    }
+
+    /**
      * Get current playlist item
      */
     private fun getCurrentPlaylistItem(): PlaylistItem? {
@@ -351,7 +547,7 @@ class MediaPlayerFragment : Fragment() {
             currentPlaylist[currentIndex]
         } else null
     }
-    
+
     override fun onDestroy() {
         super.onDestroy()
         stopPlayback()

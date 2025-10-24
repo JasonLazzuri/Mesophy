@@ -219,3 +219,113 @@ export function createPreviewUrl(file: File): string {
 export function cleanupPreviewUrl(url: string): void {
   URL.revokeObjectURL(url)
 }
+
+// ========================================
+// YouTube Utility Functions
+// ========================================
+
+export interface YouTubeMetadata {
+  videoId: string
+  title: string
+  thumbnailUrl: string
+  duration?: number
+  embedUrl: string
+}
+
+/**
+ * Extract YouTube video ID from various URL formats
+ * Supports:
+ * - https://www.youtube.com/watch?v=VIDEO_ID
+ * - https://youtu.be/VIDEO_ID
+ * - https://www.youtube.com/embed/VIDEO_ID
+ * - https://m.youtube.com/watch?v=VIDEO_ID
+ */
+export function extractYoutubeVideoId(url: string): string | null {
+  try {
+    const urlObj = new URL(url)
+
+    // Format 1: youtube.com/watch?v=VIDEO_ID
+    if (urlObj.hostname.includes('youtube.com') && urlObj.pathname === '/watch') {
+      return urlObj.searchParams.get('v')
+    }
+
+    // Format 2: youtu.be/VIDEO_ID
+    if (urlObj.hostname === 'youtu.be') {
+      return urlObj.pathname.slice(1) // Remove leading '/'
+    }
+
+    // Format 3: youtube.com/embed/VIDEO_ID
+    if (urlObj.hostname.includes('youtube.com') && urlObj.pathname.startsWith('/embed/')) {
+      return urlObj.pathname.split('/')[2]
+    }
+
+    return null
+  } catch (error) {
+    return null
+  }
+}
+
+/**
+ * Validate YouTube URL format
+ */
+export function validateYoutubeUrl(url: string): boolean {
+  const videoId = extractYoutubeVideoId(url)
+  return videoId !== null && videoId.length > 0
+}
+
+/**
+ * Get YouTube thumbnail URL from video ID
+ */
+export function getYoutubeThumbnail(videoId: string): string {
+  return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
+}
+
+/**
+ * Get YouTube embed URL from video ID
+ * Includes parameters for fullscreen playback without controls
+ */
+export function getYoutubeEmbedUrl(videoId: string): string {
+  const params = new URLSearchParams({
+    autoplay: '1',
+    controls: '0',
+    rel: '0',
+    modestbranding: '1',
+    playsinline: '1',
+    fs: '0',
+    enablejsapi: '1'
+  })
+
+  return `https://www.youtube.com/embed/${videoId}?${params.toString()}`
+}
+
+/**
+ * Fetch YouTube video metadata using oEmbed API (no API key required)
+ */
+export async function fetchYoutubeMetadata(url: string): Promise<YouTubeMetadata | null> {
+  try {
+    const videoId = extractYoutubeVideoId(url)
+    if (!videoId) {
+      throw new Error('Invalid YouTube URL')
+    }
+
+    // Use YouTube oEmbed API (no API key required)
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
+
+    const response = await fetch(oembedUrl)
+    if (!response.ok) {
+      throw new Error('Failed to fetch YouTube metadata')
+    }
+
+    const data = await response.json()
+
+    return {
+      videoId,
+      title: data.title || 'YouTube Video',
+      thumbnailUrl: getYoutubeThumbnail(videoId),
+      embedUrl: getYoutubeEmbedUrl(videoId)
+    }
+  } catch (error) {
+    console.error('Error fetching YouTube metadata:', error)
+    return null
+  }
+}

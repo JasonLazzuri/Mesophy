@@ -9,7 +9,7 @@ import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
 data class SyncResponse(
-    @Json(name = "device_id") val deviceId: String,
+    @Json(name = "device_id") val deviceId: String?, // Nullable - may not be set in some screens
     @Json(name = "screen_id") val screenId: String,
     @Json(name = "screen_name") val screenName: String,
     @Json(name = "screen_type") val screenType: String,
@@ -72,7 +72,8 @@ data class MediaAsset(
     @Json(name = "file_size") val fileSize: Long?,
     val duration: Int?,
     val width: Int?,
-    val height: Int?
+    val height: Int?,
+    @Json(name = "youtube_url") val youtubeUrl: String? = null
 )
 
 @JsonClass(generateAdapter = true)
