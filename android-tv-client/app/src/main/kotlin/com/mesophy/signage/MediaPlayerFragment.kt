@@ -101,6 +101,18 @@ class MediaPlayerFragment : Fragment() {
             javaScriptEnabled = true
             mediaPlaybackRequiresUserGesture = false
             domStorageEnabled = true
+            databaseEnabled = true
+            javaScriptCanOpenWindowsAutomatically = true
+            allowFileAccess = true
+            allowContentAccess = true
+            setSupportMultipleWindows(false)
+            loadsImagesAutomatically = true
+
+            // Enable hardware acceleration for better video performance
+            setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)
+
+            // Set user agent to make YouTube think we're a normal browser
+            userAgentString = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
 
         youtubeWebView.webChromeClient = WebChromeClient()
@@ -405,6 +417,7 @@ class MediaPlayerFragment : Fragment() {
         }
 
         Timber.d("📺 Playing YouTube video: ${asset.name}")
+        Timber.d("📺 YouTube URL: $youtubeUrl")
 
         // Hide other views and show WebView
         imageView.visibility = View.GONE
@@ -419,6 +432,8 @@ class MediaPlayerFragment : Fragment() {
             playNextMedia()
             return
         }
+
+        Timber.d("📺 Extracted video ID: $videoId")
 
         // Create HTML with YouTube iframe API for fullscreen playback
         val html = """
@@ -461,7 +476,8 @@ class MediaPlayerFragment : Fragment() {
                                 'modestbranding': 1,
                                 'playsinline': 1,
                                 'fs': 0,
-                                'enablejsapi': 1
+                                'enablejsapi': 1,
+                                'origin': 'https://www.youtube.com'
                             },
                             events: {
                                 'onReady': onPlayerReady,
