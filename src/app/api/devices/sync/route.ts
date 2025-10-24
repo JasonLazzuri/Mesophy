@@ -190,6 +190,7 @@ export async function GET(request: NextRequest) {
                     duration,
                     width,
                     height,
+                    youtube_url,
                     updated_at
                   `)
                   .eq('id', item.media_asset_id)
@@ -306,16 +307,18 @@ export async function GET(request: NextRequest) {
               media: item.media_assets ? {
                 id: item.media_assets.id,
                 name: item.media_assets.name,
-                // Use optimized URLs in order of preference
-                url: item.media_assets.optimized_url || 
-                     item.media_assets.preview_url || 
+                // Use optimized URLs in order of preference (unless it's a YouTube video)
+                url: item.media_assets.youtube_url ||
+                     item.media_assets.optimized_url ||
+                     item.media_assets.preview_url ||
                      item.media_assets.file_url,
                 thumbnail_url: item.media_assets.thumbnail_url,
                 mime_type: item.media_assets.mime_type,
                 file_size: item.media_assets.file_size,
                 duration: item.media_assets.duration,
                 width: item.media_assets.width,
-                height: item.media_assets.height
+                height: item.media_assets.height,
+                youtube_url: item.media_assets.youtube_url
               } : null
             }))
         } : null
