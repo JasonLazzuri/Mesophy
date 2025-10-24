@@ -42,7 +42,6 @@ export async function GET(request: NextRequest) {
       `)
       .eq('organization_id', userProfile.organization_id)
       .eq('is_active', true)
-      .eq('processing_status', 'completed') // Only show successfully processed media
       .order('created_at', { ascending: false })
 
     // Apply filters
@@ -89,7 +88,6 @@ export async function GET(request: NextRequest) {
       .select('*', { count: 'exact', head: true })
       .eq('organization_id', userProfile.organization_id)
       .eq('is_active', true)
-      .eq('processing_status', 'completed')
 
     return NextResponse.json({
       mediaAssets,
