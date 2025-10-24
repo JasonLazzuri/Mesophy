@@ -435,78 +435,24 @@ class MediaPlayerFragment : Fragment() {
 
         Timber.d("📺 Extracted video ID: $videoId")
 
-        // Create HTML with YouTube iframe API for fullscreen playback
-        val html = """
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <style>
-                    body {
-                        margin: 0;
-                        padding: 0;
-                        background: #000;
-                        overflow: hidden;
-                    }
-                    #player {
-                        position: absolute;
-                        top: 0;
-                        left: 0;
-                        width: 100%;
-                        height: 100%;
-                    }
-                </style>
-            </head>
-            <body>
-                <div id="player"></div>
-                <script>
-                    var tag = document.createElement('script');
-                    tag.src = "https://www.youtube.com/iframe_api";
-                    var firstScriptTag = document.getElementsByTagName('script')[0];
-                    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
-                    var player;
-                    function onYouTubeIframeAPIReady() {
-                        player = new YT.Player('player', {
-                            videoId: '$videoId',
-                            playerVars: {
-                                'autoplay': 1,
-                                'controls': 0,
-                                'rel': 0,
-                                'modestbranding': 1,
-                                'playsinline': 1,
-                                'fs': 0,
-                                'enablejsapi': 1,
-                                'origin': 'https://www.youtube.com'
-                            },
-                            events: {
-                                'onReady': onPlayerReady,
-                                'onStateChange': onPlayerStateChange,
-                                'onError': onPlayerError
-                            }
-                        });
-                    }
-
-                    function onPlayerReady(event) {
-                        event.target.playVideo();
-                    }
-
-                    function onPlayerStateChange(event) {
-                        if (event.data == YT.PlayerState.ENDED) {
-                            Android.onVideoEnded();
-                        }
-                    }
-
-                    function onPlayerError(event) {
-                        Android.onVideoError('YouTube Player Error: ' + event.data);
-                    }
-                </script>
-            </body>
-            </html>
-        """.trimIndent()
+        // Try direct YouTube URL load (bypass WebView security restrictions)
+        val embedUrl = "https://www.youtube.com/embed/$videoId?autoplay=1&controls=0&modestbranding=1&rel=0&fs=0&playsinline=1"
 
         try {
-            youtubeWebView.loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "UTF-8", null)
+            Timber.d("📺 Loading YouTube URL directly: $embedUrl")
+            youtubeWebView.loadUrl(embedUrl)
+
+            // Since we can't detect video end with direct iframe, use display duration from playlist
+            // Default to 60 seconds if not specified
+            val duration = if (playlistItem.displayDuration > 0) {
+                playlistItem.displayDuration * 1000L
+            } else {
+                60000L // 60 seconds default for YouTube videos
+            }
+
+            Timber.d("📺 YouTube video will play for ${duration/1000} seconds")
+            scheduleNextMedia(playlistItem)
+
             Timber.d("✅ YouTube video loaded: ${asset.name}")
         } catch (e: Exception) {
             Timber.e(e, "❌ Failed to load YouTube video: ${asset.name}")
