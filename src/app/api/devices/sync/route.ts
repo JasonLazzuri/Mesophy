@@ -303,7 +303,7 @@ export async function GET(request: NextRequest) {
             .map(item => ({
               id: item.id,
               display_order: item.order_index,
-              display_duration: item.duration_override || 10,
+              display_duration: item.duration_override || item.media_assets?.duration || 10,
               media: item.media_assets ? {
                 id: item.media_assets.id,
                 name: item.media_assets.name,

@@ -115,8 +115,31 @@ class MediaPlayerFragment : Fragment() {
             userAgentString = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
 
-        youtubeWebView.webChromeClient = WebChromeClient()
-        youtubeWebView.webViewClient = WebViewClient()
+        // Enhanced WebChromeClient to capture JavaScript console messages
+        youtubeWebView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage?): Boolean {
+                consoleMessage?.let {
+                    Timber.d("📺 WebView Console [${it.messageLevel()}]: ${it.message()} (${it.sourceId()}:${it.lineNumber()})")
+                }
+                return true
+            }
+        }
+
+        // Enhanced WebViewClient to capture page load events and errors
+        youtubeWebView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                Timber.d("📺 WebView page loaded: $url")
+            }
+
+            override fun onReceivedError(
+                view: WebView?,
+                errorCode: Int,
+                description: String?,
+                failingUrl: String?
+            ) {
+                Timber.e("📺 WebView error: code=$errorCode, desc=$description, url=$failingUrl")
+            }
+        }
 
         // Add JavaScript interface to detect video end
         youtubeWebView.addJavascriptInterface(object {
@@ -299,8 +322,9 @@ class MediaPlayerFragment : Fragment() {
     private fun playImage(playlistItem: PlaylistItem, localPath: String) {
         val asset = playlistItem.media ?: return
         Timber.d("📸 Displaying image: ${asset.name} for ${playlistItem.displayDuration} seconds")
-        
-        // Hide video view and show image view
+
+        // Hide other views and show image view
+        youtubeWebView.visibility = View.GONE
         videoView.visibility = View.GONE
         imageView.visibility = View.VISIBLE
         
@@ -326,8 +350,9 @@ class MediaPlayerFragment : Fragment() {
     private fun playVideo(playlistItem: PlaylistItem, localPath: String) {
         val asset = playlistItem.media ?: return
         Timber.d("🎥 Playing video: ${asset.name}")
-        
-        // Hide image view and show video view
+
+        // Hide other views and show video view
+        youtubeWebView.visibility = View.GONE
         imageView.visibility = View.GONE
         videoView.visibility = View.VISIBLE
         
@@ -426,6 +451,8 @@ class MediaPlayerFragment : Fragment() {
         imageView.visibility = View.GONE
         videoView.visibility = View.GONE
         youtubeWebView.visibility = View.VISIBLE
+
+        Timber.d("📺 View visibility: imageView=${imageView.visibility}, videoView=${videoView.visibility}, youtubeWebView=${youtubeWebView.visibility}")
 
         // Extract video ID from YouTube URL
         val videoId = extractYouTubeVideoId(youtubeUrl)

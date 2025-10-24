@@ -213,11 +213,12 @@ export default function EditPlaylistPage({ params }: RouteParams) {
 
   const addMediaToPlaylist = (media: MediaAsset) => {
     // Create a new playlist item with temporary ID and default values
+    // For YouTube videos, never use duration_override (always use actual duration)
     const newItem: PlaylistItem = {
       id: `temp-${Date.now()}`, // Temporary ID for local state
       media_asset_id: media.id,
       order_index: selectedItems.length,
-      duration_override: null,
+      duration_override: media.mime_type === 'video/youtube' ? null : null,
       transition_type: 'fade',
       media_assets: media
     }
@@ -262,9 +263,13 @@ export default function EditPlaylistPage({ params }: RouteParams) {
   }
 
   const updateItemDuration = (itemId: string, duration: number | null) => {
-    setSelectedItems(prev => prev.map(item =>
-      item.id === itemId ? { ...item, duration_override: duration } : item
-    ))
+    setSelectedItems(prev => prev.map(item => {
+      // Don't allow duration override for YouTube videos - they always use their actual duration
+      if (item.id === itemId && item.media_assets.mime_type !== 'video/youtube') {
+        return { ...item, duration_override: duration }
+      }
+      return item
+    }))
   }
 
   const updateItemTransition = (itemId: string, transition: string) => {
@@ -720,7 +725,9 @@ export default function EditPlaylistPage({ params }: RouteParams) {
                           placeholder="Duration (s)"
                           value={item.duration_override || ''}
                           onChange={(e) => updateItemDuration(item.id, e.target.value ? parseInt(e.target.value) : null)}
-                          className="w-20 px-2 py-1 text-xs border border-gray-300 rounded"
+                          disabled={item.media_assets.mime_type === 'video/youtube'}
+                          className="w-20 px-2 py-1 text-xs border border-gray-300 rounded disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          title={item.media_assets.mime_type === 'video/youtube' ? 'YouTube video duration is set automatically' : 'Custom duration override (leave empty to use default)'}
                         />
                         
                         <select

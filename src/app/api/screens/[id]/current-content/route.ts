@@ -210,12 +210,13 @@ export async function GET(
               console.log(`🎵 Fetched ${fetchedAssets.length} media assets`)
               
               // Combine with playlist item data (duration, order)
+              // Priority: duration_override (manual) > asset.duration (from YouTube or video metadata) > 10 (default)
               mediaAssets = playlistItems.map(playlistItem => {
                 const asset = fetchedAssets.find(a => a.id === playlistItem.media_asset_id)
                 if (asset) {
                   return {
                     ...asset,
-                    display_duration: playlistItem.duration_override || asset.duration || 10, // Use override or default
+                    display_duration: playlistItem.duration_override ?? asset.duration ?? 10, // Use override or actual duration or default
                     display_order: playlistItem.order_index
                   }
                 }
