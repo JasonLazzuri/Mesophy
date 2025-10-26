@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Building2, Search, Plus, Edit, MapPin, Users } from 'lucide-react'
 import Link from 'next/link'
+import { useAuth } from '@/hooks/useAuth'
 
 interface District {
   id: string
@@ -24,6 +25,7 @@ interface District {
 }
 
 export default function DistrictsPage() {
+  const { isTech } = useAuth()
   const [districts, setDistricts] = useState<District[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -103,13 +105,15 @@ export default function DistrictsPage() {
             Manage your regional districts and their locations
           </p>
         </div>
-        <Link
-          href="/dashboard/districts/add"
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add District
-        </Link>
+        {!isTech && (
+          <Link
+            href="/dashboard/districts/add"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add District
+          </Link>
+        )}
       </div>
 
       {error && (
@@ -195,13 +199,15 @@ export default function DistrictsPage() {
                     >
                       View Details
                     </Link>
-                    <Link
-                      href={`/dashboard/districts/${district.id}/edit`}
-                      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-                    >
-                      <Edit className="h-4 w-4 mr-1" />
-                      Edit
-                    </Link>
+                    {!isTech && (
+                      <Link
+                        href={`/dashboard/districts/${district.id}/edit`}
+                        className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Link>
+                    )}
                   </div>
                 </div>
               </div>

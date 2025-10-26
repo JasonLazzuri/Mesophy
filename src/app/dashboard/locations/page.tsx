@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { MapPin, Search, Plus, Edit, Building2, Clock, Phone, Map } from 'lucide-react'
 import Link from 'next/link'
+import { useAuth } from '@/hooks/useAuth'
 
 interface Location {
   id: string
@@ -32,6 +33,7 @@ interface LocationsByDistrict {
 }
 
 export default function LocationsPage() {
+  const { isTech } = useAuth()
   const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -101,13 +103,15 @@ export default function LocationsPage() {
             Manage your restaurant locations and their settings
           </p>
         </div>
-        <Link
-          href="/dashboard/locations/add"
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Location
-        </Link>
+        {!isTech && (
+          <Link
+            href="/dashboard/locations/add"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Location
+          </Link>
+        )}
       </div>
 
       {error && (
@@ -222,14 +226,16 @@ export default function LocationsPage() {
                             </div>
                           </div>
 
-                          <div className="flex items-center space-x-2 ml-2">
-                            <Link
-                              href={`/dashboard/locations/${location.id}/edit`}
-                              className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs leading-4 font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-colors"
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Link>
-                          </div>
+                          {!isTech && (
+                            <div className="flex items-center space-x-2 ml-2">
+                              <Link
+                                href={`/dashboard/locations/${location.id}/edit`}
+                                className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs leading-4 font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-colors"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Link>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}

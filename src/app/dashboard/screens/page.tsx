@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ScreenType, DeviceStatus, Orientation } from '@/types/database'
 import EnterPairingCodeModal from '@/components/EnterPairingCodeModal'
 import Toast from '@/components/Toast'
+import { useAuth } from '@/hooks/useAuth'
 
 interface Screen {
   id: string
@@ -48,6 +49,7 @@ interface ScreensByLocation {
 }
 
 export default function ScreensPage() {
+  const { isTech } = useAuth()
   const [screens, setScreens] = useState<Screen[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -269,13 +271,15 @@ export default function ScreensPage() {
             <Smartphone className="h-4 w-4 mr-2" />
             Enter Pairing Code
           </button>
-          <Link
-            href="/dashboard/screens/add"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Screen
-          </Link>
+          {!isTech && (
+            <Link
+              href="/dashboard/screens/add"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Screen
+            </Link>
+          )}
         </div>
       </div>
 

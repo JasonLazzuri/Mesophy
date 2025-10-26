@@ -156,5 +156,6 @@ export function useAuth() {
     isSuperAdmin: profile?.role === 'super_admin',
     isDistrictManager: profile?.role === 'district_manager',
     isLocationManager: profile?.role === 'location_manager',
+    isTech: profile?.role === 'tech',
   }
 }

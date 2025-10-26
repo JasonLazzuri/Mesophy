@@ -6,7 +6,7 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type UserRole = 'super_admin' | 'district_manager' | 'location_manager'
+export type UserRole = 'super_admin' | 'district_manager' | 'location_manager' | 'tech'
 export type ScreenType = 'promo_board' | 'menu_board' | 'employee_board'
 export type DeviceStatus = 'online' | 'offline' | 'error' | 'maintenance'
 export type Orientation = 'landscape' | 'portrait'
