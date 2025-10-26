@@ -325,30 +325,34 @@ export async function POST(request: NextRequest) {
     const newUser = await createUserResponse.json()
     console.log('User created successfully:', newUser.id)
 
-    // Update user profile (created by trigger) with full details
+    // Update user profile (created by trigger) with full details using direct REST API
     console.log('POST /api/users - Updating user profile with role and organization')
-    const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL, serviceKey)
 
-    const { data: userProfile, error: profileUpdateError } = await adminSupabase
-      .from('user_profiles')
-      .update({
-        full_name,
-        role,
-        organization_id: profile.organization_id,
-        district_id: district_id || null,
-        location_id: location_id || null,
-        is_active: true
-      })
-      .eq('id', newUser.id)
-      .select(`
-        *,
-        district:districts(id, name),
-        location:locations(id, name)
-      `)
-      .single()
+    // Use direct REST API to bypass RLS and avoid infinite recursion
+    const updateProfileResponse = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/user_profiles?id=eq.${newUser.id}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          full_name,
+          role,
+          organization_id: profile.organization_id,
+          district_id: district_id || null,
+          location_id: location_id || null,
+          is_active: true
+        })
+      }
+    )
 
-    if (profileUpdateError) {
-      console.error('Error updating user profile:', profileUpdateError)
+    if (!updateProfileResponse.ok) {
+      const errorText = await updateProfileResponse.text()
+      console.error('Error updating user profile:', errorText)
 
       // Clean up the auth user if profile update failed
       await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users/${newUser.id}`, {
@@ -361,7 +365,17 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         error: 'Failed to update user profile',
-        details: profileUpdateError.message
+        details: errorText
+      }, { status: 500 })
+    }
+
+    const updatedProfiles = await updateProfileResponse.json()
+    const userProfile = updatedProfiles[0]
+
+    if (!userProfile) {
+      console.error('No profile returned after update')
+      return NextResponse.json({
+        error: 'Failed to retrieve updated user profile'
       }, { status: 500 })
     }
 
