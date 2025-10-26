@@ -1,22 +1,7 @@
 -- ==========================================
--- ADD TECH USER ROLE
--- ==========================================
--- Purpose: Add 'tech' role for technical support staff who can manage
---          devices and content but cannot modify organizational structure
---
--- Permissions:
--- - Screens: UPDATE only (pair devices, configure) - NO create, NO delete
--- - Media/Playlists/Schedules: Full CRUD
--- - Organizations/Districts/Locations/Users: READ only
---
--- Date: 2025-10-24
--- ==========================================
-
--- Step 1: Add 'tech' to user_role enum
-ALTER TYPE user_role ADD VALUE 'tech';
-
--- ==========================================
 -- TECH ROLE RLS POLICIES
+-- ==========================================
+-- Run this AFTER adding 'tech' to user_role enum
 -- ==========================================
 
 -- ==========================================
