@@ -290,11 +290,15 @@ CREATE POLICY "Tech users can delete schedules" ON schedules
 -- USER_PROFILES - Read Only
 -- ==========================================
 
--- NOTE: Tech users do NOT need a separate policy for user_profiles
--- The existing super_admin policies allow users to view profiles in their organization
--- Adding a tech-specific policy here causes circular reference issues
--- Tech users can view users through the existing "Users can view their own profile" policy
--- and the super_admin policies that check organization_id
+CREATE POLICY "Tech users can view organization users" ON user_profiles
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM user_profiles tech_profile
+            WHERE tech_profile.id = auth.uid()
+            AND tech_profile.role = 'tech'
+            AND tech_profile.organization_id = user_profiles.organization_id
+        )
+    );
 
 -- Tech users CANNOT create, update, or delete users
 -- Only super_admin can manage users
