@@ -28,7 +28,7 @@ interface User {
   id: string
   email: string
   full_name: string | null
-  role: 'super_admin' | 'district_manager' | 'location_manager'
+  role: 'super_admin' | 'district_manager' | 'location_manager' | 'tech'
   organization_id: string | null
   district_id: string | null
   location_id: string | null
@@ -63,6 +63,12 @@ const roleConfig = {
     color: 'bg-green-100 text-green-800',
     icon: MapPin,
     description: 'Manages single location'
+  },
+  tech: {
+    label: 'Tech Support',
+    color: 'bg-orange-100 text-orange-800',
+    icon: Shield,
+    description: 'Manages devices and content'
   }
 }
 
@@ -455,6 +461,7 @@ export default function UsersPage() {
                   <option value="super_admin">Super Admin</option>
                   <option value="district_manager">District Manager</option>
                   <option value="location_manager">Location Manager</option>
+                  <option value="tech">Tech Support</option>
                 </select>
               </div>
               <div>
