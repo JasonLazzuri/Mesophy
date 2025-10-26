@@ -35,7 +35,7 @@ interface UserData {
   id: string
   email: string
   full_name: string | null
-  role: 'super_admin' | 'district_manager' | 'location_manager'
+  role: 'super_admin' | 'district_manager' | 'location_manager' | 'tech'
   organization_id: string | null
   district_id: string | null
   location_id: string | null
@@ -54,7 +54,7 @@ interface UserData {
 
 interface FormData {
   full_name: string
-  role: 'super_admin' | 'district_manager' | 'location_manager' | ''
+  role: 'super_admin' | 'district_manager' | 'location_manager' | 'tech' | ''
   district_id: string
   location_id: string
   is_active: boolean
@@ -86,6 +86,12 @@ const roleConfig = {
     color: 'bg-green-100 text-green-800',
     icon: MapPin,
     description: 'Manages screens at assigned locations'
+  },
+  tech: {
+    label: 'Tech Support',
+    color: 'bg-orange-100 text-orange-800',
+    icon: Shield,
+    description: 'Manages devices and content but cannot modify organizational structure'
   }
 }
 
@@ -450,8 +456,8 @@ export default function EditUserPage({
   }
 
   const isOwnProfile = user.id === profile?.id
-  const availableRoles = profile?.role === 'super_admin' 
-    ? ['super_admin', 'district_manager', 'location_manager'] 
+  const availableRoles = profile?.role === 'super_admin'
+    ? ['super_admin', 'district_manager', 'location_manager', 'tech']
     : []
 
   return (

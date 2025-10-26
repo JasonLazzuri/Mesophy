@@ -31,7 +31,7 @@ interface Location {
 interface FormData {
   email: string
   full_name: string
-  role: 'super_admin' | 'district_manager' | 'location_manager' | ''
+  role: 'super_admin' | 'district_manager' | 'location_manager' | 'tech' | ''
   district_id: string
   location_id: string
   send_invitation: boolean
@@ -64,6 +64,12 @@ const roleConfig = {
     color: 'bg-green-100 text-green-800',
     icon: MapPin,
     description: 'Manages screens at assigned locations'
+  },
+  tech: {
+    label: 'Tech Support',
+    color: 'bg-orange-100 text-orange-800',
+    icon: Shield,
+    description: 'Manages devices and content but cannot modify organizational structure'
   }
 }
 
@@ -338,8 +344,8 @@ export default function AddUserPage() {
     return null // Component will redirect
   }
 
-  const availableRoles = profile?.role === 'super_admin' 
-    ? ['super_admin', 'district_manager', 'location_manager'] 
+  const availableRoles = profile?.role === 'super_admin'
+    ? ['super_admin', 'district_manager', 'location_manager', 'tech']
     : ['location_manager']
 
   return (
@@ -631,6 +637,12 @@ export default function AddUserPage() {
             <MapPin className="h-4 w-4 mt-0.5 mr-2 text-green-600" />
             <div>
               <strong>Location Manager:</strong> Can manage screens and content at their assigned location
+            </div>
+          </li>
+          <li className="flex items-start">
+            <Shield className="h-4 w-4 mt-0.5 mr-2 text-orange-600" />
+            <div>
+              <strong>Tech Support:</strong> Can pair devices, manage media and schedules, but cannot modify organizational structure (districts/locations)
             </div>
           </li>
         </ul>
