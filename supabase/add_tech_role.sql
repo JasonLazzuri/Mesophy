@@ -290,15 +290,17 @@ CREATE POLICY "Tech users can delete schedules" ON schedules
 -- USER_PROFILES - Read Only
 -- ==========================================
 
-CREATE POLICY "Tech users can view organization users" ON user_profiles
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM user_profiles tech_profile
-            WHERE tech_profile.id = auth.uid()
-            AND tech_profile.role = 'tech'
-            AND tech_profile.organization_id = user_profiles.organization_id
-        )
-    );
+-- NOTE: Tech users do NOT have a policy to view other users
+-- This is intentional to avoid circular reference/infinite recursion issues
+-- Any policy that queries user_profiles to check the current user's role
+-- creates infinite recursion because checking the policy requires querying
+-- the same table the policy protects.
+--
+-- Tech users can only view their own profile through the existing
+-- "Users can view their own profile" policy.
+--
+-- If tech users need to see other users, this must be implemented at the
+-- application layer (API endpoint) rather than through RLS policies.
 
 -- Tech users CANNOT create, update, or delete users
 -- Only super_admin can manage users
