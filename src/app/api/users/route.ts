@@ -325,15 +325,13 @@ export async function POST(request: NextRequest) {
     const newUser = await createUserResponse.json()
     console.log('User created successfully:', newUser.id)
 
-    // Create user profile using admin client to bypass RLS
-    console.log('POST /api/users - Creating user profile')
+    // Update user profile (created by trigger) with full details
+    console.log('POST /api/users - Updating user profile with role and organization')
     const adminSupabase = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL, serviceKey)
-    
-    const { data: userProfile, error: profileCreateError } = await adminSupabase
+
+    const { data: userProfile, error: profileUpdateError } = await adminSupabase
       .from('user_profiles')
-      .insert({
-        id: newUser.id,
-        email,
+      .update({
         full_name,
         role,
         organization_id: profile.organization_id,
@@ -341,6 +339,7 @@ export async function POST(request: NextRequest) {
         location_id: location_id || null,
         is_active: true
       })
+      .eq('id', newUser.id)
       .select(`
         *,
         district:districts(id, name),
@@ -348,10 +347,10 @@ export async function POST(request: NextRequest) {
       `)
       .single()
 
-    if (profileCreateError) {
-      console.error('Error creating user profile:', profileCreateError)
-      
-      // Clean up the auth user if profile creation failed
+    if (profileUpdateError) {
+      console.error('Error updating user profile:', profileUpdateError)
+
+      // Clean up the auth user if profile update failed
       await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users/${newUser.id}`, {
         method: 'DELETE',
         headers: {
@@ -359,10 +358,10 @@ export async function POST(request: NextRequest) {
           'apikey': serviceKey
         }
       })
-      
-      return NextResponse.json({ 
-        error: 'Failed to create user profile',
-        details: profileCreateError.message
+
+      return NextResponse.json({
+        error: 'Failed to update user profile',
+        details: profileUpdateError.message
       }, { status: 500 })
     }
 
