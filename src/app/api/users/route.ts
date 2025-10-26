@@ -223,9 +223,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Admin operations unavailable' }, { status: 503 })
     }
 
-    // Check if email already exists using direct REST API (bypass JS client issues)
+    // Check if email already exists in both auth and user_profiles
     console.log('POST /api/users - Checking if email already exists:', email)
-    
+
+    // Check auth.users
     const checkUserResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users`, {
       method: 'GET',
       headers: {
@@ -234,18 +235,25 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json'
       }
     })
-    
+
     if (!checkUserResponse.ok) {
       console.error('Failed to check existing users:', checkUserResponse.status)
       return NextResponse.json({ error: 'Failed to validate email' }, { status: 500 })
     }
-    
+
     const existingUsers = await checkUserResponse.json()
-    const existingUser = existingUsers.users?.find(u => u.email === email)
-    
-    if (existingUser) {
-      return NextResponse.json({ 
-        error: 'User with this email already exists' 
+    const existingAuthUser = existingUsers.users?.find(u => u.email === email)
+
+    // Check user_profiles using admin client
+    const { data: existingProfile } = await adminClient
+      .from('user_profiles')
+      .select('id, email')
+      .eq('email', email)
+      .maybeSingle()
+
+    if (existingAuthUser || existingProfile) {
+      return NextResponse.json({
+        error: 'User with this email already exists'
       }, { status: 409 })
     }
 
