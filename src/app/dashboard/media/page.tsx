@@ -859,9 +859,21 @@ export default function MediaPage() {
                                     src={asset.thumbnail_url}
                                     alt={asset.name}
                                     className="w-full h-full object-cover"
+                                    crossOrigin="anonymous"
+                                    referrerPolicy="no-referrer"
+                                    onError={(e) => {
+                                      console.error('YouTube thumbnail failed to load:', asset.thumbnail_url)
+                                      // Hide the image and show fallback
+                                      e.currentTarget.style.display = 'none'
+                                      const overlay = e.currentTarget.nextElementSibling
+                                      if (overlay) {
+                                        overlay.classList.remove('bg-opacity-30')
+                                        overlay.classList.add('bg-gray-100')
+                                      }
+                                    }}
                                   />
-                                  <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
-                                    <Youtube className="h-16 w-16 text-white opacity-90" />
+                                  <div className="absolute bottom-2 right-2">
+                                    <Youtube className="h-8 w-8 text-white drop-shadow-lg" />
                                   </div>
                                 </>
                               ) : (
