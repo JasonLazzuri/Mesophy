@@ -299,8 +299,22 @@ export function getYoutubeEmbedUrl(videoId: string): string {
 }
 
 /**
- * Fetch YouTube video metadata using oEmbed API (no API key required)
- * Note: oEmbed doesn't provide duration, so videos will use manual duration or default
+ * Parse YouTube ISO 8601 duration format (PT1H2M10S) to seconds
+ */
+function parseYouTubeDuration(duration: string): number {
+  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
+  if (!match) return 0
+
+  const hours = parseInt(match[1] || '0')
+  const minutes = parseInt(match[2] || '0')
+  const seconds = parseInt(match[3] || '0')
+
+  return hours * 3600 + minutes * 60 + seconds
+}
+
+/**
+ * Fetch YouTube video metadata using YouTube Data API v3
+ * Falls back to oEmbed API if YouTube API key is not configured
  */
 export async function fetchYoutubeMetadata(url: string): Promise<YouTubeMetadata | null> {
   try {
@@ -309,10 +323,39 @@ export async function fetchYoutubeMetadata(url: string): Promise<YouTubeMetadata
       throw new Error('Invalid YouTube URL')
     }
 
-    // Use YouTube oEmbed API (no API key required)
-    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
+    const apiKey = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY
 
+    // If YouTube API key is configured, use it to get full metadata including duration
+    if (apiKey) {
+      try {
+        const apiUrl = `https://www.googleapis.com/youtube/v3/videos?id=${videoId}&part=snippet,contentDetails&key=${apiKey}`
+        const apiResponse = await fetch(apiUrl)
+
+        if (apiResponse.ok) {
+          const apiData = await apiResponse.json()
+
+          if (apiData.items && apiData.items.length > 0) {
+            const video = apiData.items[0]
+            const durationSeconds = parseYouTubeDuration(video.contentDetails.duration)
+
+            return {
+              videoId,
+              title: video.snippet.title || 'YouTube Video',
+              thumbnailUrl: getYoutubeThumbnail(videoId),
+              duration: durationSeconds,
+              embedUrl: getYoutubeEmbedUrl(videoId)
+            }
+          }
+        }
+      } catch (apiError) {
+        console.warn('YouTube Data API failed, falling back to oEmbed:', apiError)
+      }
+    }
+
+    // Fallback to oEmbed API (no duration)
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
     const response = await fetch(oembedUrl)
+
     if (!response.ok) {
       throw new Error('Failed to fetch YouTube metadata')
     }
@@ -323,8 +366,7 @@ export async function fetchYoutubeMetadata(url: string): Promise<YouTubeMetadata
       videoId,
       title: data.title || 'YouTube Video',
       thumbnailUrl: getYoutubeThumbnail(videoId),
-      // Duration cannot be fetched without YouTube Data API (requires API key)
-      // Users should manually set duration in playlist editor
+      // Duration not available without API key - will use default
       duration: undefined,
       embedUrl: getYoutubeEmbedUrl(videoId)
     }
