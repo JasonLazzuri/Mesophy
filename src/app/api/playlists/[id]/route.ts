@@ -33,7 +33,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             mime_type,
             duration,
             width,
-            height
+            height,
+            media_type,
+            thumbnail_url,
+            youtube_url
           )
         )
       `)
@@ -129,7 +132,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             name,
             file_url,
             mime_type,
-            duration
+            duration,
+            media_type,
+            thumbnail_url,
+            youtube_url
           )
         )
       `)
