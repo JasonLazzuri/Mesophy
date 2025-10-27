@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Plus, Play, X, Folder, Home, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Plus, Play, X, Folder, Home, ChevronRight, Youtube } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
@@ -18,6 +18,8 @@ interface MediaAsset {
   height: number | null
   resolution: string | null
   media_folders?: { name: string } | null
+  thumbnail_url?: string | null
+  youtube_url?: string | null
 }
 
 interface MediaFolder {
@@ -475,7 +477,26 @@ export default function AddPlaylistPage() {
                         {filteredMedia.map((media) => (
                     <div key={media.id} className="relative group">
                       <div className="aspect-video bg-gray-100 rounded overflow-hidden">
-                        {media.mime_type.startsWith('image/') ? (
+                        {media.media_type === 'youtube' ? (
+                          <>
+                            {media.thumbnail_url ? (
+                              <img
+                                src={media.thumbnail_url}
+                                alt={media.name}
+                                className="w-full h-full object-cover"
+                                crossOrigin="anonymous"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                                <Youtube className="h-8 w-8 text-red-600" />
+                              </div>
+                            )}
+                            <div className="absolute bottom-1 right-1">
+                              <Youtube className="h-4 w-4 text-white drop-shadow-lg" />
+                            </div>
+                          </>
+                        ) : media.mime_type.startsWith('image/') ? (
                           <img
                             src={media.file_url}
                             alt={media.name}
