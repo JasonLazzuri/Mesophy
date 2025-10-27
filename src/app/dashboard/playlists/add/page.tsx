@@ -474,7 +474,17 @@ export default function AddPlaylistPage() {
                       )}
                       
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {filteredMedia.map((media) => (
+                        {filteredMedia.map((media) => {
+                          // Debug logging
+                          if (media.name.includes('Big Buck Bunny')) {
+                            console.log('Big Buck Bunny media:', {
+                              name: media.name,
+                              media_type: media.media_type,
+                              thumbnail_url: media.thumbnail_url,
+                              youtube_url: media.youtube_url
+                            })
+                          }
+                          return (
                     <div key={media.id} className="relative group">
                       <div className="aspect-video bg-gray-100 rounded overflow-hidden">
                         {media.media_type === 'youtube' ? (
@@ -522,7 +532,8 @@ export default function AddPlaylistPage() {
                         <Plus className="h-3 w-3" />
                       </button>
                     </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   )}
