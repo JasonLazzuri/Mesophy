@@ -61,6 +61,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Create media asset record for YouTube video
+    // Note: YouTube oEmbed API doesn't provide duration, so we set null
+    // Users should manually set duration in playlist editor based on their needs
+    // The Android TV client will use playlist duration_override or default to 60 seconds
     const mediaAssetData = {
       organization_id: userProfile.organization_id,
       name: name || metadata.title,
@@ -71,7 +74,7 @@ export async function POST(request: NextRequest) {
       file_size: null,
       mime_type: 'video/youtube', // Custom mime type for YouTube videos
       media_type: 'youtube' as const,
-      duration: metadata.duration || null,
+      duration: null, // YouTube API doesn't provide duration, must be set manually
       width: null, // YouTube videos are responsive
       height: null,
       resolution: null,

@@ -300,27 +300,36 @@ export async function GET(request: NextRequest) {
           name: schedule.playlists.name,
           items: schedule.playlists.playlist_items
             .sort((a, b) => a.order_index - b.order_index)
-            .map(item => ({
-              id: item.id,
-              display_order: item.order_index,
-              display_duration: item.duration_override || item.media_assets?.duration || 10,
-              media: item.media_assets ? {
-                id: item.media_assets.id,
-                name: item.media_assets.name,
-                // Use optimized URLs in order of preference (unless it's a YouTube video)
-                url: item.media_assets.youtube_url ||
-                     item.media_assets.optimized_url ||
-                     item.media_assets.preview_url ||
-                     item.media_assets.file_url,
-                thumbnail_url: item.media_assets.thumbnail_url,
-                mime_type: item.media_assets.mime_type,
-                file_size: item.media_assets.file_size,
-                duration: item.media_assets.duration,
-                width: item.media_assets.width,
-                height: item.media_assets.height,
-                youtube_url: item.media_assets.youtube_url
-              } : null
-            }))
+            .map(item => {
+              // Determine default duration based on media type
+              // YouTube videos get longer default (600s = 10 min) since we can't auto-detect duration
+              // Users can manually override this in the playlist editor if needed
+              // Regular videos should play to completion (use actual duration or 10s for images)
+              const isYouTube = item.media_assets?.mime_type === 'video/youtube' || item.media_assets?.youtube_url
+              const defaultDuration = isYouTube ? 600 : 10
+
+              return {
+                id: item.id,
+                display_order: item.order_index,
+                display_duration: item.duration_override || item.media_assets?.duration || defaultDuration,
+                media: item.media_assets ? {
+                  id: item.media_assets.id,
+                  name: item.media_assets.name,
+                  // Use optimized URLs in order of preference (unless it's a YouTube video)
+                  url: item.media_assets.youtube_url ||
+                       item.media_assets.optimized_url ||
+                       item.media_assets.preview_url ||
+                       item.media_assets.file_url,
+                  thumbnail_url: item.media_assets.thumbnail_url,
+                  mime_type: item.media_assets.mime_type,
+                  file_size: item.media_assets.file_size,
+                  duration: item.media_assets.duration,
+                  width: item.media_assets.width,
+                  height: item.media_assets.height,
+                  youtube_url: item.media_assets.youtube_url
+                } : null
+              }
+            })
         } : null
       })),
       power_schedule: null,

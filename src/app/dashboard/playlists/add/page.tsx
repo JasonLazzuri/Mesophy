@@ -208,7 +208,10 @@ export default function AddPlaylistPage() {
 
   const calculateTotalDuration = () => {
     return selectedItems.reduce((total, item) => {
-      const duration = item.duration_override || item.media_asset.duration || 10
+      // YouTube videos default to 600 seconds (10 minutes) since we can't auto-detect duration
+      const isYouTube = item.media_asset.media_type === 'youtube' || item.media_asset.mime_type === 'video/youtube'
+      const defaultDuration = isYouTube ? 600 : 10
+      const duration = item.duration_override || item.media_asset.duration || defaultDuration
       return total + duration
     }, 0)
   }

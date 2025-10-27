@@ -277,7 +277,12 @@ export default function EditPlaylistPage({ params }: RouteParams) {
 
   const calculateTotalDuration = () => {
     return selectedItems.reduce((total, item) => {
-      const duration = item.duration_override || item.media_assets.duration || 10
+      // Use duration_override first, then media duration, then defaults
+      // YouTube videos default to 600 seconds (10 minutes) since we can't auto-detect duration
+      // Users can manually override this in the duration field if needed
+      const isYouTube = item.media_assets.media_type === 'youtube' || item.media_assets.mime_type === 'video/youtube'
+      const defaultDuration = isYouTube ? 600 : 10
+      const duration = item.duration_override || item.media_assets.duration || defaultDuration
       return total + duration
     }, 0)
   }
@@ -730,7 +735,11 @@ export default function EditPlaylistPage({ params }: RouteParams) {
                         {item.media_assets.name}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {formatDuration(item.duration_override || item.media_assets.duration || 10)}
+                        {(() => {
+                          const isYouTube = item.media_assets.media_type === 'youtube' || item.media_assets.mime_type === 'video/youtube'
+                          const defaultDuration = isYouTube ? 600 : 10
+                          return formatDuration(item.duration_override || item.media_assets.duration || defaultDuration)
+                        })()}
                       </p>
                     </div>
                     
