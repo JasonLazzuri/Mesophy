@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Play, Clock, Edit, Trash2, Video, Image, MoreVertical, Search, AlertCircle } from 'lucide-react'
+import { Plus, Play, Clock, Edit, Trash2, Video, Image, MoreVertical, Search, AlertCircle, Youtube } from 'lucide-react'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -11,6 +11,9 @@ interface MediaAsset {
   file_url: string
   mime_type: string
   duration: number | null
+  media_type?: string
+  thumbnail_url?: string
+  youtube_url?: string
 }
 
 interface PlaylistItem {
@@ -253,20 +256,46 @@ export default function PlaylistsPage() {
                   <div className="grid grid-cols-4 gap-2">
                     {playlist.playlist_items.slice(0, 4).map((item, index) => (
                       <div key={item.id} className="relative aspect-video bg-gray-100 rounded overflow-hidden">
-                        {item.media_assets.mime_type.startsWith('image/') ? (
-                          <img
-                            src={item.media_assets.file_url}
-                            alt={item.media_assets.name}
-                            className="w-full h-full object-cover"
-                          />
+                        {item.media_assets.media_type === 'youtube' ? (
+                          <>
+                            {item.media_assets.thumbnail_url ? (
+                              <img
+                                src={item.media_assets.thumbnail_url}
+                                alt={item.media_assets.name}
+                                className="w-full h-full object-cover"
+                                crossOrigin="anonymous"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                                <Youtube className="h-6 w-6 text-red-600" />
+                              </div>
+                            )}
+                            <div className="absolute bottom-0 right-0">
+                              <Youtube className="h-4 w-4 text-white drop-shadow-lg m-1" />
+                            </div>
+                          </>
+                        ) : item.media_assets.mime_type.startsWith('image/') ? (
+                          <>
+                            <img
+                              src={item.media_assets.file_url}
+                              alt={item.media_assets.name}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute bottom-0 right-0 bg-black bg-opacity-50 text-white text-xs px-1 rounded-tl">
+                              {getMediaTypeIcon(item.media_assets.mime_type)}
+                            </div>
+                          </>
                         ) : (
-                          <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                            <Video className="h-4 w-4 text-gray-500" />
-                          </div>
+                          <>
+                            <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                              <Video className="h-4 w-4 text-gray-500" />
+                            </div>
+                            <div className="absolute bottom-0 right-0 bg-black bg-opacity-50 text-white text-xs px-1 rounded-tl">
+                              {getMediaTypeIcon(item.media_assets.mime_type)}
+                            </div>
+                          </>
                         )}
-                        <div className="absolute bottom-0 right-0 bg-black bg-opacity-50 text-white text-xs px-1 rounded-tl">
-                          {getMediaTypeIcon(item.media_assets.mime_type)}
-                        </div>
                       </div>
                     ))}
                   </div>
