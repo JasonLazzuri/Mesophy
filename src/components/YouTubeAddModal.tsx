@@ -195,14 +195,25 @@ export default function YouTubeAddModal({ isOpen, onClose, currentFolderId, onAd
                   src={metadata.thumbnailUrl}
                   alt={metadata.title}
                   className="w-full h-full object-cover"
+                  crossOrigin="anonymous"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    console.error('YouTube thumbnail failed to load:', metadata.thumbnailUrl)
+                    e.currentTarget.style.display = 'none'
+                  }}
                 />
-                <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-                  <Youtube className="h-16 w-16 text-white opacity-80" />
+                <div className="absolute bottom-2 right-2">
+                  <Youtube className="h-8 w-8 text-white drop-shadow-lg" />
                 </div>
               </div>
               <div className="p-4 bg-white">
                 <h3 className="font-medium text-gray-900 mb-1">{metadata.title}</h3>
                 <p className="text-sm text-gray-500">Video ID: {metadata.videoId}</p>
+                {metadata.duration && (
+                  <p className="text-sm text-gray-500">
+                    Duration: {Math.floor(metadata.duration / 60)}:{String(metadata.duration % 60).padStart(2, '0')}
+                  </p>
+                )}
               </div>
             </div>
           )}
