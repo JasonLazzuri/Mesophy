@@ -45,13 +45,14 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Check if this YouTube video already exists in the organization
+    // Check if this YouTube video already exists in the organization (and is active)
     const videoId = extractYoutubeVideoId(youtube_url)
     const { data: existingVideo } = await supabase
       .from('media_assets')
-      .select('id, name')
+      .select('id, name, is_active')
       .eq('organization_id', userProfile.organization_id)
       .eq('youtube_url', youtube_url)
+      .eq('is_active', true)  // Only check for active videos
       .single()
 
     if (existingVideo) {
