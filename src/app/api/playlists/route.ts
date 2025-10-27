@@ -50,7 +50,10 @@ export async function GET(request: NextRequest) {
             name,
             file_url,
             mime_type,
-            duration
+            duration,
+            media_type,
+            thumbnail_url,
+            youtube_url
           )
         )` : ''}
       `)
@@ -155,7 +158,10 @@ export async function POST(request: NextRequest) {
             name,
             file_url,
             mime_type,
-            duration
+            duration,
+            media_type,
+            thumbnail_url,
+            youtube_url
           )
         )
       `)
