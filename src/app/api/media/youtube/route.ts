@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { validateYoutubeUrl, fetchYoutubeMetadata, extractYoutubeVideoId } from '@/lib/media-utils'
+import { validateYoutubeUrl, fetchYoutubeMetadata, extractYoutubeVideoId, type YouTubeQuality } from '@/lib/media-utils'
+import { downloadYouTubeVideo } from '@/lib/youtube-download'
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,26 +64,13 @@ export async function POST(request: NextRequest) {
 
     console.log('🎬 Downloading YouTube video:', { videoId, quality })
 
-    // Download the video using the download endpoint
-    const downloadResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/media/youtube/download`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': request.headers.get('cookie') || ''
-      },
-      body: JSON.stringify({ youtube_url, quality })
-    })
-
-    if (!downloadResponse.ok) {
-      const errorData = await downloadResponse.json()
-      console.error('Download failed:', errorData)
-      return NextResponse.json({
-        error: errorData.error || 'Failed to download YouTube video',
-        details: errorData.details
-      }, { status: downloadResponse.status })
-    }
-
-    const downloadData = await downloadResponse.json()
+    // Download the video directly using shared function
+    const downloadData = await downloadYouTubeVideo(
+      supabase,
+      userProfile.organization_id,
+      youtube_url,
+      quality as YouTubeQuality
+    )
 
     console.log('✅ Download complete:', downloadData)
 
