@@ -377,12 +377,6 @@ export async function fetchYoutubeMetadata(url: string): Promise<YouTubeMetadata
 }
 
 /**
- * Download YouTube video quality options
+ * YouTube video quality options for download
  */
-export const YOUTUBE_DOWNLOAD_QUALITY = {
-  '720p': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=720]',
-  '1080p': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best[height<=1080]',
-  'best': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
-} as const
-
-export type YouTubeQuality = keyof typeof YOUTUBE_DOWNLOAD_QUALITY
+export type YouTubeQuality = '720p' | '1080p' | 'best'

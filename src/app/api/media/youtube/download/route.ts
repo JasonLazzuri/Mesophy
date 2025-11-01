@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { type YouTubeQuality } from '@/lib/media-utils'
 import { downloadYouTubeVideo } from '@/lib/youtube-download'
+
+type YouTubeQuality = '720p' | '1080p' | 'best'
 
 /**
  * Download YouTube video and upload to Supabase Storage

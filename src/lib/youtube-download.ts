@@ -1,9 +1,7 @@
-import youtubedl from 'youtube-dl-exec'
-import { extractYoutubeVideoId, YOUTUBE_DOWNLOAD_QUALITY, type YouTubeQuality } from '@/lib/media-utils'
-import { randomBytes } from 'crypto'
-import { join } from 'path'
-import { tmpdir } from 'os'
+import { YtdlCore } from '@ybd-project/ytdl-core/serverless'
+import { extractYoutubeVideoId } from '@/lib/media-utils'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { Readable } from 'stream'
 
 export interface YouTubeDownloadResult {
   file_url: string
@@ -16,85 +14,77 @@ export interface YouTubeDownloadResult {
 }
 
 /**
+ * Convert Node.js stream to Buffer
+ */
+async function streamToBuffer(stream: Readable): Promise<Buffer> {
+  const chunks: Buffer[] = []
+  return new Promise((resolve, reject) => {
+    stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+    stream.on('error', (err) => reject(err))
+    stream.on('end', () => resolve(Buffer.concat(chunks)))
+  })
+}
+
+/**
  * Download YouTube video and upload to Supabase Storage
- * This is a shared function used by both the API route and direct calls
+ * Uses @ybd-project/ytdl-core for serverless compatibility (Vercel)
  */
 export async function downloadYouTubeVideo(
   supabase: SupabaseClient,
   organizationId: string,
   youtubeUrl: string,
-  quality: YouTubeQuality = '720p'
+  quality: '720p' | '1080p' | 'best' = '720p'
 ): Promise<YouTubeDownloadResult> {
-  let tempPath: string | null = null
-
   try {
     const videoId = extractYoutubeVideoId(youtubeUrl)
     if (!videoId) {
       throw new Error('Invalid YouTube URL')
     }
 
-    // Generate temporary file path
-    const tempFileName = `youtube-${videoId}-${randomBytes(8).toString('hex')}.mp4`
-    tempPath = join(tmpdir(), tempFileName)
+    console.log('📥 Starting YouTube download:', { videoId, quality })
 
-    console.log('📥 Starting YouTube download:', { videoId, quality, tempPath })
+    // Initialize ytdl-core
+    const ytdl = new YtdlCore()
 
-    // Download video using yt-dlp
-    const qualityFormat = YOUTUBE_DOWNLOAD_QUALITY[quality] || YOUTUBE_DOWNLOAD_QUALITY['720p']
+    // Get video info first to extract metadata
+    const info = await ytdl.getBasicInfo(youtubeUrl)
 
-    try {
-      await youtubedl(youtubeUrl, {
-        format: qualityFormat,
-        output: tempPath,
-        noPlaylist: true,
-        // Merge video and audio into single MP4
-        mergeOutputFormat: 'mp4',
-        // Ensure we get proper metadata
-        writeInfoJson: false,
-        // Don't include extra files
-        noWriteThumbnail: true,
-        noWriteDescription: true,
-        noWriteAnnotations: true,
-      })
-    } catch (dlError) {
-      console.error('YouTube download failed:', dlError)
-      throw new Error('Failed to download video. The video might be private, age-restricted, or unavailable.')
+    // Extract metadata
+    const duration = parseInt(info.videoDetails.lengthSeconds) || 0
+    const width = 1280 // Default for 720p
+    const height = 720
+
+    console.log('📊 Video metadata:', {
+      title: info.videoDetails.title,
+      duration,
+      videoId: info.videoDetails.videoId
+    })
+
+    // Determine quality filter
+    let qualityFilter: 'highestvideo' | 'highest' = 'highest'
+    if (quality === '720p' || quality === '1080p') {
+      qualityFilter = 'highestvideo'
     }
 
-    // Get video metadata using yt-dlp
-    let duration = 0
-    let width = 1920
-    let height = 1080
+    // Download video stream
+    console.log('⬇️ Downloading video stream...')
+    const videoStream = ytdl.download(youtubeUrl, {
+      quality: qualityFilter,
+      filter: 'videoandaudio' // Get combined video+audio
+    })
 
-    try {
-      const info = await youtubedl(youtubeUrl, {
-        dumpSingleJson: true,
-        noPlaylist: true,
-        format: qualityFormat
-      })
-
-      if (info.duration) {
-        duration = Math.round(info.duration)
-      }
-      if (info.width && info.height) {
-        width = info.width
-        height = info.height
-      }
-    } catch (infoError) {
-      console.warn('Failed to extract video metadata, using defaults:', infoError)
-    }
-
-    // Read the downloaded file
-    const fs = await import('fs/promises')
-    const fileBuffer = await fs.readFile(tempPath)
+    // Convert stream to buffer
+    console.log('💾 Converting stream to buffer...')
+    const fileBuffer = await streamToBuffer(videoStream)
     const fileSize = fileBuffer.length
 
-    console.log('✅ Download complete:', { fileSize, duration, width, height })
+    console.log('✅ Download complete:', { fileSize, duration })
 
     // Generate storage path
     const storagePath = `${organizationId}/youtube/${videoId}-${Date.now()}.mp4`
 
     // Upload to Supabase Storage
+    console.log('☁️ Uploading to Supabase Storage...')
     const { data: uploadData, error: uploadError } = await supabase
       .storage
       .from('media')
@@ -114,15 +104,7 @@ export async function downloadYouTubeVideo(
       .from('media')
       .getPublicUrl(storagePath)
 
-    console.log('☁️ Uploaded to Supabase:', publicUrl)
-
-    // Clean up temp file
-    try {
-      await fs.unlink(tempPath)
-      console.log('🧹 Cleaned up temp file')
-    } catch (cleanupError) {
-      console.warn('Failed to cleanup temp file:', cleanupError)
-    }
+    console.log('✅ Upload complete:', publicUrl)
 
     return {
       file_url: publicUrl,
@@ -135,16 +117,7 @@ export async function downloadYouTubeVideo(
     }
 
   } catch (error) {
-    // Clean up temp file on error
-    if (tempPath) {
-      try {
-        const fs = await import('fs/promises')
-        await fs.unlink(tempPath)
-      } catch (cleanupError) {
-        console.warn('Failed to cleanup temp file on error:', cleanupError)
-      }
-    }
-
+    console.error('Error downloading YouTube video:', error)
     throw error
   }
 }
