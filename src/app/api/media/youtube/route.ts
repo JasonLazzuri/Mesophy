@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { youtube_url, name, description, tags, folder_id } = body
+    const { youtube_url, name, description, tags, folder_id, quality = '720p' } = body
 
     if (!youtube_url) {
       return NextResponse.json({ error: 'No YouTube URL provided' }, { status: 400 })
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Fetch video metadata
+    // Fetch video metadata first (for title)
     const metadata = await fetchYoutubeMetadata(youtube_url)
 
     if (!metadata) {
@@ -61,29 +61,51 @@ export async function POST(request: NextRequest) {
       }, { status: 409 })
     }
 
-    // Create media asset record for YouTube video
-    // Duration is automatically fetched if YouTube API key is configured
-    // Otherwise users can manually set duration in playlist editor
+    console.log('🎬 Downloading YouTube video:', { videoId, quality })
+
+    // Download the video using the download endpoint
+    const downloadResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/media/youtube/download`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': request.headers.get('cookie') || ''
+      },
+      body: JSON.stringify({ youtube_url, quality })
+    })
+
+    if (!downloadResponse.ok) {
+      const errorData = await downloadResponse.json()
+      console.error('Download failed:', errorData)
+      return NextResponse.json({
+        error: errorData.error || 'Failed to download YouTube video',
+        details: errorData.details
+      }, { status: downloadResponse.status })
+    }
+
+    const downloadData = await downloadResponse.json()
+
+    console.log('✅ Download complete:', downloadData)
+
+    // Create media asset record with downloaded video file
     const mediaAssetData = {
       organization_id: userProfile.organization_id,
       name: name || metadata.title,
       description: description || null,
-      file_name: null, // YouTube videos don't have files
-      file_path: null,
-      file_url: null,
-      file_size: null,
-      mime_type: 'video/youtube', // Custom mime type for YouTube videos
-      media_type: 'youtube' as const,
-      duration: metadata.duration || null, // Auto-detected if API key configured
-      width: null, // YouTube videos are responsive
-      height: null,
-      resolution: null,
+      file_name: `${videoId}.mp4`,
+      file_path: downloadData.file_path,
+      file_url: downloadData.file_url,
+      file_size: downloadData.file_size,
+      mime_type: 'video/mp4',
+      media_type: 'video' as const, // Changed from 'youtube' to 'video' since it's now a file
+      duration: downloadData.duration || metadata.duration || null,
+      width: downloadData.width || null,
+      height: downloadData.height || null,
+      resolution: downloadData.width && downloadData.height ? `${downloadData.width}x${downloadData.height}` : null,
       tags: tags ? (Array.isArray(tags) ? tags : tags.split(',').map((tag: string) => tag.trim()).filter(Boolean)) : null,
       folder_id: folder_id || null,
-      youtube_url: youtube_url,
+      youtube_url: youtube_url, // Keep original URL for reference
       is_active: true,
       created_by: user.id,
-      // Additional metadata for display
       thumbnail_url: metadata.thumbnailUrl,
       preview_url: metadata.thumbnailUrl
     }

@@ -17,6 +17,7 @@ export default function YouTubeAddModal({ isOpen, onClose, currentFolderId, onAd
   const [error, setError] = useState<string | null>(null)
   const [metadata, setMetadata] = useState<YouTubeMetadata | null>(null)
   const [success, setSuccess] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState<string | null>(null)
 
   // Validate and fetch metadata
   const handleValidateUrl = async () => {
@@ -58,8 +59,11 @@ export default function YouTubeAddModal({ isOpen, onClose, currentFolderId, onAd
 
     setLoading(true)
     setError(null)
+    setDownloadProgress('Validating video...')
 
     try {
+      setDownloadProgress('Downloading video from YouTube...')
+
       const response = await fetch('/api/media/youtube', {
         method: 'POST',
         headers: {
@@ -68,7 +72,8 @@ export default function YouTubeAddModal({ isOpen, onClose, currentFolderId, onAd
         body: JSON.stringify({
           youtube_url: url,
           name: metadata.title,
-          folder_id: currentFolderId
+          folder_id: currentFolderId,
+          quality: '720p'
         }),
       })
 
@@ -77,15 +82,22 @@ export default function YouTubeAddModal({ isOpen, onClose, currentFolderId, onAd
         throw new Error(errorData.error || 'Failed to add YouTube video')
       }
 
+      setDownloadProgress('Uploading to media library...')
+
+      // Wait a moment to show the upload message
+      await new Promise(resolve => setTimeout(resolve, 500))
+
       setSuccess(true)
+      setDownloadProgress(null)
       onAddComplete()
 
       // Close modal after success
       setTimeout(() => {
         handleClose()
-      }, 1500)
+      }, 2000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add YouTube video')
+      setDownloadProgress(null)
       console.error('YouTube add error:', err)
     } finally {
       setLoading(false)
@@ -99,6 +111,7 @@ export default function YouTubeAddModal({ isOpen, onClose, currentFolderId, onAd
     setMetadata(null)
     setSuccess(false)
     setLoading(false)
+    setDownloadProgress(null)
     onClose()
   }
 
@@ -165,6 +178,18 @@ export default function YouTubeAddModal({ isOpen, onClose, currentFolderId, onAd
             </p>
           </div>
 
+          {/* Download Progress */}
+          {downloadProgress && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start">
+              <Loader2 className="h-5 w-5 text-blue-600 mr-3 flex-shrink-0 mt-0.5 animate-spin" />
+              <div>
+                <p className="text-sm font-medium text-blue-800">Downloading</p>
+                <p className="text-sm text-blue-700">{downloadProgress}</p>
+                <p className="text-xs text-blue-600 mt-1">This may take 30-60 seconds depending on video length</p>
+              </div>
+            </div>
+          )}
+
           {/* Error Message */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start">
@@ -219,17 +244,17 @@ export default function YouTubeAddModal({ isOpen, onClose, currentFolderId, onAd
           )}
 
           {/* Instructions */}
-          {!metadata && !error && (
+          {!metadata && !error && !downloadProgress && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h3 className="text-sm font-medium text-blue-900 mb-2">How to add YouTube videos:</h3>
               <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
                 <li>Copy the URL of any YouTube video</li>
                 <li>Paste it in the field above</li>
                 <li>Click "Validate" to preview the video</li>
-                <li>Click "Add to Library" to save it</li>
+                <li>Click "Add to Library" to download and save it</li>
               </ol>
               <p className="text-xs text-blue-700 mt-3">
-                The video will play fullscreen on Android TV devices without controls.
+                Videos are downloaded in 720p quality and stored in your media library. They will play fullscreen on Android TV devices.
               </p>
             </div>
           )}
