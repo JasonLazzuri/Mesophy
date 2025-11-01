@@ -44,19 +44,23 @@ export async function downloadYouTubeVideo(
     console.log('📥 Starting YouTube download:', { videoId, quality })
 
     // Initialize ytdl-core with authentication to bypass bot detection
-    // poToken and visitorData can be generated using: https://github.com/iv-org/youtube-trusted-session-generator
-    const ytdlOptions: any = {}
-
-    // Check for poToken authentication (optional but recommended)
+    // Version 6.0.8+ auto-generates poToken, but we can provide custom ones
     const poToken = process.env.YOUTUBE_PO_TOKEN
     const visitorData = process.env.YOUTUBE_VISITOR_DATA
 
+    const ytdlOptions: any = {
+      // Enable detailed logging for debugging
+      logDisplay: ["error", "warning", "info"]
+    }
+
     if (poToken && visitorData) {
-      console.log('🔐 Using poToken authentication')
+      console.log('🔐 Using custom poToken authentication')
       ytdlOptions.poToken = poToken
       ytdlOptions.visitorData = visitorData
     } else {
-      console.log('⚠️ No poToken found - may encounter bot detection')
+      console.log('🤖 Using auto-generated poToken (ytdl-core v6+)')
+      // Let ytdl-core auto-generate poToken
+      // This should work in version 6.0.8+
     }
 
     const ytdl = new YtdlCore(ytdlOptions)
