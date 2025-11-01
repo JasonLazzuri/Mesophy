@@ -465,12 +465,19 @@ class MediaPlayerFragment : Fragment() {
 
         Timber.d("📺 Extracted video ID: $videoId")
 
-        // Try direct YouTube URL load (bypass WebView security restrictions)
-        val embedUrl = "https://www.youtube.com/embed/$videoId?autoplay=1&controls=0&modestbranding=1&rel=0&fs=0&playsinline=1"
+        // Use youtube-nocookie domain for better compatibility
+        val embedUrl = "https://www.youtube-nocookie.com/embed/$videoId?autoplay=1&controls=0&modestbranding=1&rel=0&fs=0&playsinline=1"
 
         try {
-            Timber.d("📺 Loading YouTube URL directly: $embedUrl")
-            youtubeWebView.loadUrl(embedUrl)
+            Timber.d("📺 Loading YouTube URL with referer header: $embedUrl")
+
+            // Add HTTP Referer header to fix Error 153
+            // YouTube requires proper client identification via Referer header
+            val headers = mutableMapOf<String, String>()
+            val packageName = requireContext().packageName
+            headers["Referer"] = "https://$packageName"
+
+            youtubeWebView.loadUrl(embedUrl, headers)
 
             // Since we can't detect video end with direct iframe, use display duration from playlist
             // Default to 60 seconds if not specified
