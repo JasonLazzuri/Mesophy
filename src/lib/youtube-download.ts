@@ -43,8 +43,23 @@ export async function downloadYouTubeVideo(
 
     console.log('📥 Starting YouTube download:', { videoId, quality })
 
-    // Initialize ytdl-core
-    const ytdl = new YtdlCore()
+    // Initialize ytdl-core with authentication to bypass bot detection
+    // poToken and visitorData can be generated using: https://github.com/iv-org/youtube-trusted-session-generator
+    const ytdlOptions: any = {}
+
+    // Check for poToken authentication (optional but recommended)
+    const poToken = process.env.YOUTUBE_PO_TOKEN
+    const visitorData = process.env.YOUTUBE_VISITOR_DATA
+
+    if (poToken && visitorData) {
+      console.log('🔐 Using poToken authentication')
+      ytdlOptions.poToken = poToken
+      ytdlOptions.visitorData = visitorData
+    } else {
+      console.log('⚠️ No poToken found - may encounter bot detection')
+    }
+
+    const ytdl = new YtdlCore(ytdlOptions)
 
     // Get video info first to extract metadata
     const info = await ytdl.getBasicInfo(youtubeUrl)
