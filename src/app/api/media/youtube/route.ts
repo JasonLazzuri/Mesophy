@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { validateYoutubeUrl, fetchYoutubeMetadata, extractYoutubeVideoId } from '@/lib/media-utils'
-import { downloadYouTubeVideo } from '@/lib/youtube-download'
-
-type YouTubeQuality = '720p' | '1080p' | 'best'
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,7 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { youtube_url, name, description, tags, folder_id, quality = '720p' } = body
+    const { youtube_url, name, description, tags, folder_id } = body
 
     if (!youtube_url) {
       return NextResponse.json({ error: 'No YouTube URL provided' }, { status: 400 })
@@ -64,36 +61,27 @@ export async function POST(request: NextRequest) {
       }, { status: 409 })
     }
 
-    console.log('🎬 Downloading YouTube video:', { videoId, quality })
+    console.log('✅ YouTube video validated:', { videoId, title: metadata.title })
 
-    // Download the video directly using shared function
-    const downloadData = await downloadYouTubeVideo(
-      supabase,
-      userProfile.organization_id,
-      youtube_url,
-      quality as YouTubeQuality
-    )
-
-    console.log('✅ Download complete:', downloadData)
-
-    // Create media asset record with downloaded video file
+    // Create media asset record for YouTube video (direct embedding)
+    // No download needed - video streams directly from YouTube
     const mediaAssetData = {
       organization_id: userProfile.organization_id,
       name: name || metadata.title,
       description: description || null,
-      file_name: `${videoId}.mp4`,
-      file_path: downloadData.file_path,
-      file_url: downloadData.file_url,
-      file_size: downloadData.file_size,
-      mime_type: 'video/mp4',
-      media_type: 'video' as const, // Changed from 'youtube' to 'video' since it's now a file
-      duration: downloadData.duration || metadata.duration || null,
-      width: downloadData.width || null,
-      height: downloadData.height || null,
-      resolution: downloadData.width && downloadData.height ? `${downloadData.width}x${downloadData.height}` : null,
+      file_name: null, // YouTube videos don't have files
+      file_path: null,
+      file_url: null, // Will use youtube_url for playback
+      file_size: null,
+      mime_type: 'video/youtube', // Custom mime type for YouTube videos
+      media_type: 'youtube' as const,
+      duration: metadata.duration || 600, // Use detected duration or 10-minute default
+      width: null, // YouTube embeds are responsive
+      height: null,
+      resolution: null,
       tags: tags ? (Array.isArray(tags) ? tags : tags.split(',').map((tag: string) => tag.trim()).filter(Boolean)) : null,
       folder_id: folder_id || null,
-      youtube_url: youtube_url, // Keep original URL for reference
+      youtube_url: youtube_url, // URL for YouTube iframe embedding
       is_active: true,
       created_by: user.id,
       thumbnail_url: metadata.thumbnailUrl,
