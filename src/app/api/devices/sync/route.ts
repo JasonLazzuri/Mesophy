@@ -300,13 +300,16 @@ export async function GET(request: NextRequest) {
           name: schedule.playlists.name,
           items: schedule.playlists.playlist_items
             .sort((a, b) => a.order_index - b.order_index)
-            .map(item => {
+            .map((item, index) => {
               // Determine default duration based on media type
               // YouTube videos get longer default (600s = 10 min) since we can't auto-detect duration
               // Users can manually override this in the playlist editor if needed
               // Regular videos should play to completion (use actual duration or 10s for images)
               const isYouTube = item.media_assets?.mime_type === 'video/youtube' || item.media_assets?.youtube_url
               const defaultDuration = isYouTube ? 600 : 10
+
+              // Debug logging for playlist order
+              console.log(`📋 Playlist item ${index}: order_index=${item.order_index}, name=${item.media_assets?.name}, type=${item.media_assets?.mime_type}`)
 
               return {
                 id: item.id,

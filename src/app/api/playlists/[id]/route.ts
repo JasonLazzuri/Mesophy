@@ -53,7 +53,18 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Sort playlist items by order_index
     if (playlist.playlist_items) {
+      // Debug logging to diagnose ordering issue
+      console.log('📋 Playlist items BEFORE sorting:')
+      playlist.playlist_items.forEach((item: any, index: number) => {
+        console.log(`  ${index}: order_index=${item.order_index}, name=${item.media_assets?.name}, type=${item.media_assets?.mime_type}`)
+      })
+
       playlist.playlist_items.sort((a: any, b: any) => a.order_index - b.order_index)
+
+      console.log('📋 Playlist items AFTER sorting:')
+      playlist.playlist_items.forEach((item: any, index: number) => {
+        console.log(`  ${index}: order_index=${item.order_index}, name=${item.media_assets?.name}, type=${item.media_assets?.mime_type}`)
+      })
     }
 
     return NextResponse.json({ playlist })
