@@ -107,10 +107,20 @@ class MainActivity : FragmentActivity() {
         connectionStatus = findViewById(R.id.connectionStatus)
         statusIndicator = findViewById(R.id.statusIndicator)
         connectionIndicator = findViewById(R.id.connectionIndicator)
-        
+
         // Update device info
         val deviceInfo = "Android TV • ${android.os.Build.MODEL}"
         deviceInfoText.text = deviceInfo
+
+        // Update app version
+        val versionText = findViewById<TextView>(R.id.appVersion)
+        try {
+            val packageInfo = packageManager.getPackageInfo(packageName, 0)
+            versionText.text = "v${packageInfo.versionName}"
+        } catch (e: Exception) {
+            versionText.text = "v1.0.0"
+            Timber.w("Failed to get app version: ${e.message}")
+        }
         
         // Initialize status indicators
         updateConnectionStatus("Initializing...")
