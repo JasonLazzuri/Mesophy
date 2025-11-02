@@ -858,8 +858,16 @@ class MainActivity : FragmentActivity() {
      */
     private fun startMediaPlayback(content: CurrentContentResponse) {
         try {
-            val playlistItems = content.playlist?.items ?: emptyList()
+            // Get playlist items and sort by display_order to ensure correct playback sequence
+            val playlistItems = (content.playlist?.items ?: emptyList())
+                .sortedBy { it.displayOrder }
+
             Timber.i("🎬 Starting media playback with ${playlistItems.size} playlist items")
+
+            // Debug logging for playlist order
+            playlistItems.forEachIndexed { index, item ->
+                Timber.d("  $index: displayOrder=${item.displayOrder}, name=${item.media?.name}, type=${item.media?.mimeType}")
+            }
             
             // Hide the pairing UI and show media content
             findViewById<View>(R.id.headerSection).visibility = View.GONE

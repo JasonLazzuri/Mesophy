@@ -189,8 +189,16 @@ class MediaPlayerFragment : Fragment() {
      * Update the playlist with new content while playing
      */
     fun updatePlaylist(content: CurrentContentResponse) {
-        val newPlaylist = content.playlist?.items ?: emptyList()
+        // Sort playlist items by displayOrder to ensure correct sequence
+        val newPlaylist = (content.playlist?.items ?: emptyList())
+            .sortedBy { it.displayOrder }
+
         Timber.i("🔄 Updating playlist with ${newPlaylist.size} playlist items")
+
+        // Debug logging for playlist order
+        newPlaylist.forEachIndexed { index, item ->
+            Timber.d("  $index: displayOrder=${item.displayOrder}, name=${item.media?.name}, type=${item.media?.mimeType}")
+        }
         
         // Check if playlist actually changed to avoid unnecessary updates
         if (playlistsAreEqual(currentPlaylist, newPlaylist)) {
