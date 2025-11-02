@@ -30,6 +30,12 @@
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
     <!-- REMOVED: WRITE_SECURE_SETTINGS - Not allowed on Play Store -->
 
+    <!-- Foreground service permission for boot auto-start (Android 9+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- Notification permission for foreground service (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -63,6 +69,13 @@
                 <data android:scheme="package" />
             </intent-filter>
         </receiver>
+
+        <!-- Foreground service for reliable boot auto-start -->
+        <service
+            android:name=".BootStarterService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         
         <!-- Test receiver for power management testing -->
         <receiver

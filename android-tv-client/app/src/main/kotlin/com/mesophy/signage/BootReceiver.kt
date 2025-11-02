@@ -40,26 +40,26 @@ class BootReceiver : BroadcastReceiver() {
     }
     
     /**
-     * Launch the main activity with appropriate flags for auto-start
+     * Launch the main activity via foreground service
+     *
+     * On Android 10+, starting activities from background is restricted.
+     * We use a foreground service to reliably start the app on boot.
      */
     private fun startMainActivity(context: Context) {
         try {
-            val launchIntent = Intent(context, MainActivity::class.java).apply {
-                // Required flags for starting activity from broadcast receiver
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or 
-                       Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                       Intent.FLAG_ACTIVITY_SINGLE_TOP
-                
-                // Add extra to indicate this is an auto-start
-                putExtra("auto_start", true)
-                putExtra("start_reason", "boot_completed")
+            val serviceIntent = Intent(context, BootStarterService::class.java)
+
+            // Use startForegroundService on Android 8.0+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+                Timber.i("✅ Foreground service started for auto-launch")
+            } else {
+                context.startService(serviceIntent)
+                Timber.i("✅ Service started for auto-launch")
             }
-            
-            context.startActivity(launchIntent)
-            Timber.i("✅ Auto-start launched successfully")
-            
+
         } catch (e: Exception) {
-            Timber.e(e, "❌ Failed to auto-start main activity")
+            Timber.e(e, "❌ Failed to start boot service")
         }
     }
 }
