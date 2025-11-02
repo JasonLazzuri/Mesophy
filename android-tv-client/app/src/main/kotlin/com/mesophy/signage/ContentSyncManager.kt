@@ -341,12 +341,13 @@ class ContentSyncManager(
             // 3. Check if content actually changed by comparing hash
             val contentHash = generateContentHash(syncResponse)
             val hasRealChanges = contentHash != lastContentHash
-            
+            val isFirstSync = lastContentHash.isEmpty()
+
             if (hasRealChanges) {
                 Timber.i("🔄 Content changes detected")
                 consecutiveNoChanges = 0
                 lastContentHash = contentHash
-                
+
                 // Update local schedules
                 currentSchedules = syncResponse.allSchedules
                 Timber.i("📅 Updated ${currentSchedules.size} schedules")
@@ -354,12 +355,28 @@ class ContentSyncManager(
                 consecutiveNoChanges++
                 Timber.d("➡️ No content changes (consecutive: $consecutiveNoChanges)")
             }
-            
-            // 3. Download any new/changed media only if there are real changes
-            if (hasRealChanges && (syncResponse.mediaChanged || syncResponse.scheduleChanged)) {
-                downloadScheduleMedia(syncResponse.allSchedules, deviceToken)
+
+            // 3. Download any new/changed media if content changed OR if this is first sync
+            // First sync always downloads to ensure fresh media even if hash happens to match
+            if ((hasRealChanges || isFirstSync) && (syncResponse.mediaChanged || syncResponse.scheduleChanged || isFirstSync)) {
+                val syncReason = when {
+                    isFirstSync -> "first sync"
+                    hasRealChanges -> "content changes detected"
+                    else -> "API indicated changes"
+                }
+                Timber.i("📥 Starting media downloads ($syncReason) - playback will wait for completion...")
+                val downloadResult = downloadScheduleMedia(syncResponse.allSchedules, deviceToken)
+
+                // Wait for all downloads to complete before proceeding
+                // Note: The download completion callback includes a 500ms file system flush delay
+                try {
+                    downloadResult.await()
+                    Timber.i("✅ All media downloads completed and flushed - ready for playback")
+                } catch (e: Exception) {
+                    Timber.e(e, "❌ Media downloads failed, but continuing with available media")
+                }
             }
-            
+
             // 4. Get current content to display
             val screenId = getScreenId()
             if (screenId == null) {
@@ -560,14 +577,17 @@ class ContentSyncManager(
     
     /**
      * Download media for all schedules
+     * Returns a CompletableDeferred that completes when all downloads are finished
      */
-    private suspend fun downloadScheduleMedia(schedules: List<Schedule>, deviceToken: String) {
+    private suspend fun downloadScheduleMedia(schedules: List<Schedule>, deviceToken: String): kotlinx.coroutines.Deferred<Boolean> {
+        val downloadCompletion = CompletableDeferred<Boolean>()
+
         try {
             // Smart cache management: wipe all cached media before downloading new playlist
             wipeAllCachedMedia()
-            
+
             val allMediaAssets = mutableListOf<MediaAsset>()
-            
+
             // Collect all media assets from all playlists
             schedules.forEach { schedule ->
                 schedule.playlist?.items?.forEach { playlistItem ->
@@ -576,26 +596,66 @@ class ContentSyncManager(
                     }
                 }
             }
-            
+
             if (allMediaAssets.isEmpty()) {
                 Timber.w("No media assets found in schedules")
-                return
+                downloadCompletion.complete(true)
+                return downloadCompletion
             }
-            
+
             Timber.i("📥 Queuing ${allMediaAssets.size} media assets for download")
-            
+
+            // Reset download tracking for new batch
+            mediaDownloadManager.resetDownloadTracking()
+
+            // Set up listener for download completion
+            val downloadListener = object : MediaDownloadManager.DownloadListener {
+                override fun onDownloadStarted(mediaId: String, fileName: String) {
+                    Timber.d("Download started: $fileName")
+                }
+
+                override fun onDownloadProgress(progress: DownloadProgress) {
+                    // Progress updates handled here if needed
+                }
+
+                override fun onDownloadCompleted(mediaId: String, localPath: String) {
+                    Timber.d("Download completed: $mediaId")
+                }
+
+                override fun onDownloadFailed(mediaId: String, error: String) {
+                    Timber.w("Download failed: $mediaId - $error")
+                }
+
+                override fun onAllDownloadsCompleted() {
+                    Timber.i("🎉 All media downloads completed successfully")
+                    mediaDownloadManager.removeListener(this)
+
+                    // Add delay to ensure files are fully flushed to disk before signaling completion
+                    // This prevents race condition where concurrent syncs start playback before files are accessible
+                    CoroutineScope(Dispatchers.IO).launch {
+                        delay(500)
+                        Timber.d("💾 File system flush delay complete")
+                        downloadCompletion.complete(true)
+                    }
+                }
+            }
+
+            mediaDownloadManager.addListener(downloadListener)
+
             // Queue downloads with MediaDownloadManager
             allMediaAssets.forEach { mediaAsset ->
                 mediaDownloadManager.queueDownload(mediaAsset, deviceToken)
             }
-            
+
             // Start download process
             mediaDownloadManager.startDownloads()
-            
+
         } catch (e: Exception) {
             Timber.e(e, "❌ Error downloading schedule media")
-            throw e
+            downloadCompletion.completeExceptionally(e)
         }
+
+        return downloadCompletion
     }
     
     /**

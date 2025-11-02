@@ -42,7 +42,7 @@ export default function PairDevicePage() {
           <div className="space-y-3 text-sm text-gray-600">
             <div className="flex items-start space-x-2">
               <span className="font-medium">1.</span>
-              <span>Get pairing code from Pi device</span>
+              <span>Get pairing code from device</span>
             </div>
             <div className="flex items-start space-x-2">
               <span className="font-medium">2.</span>
@@ -83,7 +83,7 @@ export default function PairDevicePage() {
             </div>
             <div className="flex items-start space-x-2">
               <span className="font-medium">3.</span>
-              <span>Send pairing info to your Pi device</span>
+              <span>Send pairing info to your device</span>
             </div>
             <div className="flex items-start space-x-2">
               <span className="font-medium">4.</span>

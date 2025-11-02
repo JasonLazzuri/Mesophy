@@ -181,8 +181,8 @@ export async function POST(
         pairing_data: completePairingInfo,
         expires_in_minutes: 15,
         instructions: {
-          step1: 'Install Mesophy Pi Client on your Raspberry Pi device',
-          step2: 'Either scan this QR code with your phone and send to Pi, or manually enter the pairing code',
+          step1: 'Install Mesophy device client software on your device',
+          step2: 'Either scan this QR code with your phone and send to device, or manually enter the pairing code',
           step3: 'The device will automatically connect to this specific screen',
           manual_code: pairingCode
         }

@@ -678,27 +678,34 @@ class MainActivity : FragmentActivity() {
                         updateConnectionStatus("Downloading $fileName...")
                     }
                 }
-                
+
                 override fun onDownloadProgress(progress: DownloadProgress) {
                     runOnUiThread {
                         val percentage = if (progress.totalBytes > 0) {
                             ((progress.bytesDownloaded.toDouble() / progress.totalBytes) * 100).toInt()
                         } else 0
-                        
+
                         updateConnectionStatus("Downloading ${progress.fileName}... $percentage%")
                     }
                 }
-                
+
                 override fun onDownloadCompleted(mediaId: String, localPath: String) {
                     runOnUiThread {
                         Timber.i("✅ Media downloaded: $localPath")
                     }
                 }
-                
+
                 override fun onDownloadFailed(mediaId: String, error: String) {
                     runOnUiThread {
                         Timber.e("❌ Download failed: $error")
                         updateConnectionStatus("Download failed: $error")
+                    }
+                }
+
+                override fun onAllDownloadsCompleted() {
+                    runOnUiThread {
+                        Timber.i("🎉 All media files downloaded - ready for playback!")
+                        updateConnectionStatus("All media downloaded - ready to play")
                     }
                 }
             })

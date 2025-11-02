@@ -59,8 +59,10 @@ class MediaDownloadManager(private val context: Context) {
     private val activeDownloads = ConcurrentHashMap<String, Job>()
     private val downloadProgress = ConcurrentHashMap<String, DownloadProgress>()
     private val listeners = mutableListOf<DownloadListener>()
-    
+
     private var isDownloadingActive = false
+    private var hasNotifiedAllDownloadsComplete = false
+    private var totalItemsToDownload = 0
     
     /**
      * Interface for download progress callbacks
@@ -70,6 +72,7 @@ class MediaDownloadManager(private val context: Context) {
         fun onDownloadProgress(progress: DownloadProgress)
         fun onDownloadCompleted(mediaId: String, localPath: String)
         fun onDownloadFailed(mediaId: String, error: String)
+        fun onAllDownloadsCompleted() // Called when all queued downloads are finished
     }
     
     /**
@@ -93,27 +96,45 @@ class MediaDownloadManager(private val context: Context) {
      * Queue media asset for download
      */
     fun queueDownload(mediaAsset: MediaAsset, deviceToken: String, priority: Int = 0) {
+        // Track total items for completion detection
+        totalItemsToDownload++
+
         // Check if already cached
         val cachedFile = getCachedFile(mediaAsset)
         if (cachedFile.exists() && isValidCacheFile(cachedFile, mediaAsset)) {
             Timber.d("Media already cached: ${mediaAsset.name}")
+
+            // Update progress to completed status
+            downloadProgress[mediaAsset.id] = DownloadProgress(
+                mediaId = mediaAsset.id,
+                fileName = mediaAsset.name,
+                bytesDownloaded = cachedFile.length(),
+                totalBytes = cachedFile.length(),
+                status = DownloadStatus.COMPLETED
+            )
+            notifyDownloadProgress(downloadProgress[mediaAsset.id]!!)
             notifyDownloadCompleted(mediaAsset.id, cachedFile.absolutePath)
+
+            // Check if this was the last item
+            checkAndNotifyAllDownloadsCompleted()
             return
         }
-        
+
         // Check if already in queue or downloading
         if (isAlreadyQueued(mediaAsset.id) || isActivelyDownloading(mediaAsset.id)) {
             Timber.d("Media already queued/downloading: ${mediaAsset.name}")
+            // Don't count it twice
+            totalItemsToDownload--
             return
         }
-        
+
         synchronized(downloadQueue) {
             downloadQueue.add(MediaDownloadTask(mediaAsset, deviceToken, priority))
             downloadQueue.sortByDescending { it.priority } // Higher priority first
         }
-        
+
         Timber.i("📥 Queued for download: ${mediaAsset.name} (Priority: $priority)")
-        
+
         // Update progress tracking
         downloadProgress[mediaAsset.id] = DownloadProgress(
             mediaId = mediaAsset.id,
@@ -122,7 +143,7 @@ class MediaDownloadManager(private val context: Context) {
             totalBytes = mediaAsset.fileSize ?: 0L,
             status = DownloadStatus.QUEUED
         )
-        
+
         notifyDownloadProgress(downloadProgress[mediaAsset.id]!!)
     }
     
@@ -177,29 +198,40 @@ class MediaDownloadManager(private val context: Context) {
             val task = synchronized(downloadQueue) {
                 downloadQueue.removeFirstOrNull()
             }
-            
+
             if (task == null) {
+                // Check if all downloads are complete (no active downloads and queue is empty)
+                if (activeDownloads.isEmpty() && downloadQueue.isEmpty()) {
+                    checkAndNotifyAllDownloadsCompleted()
+                }
                 delay(1000) // Wait for new tasks
                 continue
             }
-            
+
             // Check if we're already at max concurrent downloads
             while (activeDownloads.size >= MAX_CONCURRENT_DOWNLOADS && isDownloadingActive) {
                 delay(500)
             }
-            
+
             if (!isDownloadingActive) break
-            
+
             // Start download
             val downloadJob = CoroutineScope(Dispatchers.IO).launch {
                 downloadMediaAsset(task)
             }
-            
+
             activeDownloads[task.mediaAsset.id] = downloadJob
-            
+
             // Remove from active downloads when completed
             downloadJob.invokeOnCompletion {
                 activeDownloads.remove(task.mediaAsset.id)
+
+                // Check if all downloads are now complete
+                if (activeDownloads.isEmpty() && downloadQueue.isEmpty()) {
+                    CoroutineScope(Dispatchers.Main).launch {
+                        checkAndNotifyAllDownloadsCompleted()
+                    }
+                }
             }
         }
     }
@@ -325,9 +357,10 @@ class MediaDownloadManager(private val context: Context) {
      * Get cached file location for media asset
      */
     private fun getCachedFile(mediaAsset: MediaAsset): File {
-        val extension = getFileExtension(mediaAsset.mimeType) ?: 
+        val extension = getFileExtension(mediaAsset.mimeType) ?:
                        getFileExtension(mediaAsset.url.substringAfterLast('.'))
         val fileName = "${mediaAsset.id}${if (!extension.isNullOrEmpty()) ".$extension" else ""}"
+        Timber.d("🔍 getCachedFile: mediaAsset.id=${mediaAsset.id}, extension=$extension, fileName=$fileName")
         return File(cacheDir, fileName)
     }
     
@@ -431,9 +464,26 @@ class MediaDownloadManager(private val context: Context) {
      */
     fun getCachedFilePath(mediaAsset: MediaAsset): String? {
         val cachedFile = getCachedFile(mediaAsset)
-        return if (cachedFile.exists() && isValidCacheFile(cachedFile, mediaAsset)) {
+        Timber.d("🔍 getCachedFilePath for ${mediaAsset.name}:")
+        Timber.d("   - mediaAsset.id: ${mediaAsset.id}")
+        Timber.d("   - mediaAsset.url: ${mediaAsset.url}")
+        Timber.d("   - mediaAsset.mimeType: ${mediaAsset.mimeType}")
+        Timber.d("   - cachedFile.path: ${cachedFile.absolutePath}")
+        Timber.d("   - cachedFile.exists(): ${cachedFile.exists()}")
+
+        if (!cachedFile.exists()) {
+            Timber.w("   ❌ File does not exist on filesystem")
+            return null
+        }
+
+        val isValid = isValidCacheFile(cachedFile, mediaAsset)
+        Timber.d("   - isValidCacheFile: $isValid")
+
+        return if (isValid) {
+            Timber.d("   ✅ Returning path: ${cachedFile.absolutePath}")
             cachedFile.absolutePath
         } else {
+            Timber.w("   ❌ File exists but validation failed")
             null
         }
     }
@@ -522,7 +572,35 @@ class MediaDownloadManager(private val context: Context) {
     fun removeListener(listener: DownloadListener) {
         listeners.remove(listener)
     }
-    
+
+    /**
+     * Check if all downloads are complete and notify listeners once
+     */
+    private fun checkAndNotifyAllDownloadsCompleted() {
+        // Only notify if we haven't already and there were items to download
+        if (!hasNotifiedAllDownloadsComplete && totalItemsToDownload > 0) {
+            val completedCount = downloadProgress.values.count { it.status == DownloadStatus.COMPLETED }
+            val failedCount = downloadProgress.values.count { it.status == DownloadStatus.FAILED }
+            val totalProcessed = completedCount + failedCount
+
+            // All items have been processed (completed or failed)
+            if (totalProcessed >= totalItemsToDownload) {
+                hasNotifiedAllDownloadsComplete = true
+                Timber.i("✅ All downloads completed: $completedCount succeeded, $failedCount failed")
+                notifyAllDownloadsCompleted()
+            }
+        }
+    }
+
+    /**
+     * Reset download completion tracking when starting a new batch
+     */
+    fun resetDownloadTracking() {
+        hasNotifiedAllDownloadsComplete = false
+        totalItemsToDownload = 0
+        downloadProgress.clear()
+    }
+
     // Notification methods
     private fun notifyDownloadStarted(mediaId: String, fileName: String) {
         listeners.forEach { it.onDownloadStarted(mediaId, fileName) }
@@ -538,6 +616,10 @@ class MediaDownloadManager(private val context: Context) {
     
     private fun notifyDownloadFailed(mediaId: String, error: String) {
         listeners.forEach { it.onDownloadFailed(mediaId, error) }
+    }
+
+    private fun notifyAllDownloadsCompleted() {
+        listeners.forEach { it.onAllDownloadsCompleted() }
     }
 }
 

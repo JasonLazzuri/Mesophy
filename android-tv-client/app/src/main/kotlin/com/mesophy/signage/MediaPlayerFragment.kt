@@ -300,10 +300,29 @@ class MediaPlayerFragment : Fragment() {
 
         // For non-YouTube media, find the local file path
         val mediaDownloadManager = (activity as? MainActivity)?.getMediaDownloadManager()
-        val localPath = mediaDownloadManager?.getCachedFilePath(asset)
+        Timber.d("🔍 mediaDownloadManager for ${asset.name}: ${if (mediaDownloadManager == null) "NULL" else "NOT NULL"}")
+
+        // If MediaDownloadManager is not ready yet, retry after a short delay
+        if (mediaDownloadManager == null) {
+            Timber.w("⚠️ MediaDownloadManager not ready for ${asset.name}, retrying in 500ms...")
+            handler.postDelayed({
+                if (isPlaying) {
+                    playCurrentMedia()
+                }
+            }, 500)
+            return
+        }
+
+        val localPath = mediaDownloadManager.getCachedFilePath(asset)
+
+        Timber.d("🔍 Checking file for ${asset.name}: localPath=$localPath")
+        if (localPath != null) {
+            val file = File(localPath)
+            Timber.d("🔍 File exists: ${file.exists()}, path: ${file.absolutePath}")
+        }
 
         if (localPath == null || !File(localPath).exists()) {
-            Timber.e("❌ Media file not found: ${asset.name}")
+            Timber.e("❌ Media file not found: ${asset.name} (localPath=$localPath)")
             listener?.onMediaError(playlistItem, "Media file not found locally")
             playNextMedia()
             return

@@ -95,7 +95,7 @@ Code: ${pairingInfo.code}
 Expires: ${new Date(pairingInfo.expires_at).toLocaleString()}
 
 Instructions:
-1. SSH into your Raspberry Pi or access the terminal
+1. Access your device terminal (SSH or direct access)
 2. Run: curl -X POST ${pairingInfo.dashboard_url}/api/devices/pair-qr \\
    -H "Content-Type: application/json" \\
    -d '{"pairing_data":${JSON.stringify(pairingInfo)}}'
@@ -204,8 +204,8 @@ Dashboard: ${pairingInfo.dashboard_url}`
                 Setup Instructions
               </h4>
               <ol className="text-sm text-blue-800 space-y-2">
-                <li>1. Connect your Raspberry Pi to power and network</li>
-                <li>2. Install the Mesophy Pi Client software</li>
+                <li>1. Connect your device to power and network</li>
+                <li>2. Install the Mesophy device client software</li>
                 <li>3. When prompted, enter the pairing code above</li>
                 <li>4. The device will automatically connect to this screen</li>
               </ol>
@@ -237,7 +237,7 @@ Dashboard: ${pairingInfo.dashboard_url}`
               </summary>
               <div className="px-4 pb-4">
                 <p className="text-xs text-gray-600 mb-2">
-                  For direct API pairing, run this command on your Pi:
+                  For direct API pairing, run this command on your device:
                 </p>
                 <code className="block bg-white p-2 rounded text-xs break-all">
                   curl -X POST {pairingInfo.dashboard_url}/api/devices/pair-qr -H "Content-Type: application/json" -d '{JSON.stringify({ pairing_data: pairingInfo })}'

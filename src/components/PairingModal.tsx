@@ -176,7 +176,7 @@ export default function PairingModal({ isOpen, onClose, screen, onSuccess }: Pai
             </div>
             <div>
               <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Pair Device to Screen</h2>
-              <p className="text-xs sm:text-sm text-gray-500">Connect a Raspberry Pi device</p>
+              <p className="text-xs sm:text-sm text-gray-500">Connect a device to this screen</p>
             </div>
           </div>
           <button
@@ -248,7 +248,7 @@ export default function PairingModal({ isOpen, onClose, screen, onSuccess }: Pai
                   />
                 </div>
                 <p className="text-xs sm:text-sm text-gray-600 mt-2 px-2">
-                  Scan with your phone to get pairing info for the Pi
+                  Scan with your phone to get pairing info for the device
                 </p>
               </div>
 
@@ -313,7 +313,7 @@ export default function PairingModal({ isOpen, onClose, screen, onSuccess }: Pai
               <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">Device Paired Successfully!</h3>
               <p className="text-gray-600 mb-4">
-                The Raspberry Pi is now connected to {screen.name}
+                The device is now connected to {screen.name}
               </p>
               <div className="bg-green-50 rounded-lg p-4 text-left">
                 <h4 className="font-medium text-green-900 mb-2">What happens next?</h4>
@@ -351,7 +351,7 @@ export default function PairingModal({ isOpen, onClose, screen, onSuccess }: Pai
         {step === 'waiting' && (
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center px-4 sm:px-6 py-4 bg-gray-50 border-t space-y-2 sm:space-y-0">
             <div className="text-xs sm:text-sm text-gray-500">
-              Having trouble? Check the Pi device display for any error messages.
+              Having trouble? Check the device display for any error messages.
             </div>
             <div className="flex space-x-2 w-full sm:w-auto justify-end">
               <button
