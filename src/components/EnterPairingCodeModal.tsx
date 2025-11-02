@@ -116,7 +116,7 @@ export default function EnterPairingCodeModal({ isOpen, onClose, onSuccess }: En
             </div>
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Enter Pairing Code</h2>
-              <p className="text-sm text-gray-500">Connect your Raspberry Pi device</p>
+              <p className="text-sm text-gray-500">Connect your device</p>
             </div>
           </div>
           <button
@@ -133,7 +133,7 @@ export default function EnterPairingCodeModal({ isOpen, onClose, onSuccess }: En
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Pairing Code from Pi Device
+                  Pairing Code from Device
                 </label>
                 <input
                   type="text"
@@ -145,7 +145,7 @@ export default function EnterPairingCodeModal({ isOpen, onClose, onSuccess }: En
                   autoFocus
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Enter the 6-character code displayed on your Pi screen
+                  Enter the 6-character code displayed on your device screen
                 </p>
               </div>
 
@@ -184,9 +184,9 @@ export default function EnterPairingCodeModal({ isOpen, onClose, onSuccess }: En
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h4 className="font-medium text-blue-900 mb-2">Instructions:</h4>
                 <ol className="text-sm text-blue-800 space-y-1">
-                  <li>1. Look at your Pi device's screen</li>
+                  <li>1. Look at your device's screen</li>
                   <li>2. Copy the 6-character pairing code</li>
-                  <li>3. Select which screen this Pi should control</li>
+                  <li>3. Select which screen this device should control</li>
                   <li>4. Click "Pair Device" to connect</li>
                 </ol>
               </div>
@@ -214,7 +214,7 @@ export default function EnterPairingCodeModal({ isOpen, onClose, onSuccess }: En
             <div className="text-center py-8">
               <Loader2 className="h-12 w-12 text-indigo-600 animate-spin mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">Pairing Device...</h3>
-              <p className="text-gray-600">Connecting your Pi to the selected screen</p>
+              <p className="text-gray-600">Connecting your device to the selected screen</p>
             </div>
           )}
 
@@ -223,7 +223,7 @@ export default function EnterPairingCodeModal({ isOpen, onClose, onSuccess }: En
               <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">Device Paired Successfully!</h3>
               <p className="text-gray-600">
-                Your Pi is now connected and will start displaying content
+                Your device is now connected and will start displaying content
               </p>
             </div>
           )}
