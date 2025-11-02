@@ -129,7 +129,21 @@ export default function EditPlaylistPage({ params }: RouteParams) {
       setDescription(playlist.description || '')
       setLoopMode(playlist.loop_mode)
       setIsActive(playlist.is_active)
-      setSelectedItems([...playlist.playlist_items].sort((a, b) => a.order_index - b.order_index))
+
+      // Debug logging for playlist ordering issue
+      console.log('📋 CLIENT: Playlist items received from API:')
+      playlist.playlist_items.forEach((item: any, index: number) => {
+        console.log(`  ${index}: order_index=${item.order_index}, name=${item.media_assets?.name}, type=${item.media_assets?.mime_type}`)
+      })
+
+      const sortedItems = [...playlist.playlist_items].sort((a, b) => a.order_index - b.order_index)
+
+      console.log('📋 CLIENT: Playlist items after sorting:')
+      sortedItems.forEach((item: any, index: number) => {
+        console.log(`  ${index}: order_index=${item.order_index}, name=${item.media_assets?.name}, type=${item.media_assets?.mime_type}`)
+      })
+
+      setSelectedItems(sortedItems)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
