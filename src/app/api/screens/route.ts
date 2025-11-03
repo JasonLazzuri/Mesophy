@@ -287,10 +287,10 @@ export async function POST(request: NextRequest) {
 
     // Validate screen type (match database enum)
     console.log('POST /api/screens - Validating screen type')
-    const validScreenTypes: ScreenType[] = ['promo_board', 'menu_board', 'employee_board']
+    const validScreenTypes: ScreenType[] = ['promo_board', 'menu_board', 'employee_board', 'room_calendar']
     if (!validScreenTypes.includes(screen_type)) {
       console.error('POST /api/screens - Invalid screen type:', screen_type)
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'Invalid screen type',
         details: `Valid types: ${validScreenTypes.join(', ')}`
       }, { status: 400 })
