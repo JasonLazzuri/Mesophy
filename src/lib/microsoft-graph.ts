@@ -188,6 +188,10 @@ export class MicrosoftGraphClient {
 
 /**
  * Generate Microsoft OAuth authorization URL
+ *
+ * Multi-tenant approach: Admin consent allows the first admin to approve
+ * the app for the entire organization. After admin consent, all users in
+ * that organization can connect without needing admin approval.
  */
 export function getMicrosoftAuthUrl(
   clientId: string,
@@ -209,6 +213,9 @@ export function getMicrosoftAuthUrl(
     redirect_uri: redirectUri,
     scope: scopes.join(' '),
     response_mode: 'query',
+    // Force consent screen to show every time, which allows admins to
+    // see the "Consent on behalf of your organization" checkbox
+    prompt: 'consent',
     ...(state && { state })
   })
 

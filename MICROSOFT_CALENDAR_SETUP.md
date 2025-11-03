@@ -6,24 +6,40 @@ This document explains how to configure Microsoft Outlook calendar integration f
 
 The calendar integration allows screens to display real-time room availability, meeting schedules, and countdown timers for conference rooms and event spaces.
 
-## Azure AD App Registration
+## Setup Approach: Multi-Tenant with Admin Consent
 
-To enable Microsoft Calendar integration, you need to register an application in Azure Active Directory.
+Mesophy uses a **centralized multi-tenant Azure AD app** (industry best practice used by OptiSigns, Yodeck, ScreenCloud).
 
-### Step 1: Create Azure AD App Registration
+**What this means:**
+- ✅ **One-time admin approval** per customer organization
+- ✅ **No Azure Portal access required** for customers
+- ✅ **Simple "Sign in with Microsoft"** experience
+- ✅ **After admin approves, all users can connect calendars**
+
+---
+
+## For Mesophy Platform Administrators
+
+### Azure AD App Registration (One-Time Setup)
+
+### Step 1: Create Multi-Tenant Azure AD App Registration
+
+**IMPORTANT:** Configure as **multi-tenant** to support all customer organizations.
 
 1. Go to [Azure Portal](https://portal.azure.com)
 2. Navigate to **Azure Active Directory** > **App registrations**
 3. Click **New registration**
 4. Configure the app:
    - **Name**: Mesophy Digital Signage
-   - **Supported account types**: Accounts in any organizational directory (Any Azure AD directory - Multitenant)
+   - **Supported account types**: ⭐ **Accounts in any organizational directory (Any Azure AD directory - Multitenant)** ⭐
    - **Redirect URI**:
      - Platform: Web
-     - URI: `https://your-domain.com/api/calendar/microsoft/callback`
-     - For local development: `http://localhost:3000/api/calendar/microsoft/callback`
+     - Production: `https://your-domain.com/api/calendar/microsoft/callback`
+     - Development: `http://localhost:3000/api/calendar/microsoft/callback`
+     - Add BOTH URIs (click "Add URI" to add multiple)
 
 5. Click **Register**
+6. Note your **Application (client) ID** - you'll need this for environment variables
 
 ### Step 2: Configure API Permissions
 
@@ -39,7 +55,9 @@ To enable Microsoft Calendar integration, you need to register an application in
    - `Calendars.Read.Shared`
 
 5. Click **Add permissions**
-6. Click **Grant admin consent** (if you're an admin) or request admin consent
+6. **DO NOT** click "Grant admin consent" in YOUR tenant
+   - Each customer organization will consent when their admin first connects
+   - This is the multi-tenant approach
 
 ### Step 3: Create Client Secret
 
@@ -169,6 +187,77 @@ Microsoft Graph API has rate limits:
 - 10,000 requests per 10 minutes per app
 - Recommendation: Fetch calendar every 5-10 minutes per screen
 - Cache events locally to reduce API calls
+
+---
+
+## For Customers: Connecting Your Microsoft Calendar
+
+### First-Time Setup (IT Admin Required)
+
+**The first person in your organization** to connect a calendar needs to be an IT administrator. This is a **one-time approval** for your entire organization.
+
+#### Step 1: Create a Room Calendar Screen
+1. Log in to Mesophy dashboard
+2. Go to **Screens** → **Add Screen**
+3. Select screen type: **📅 Room Calendar**
+4. Enter screen name (e.g., "Conference Room A")
+5. Select location and configure display settings
+6. Click **Create Screen**
+
+#### Step 2: Admin Connects Calendar (First Time Only)
+1. Navigate to your new room calendar screen's details page
+2. Find the **Calendar Integration** section
+3. Click **"Connect Microsoft Calendar"**
+4. You'll be redirected to Microsoft sign-in page
+5. Sign in with your **admin Microsoft account** (must have admin rights)
+6. **IMPORTANT**: On the consent page, check the box:
+   - ☑ **"Consent on behalf of your organization"**
+7. Click **"Accept"**
+8. Select which calendar to display (e.g., your conference room calendar)
+9. Configure settings:
+   - Business hours (e.g., 8:00 AM - 6:00 PM)
+   - Timezone (Pacific, Eastern, etc.)
+   - Privacy settings (show organizer names, attendees, etc.)
+10. Click **"Save Settings"**
+
+✅ **Done!** The app is now approved for your entire organization.
+
+### Regular Users (After Admin Approval)
+
+After the first admin approves the app, **any user** in your organization can connect calendars:
+
+1. Create or edit a room calendar screen
+2. Click **"Connect Microsoft Calendar"**
+3. Sign in with **your Microsoft account** (no admin rights needed)
+4. Select calendar → Configure settings → Save
+
+**No admin approval required!** The connection process takes 30 seconds.
+
+### What You're Granting Access To
+
+Mesophy Digital Signage requests **read-only** access to:
+- Calendar names and events
+- Meeting organizers, attendees, times
+- Room availability status
+
+**We CANNOT:**
+- ❌ Create, modify, or delete calendar events
+- ❌ Access emails, files, or other Microsoft 365 data
+- ❌ See calendars you don't explicitly share
+
+### Revoking Access
+
+**Organization Level (IT Admin):**
+1. Go to [Azure Portal](https://portal.azure.com)
+2. Navigate to **Enterprise Applications**
+3. Find "Mesophy Digital Signage"
+4. Click **Delete** to revoke access for entire organization
+
+**Individual Calendar:**
+1. In Mesophy dashboard, go to screen details
+2. Click **"Disconnect"** in Calendar Integration section
+
+---
 
 ## Next Steps
 
