@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { 
-  Monitor, ArrowLeft, Edit, Wifi, WifiOff, AlertTriangle, Settings, 
+import {
+  Monitor, ArrowLeft, Edit, Wifi, WifiOff, AlertTriangle, Settings,
   Clock, Activity, HardDrive, Cpu, MemoryStick, Thermometer,
   Calendar, MapPin, Building2, Power, RefreshCw, Eye
 } from 'lucide-react'
 import Link from 'next/link'
 import { ScreenType, DeviceStatus, Orientation, LogLevel } from '@/types/database'
+import CalendarConnectionCard from '@/components/CalendarConnectionCard'
+import CalendarConnectionModal from '@/components/CalendarConnectionModal'
 
 interface Screen {
   id: string
@@ -53,6 +55,7 @@ export default function ScreenDetailPage() {
   const [screen, setScreen] = useState<Screen | null>(null)
   const [recentLogs, setRecentLogs] = useState<DeviceLog[]>([])
   const [error, setError] = useState('')
+  const [showCalendarModal, setShowCalendarModal] = useState(false)
 
   useEffect(() => {
     if (screenId) {
@@ -124,9 +127,9 @@ export default function ScreenDetailPage() {
   const getTypeIcon = (type: ScreenType) => {
     switch (type) {
       case 'menu_board': return '🍽️'
-      case 'promotional': return '📢'
-      case 'queue_display': return '👥'
-      case 'outdoor_sign': return '🏪'
+      case 'promo_board': return '📢'
+      case 'employee_board': return '👥'
+      case 'room_calendar': return '📅'
       default: return '📺'
     }
   }
@@ -476,6 +479,32 @@ export default function ScreenDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Calendar Integration - Only for room_calendar screens */}
+      {screen.screen_type === 'room_calendar' && (
+        <>
+          <div className="bg-white shadow rounded-lg">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-medium text-gray-900">Calendar Integration</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Connect Microsoft Outlook calendar to display room availability
+              </p>
+            </div>
+            <CalendarConnectionCard
+              screenId={screen.id}
+              onConnect={() => setShowCalendarModal(true)}
+              onUpdate={() => fetchScreenDetails()}
+            />
+          </div>
+
+          <CalendarConnectionModal
+            isOpen={showCalendarModal}
+            onClose={() => setShowCalendarModal(false)}
+            screenId={screen.id}
+            onSuccess={() => fetchScreenDetails()}
+          />
+        </>
+      )}
 
       {/* Content Assignment Placeholder */}
       <div className="bg-white shadow rounded-lg">

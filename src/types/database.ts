@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type UserRole = 'super_admin' | 'district_manager' | 'location_manager' | 'tech'
-export type ScreenType = 'promo_board' | 'menu_board' | 'employee_board'
+export type ScreenType = 'promo_board' | 'menu_board' | 'employee_board' | 'room_calendar'
 export type DeviceStatus = 'online' | 'offline' | 'error' | 'maintenance'
 export type Orientation = 'landscape' | 'portrait'
 export type LogLevel = 'info' | 'warning' | 'error' | 'debug'
@@ -158,6 +158,10 @@ export interface Database {
           orientation: Orientation
           is_active: boolean
           last_seen: string | null
+          room_image_url: string | null
+          cycle_interval_seconds: number
+          show_weather: boolean
+          weather_enabled: boolean
           created_at: string
           updated_at: string
         }
@@ -172,6 +176,10 @@ export interface Database {
           orientation?: Orientation
           is_active?: boolean
           last_seen?: string | null
+          room_image_url?: string | null
+          cycle_interval_seconds?: number
+          show_weather?: boolean
+          weather_enabled?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -186,6 +194,10 @@ export interface Database {
           orientation?: Orientation
           is_active?: boolean
           last_seen?: string | null
+          room_image_url?: string | null
+          cycle_interval_seconds?: number
+          show_weather?: boolean
+          weather_enabled?: boolean
           created_at?: string
           updated_at?: string
         }
