@@ -2,8 +2,29 @@
 -- Extends media_assets table to support calendar integrations as media items
 -- This allows calendars to be managed like other media (images, videos) through playlists
 
--- Step 1: Add 'calendar' to media_type enum
-ALTER TYPE media_type ADD VALUE IF NOT EXISTS 'calendar';
+-- Step 0: Create media_type enum if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'media_type') THEN
+        CREATE TYPE media_type AS ENUM ('image', 'video', 'youtube');
+        RAISE NOTICE 'Created media_type enum with default values';
+    END IF;
+END $$;
+
+-- Step 1: Add 'calendar' to media_type enum if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_enum
+        WHERE enumlabel = 'calendar'
+        AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'media_type')
+    ) THEN
+        ALTER TYPE media_type ADD VALUE 'calendar';
+        RAISE NOTICE 'Added calendar value to media_type enum';
+    ELSE
+        RAISE NOTICE 'calendar value already exists in media_type enum';
+    END IF;
+END $$;
 
 -- Step 2: Add calendar_metadata column to media_assets table
 -- This stores all calendar-specific configuration as JSON
@@ -16,25 +37,68 @@ ON media_assets USING GIN (calendar_metadata)
 WHERE media_type = 'calendar';
 
 -- Step 4: Add check constraint to ensure calendar media has required metadata
-ALTER TABLE media_assets
-ADD CONSTRAINT check_calendar_metadata
-CHECK (
-  media_type != 'calendar' OR (
-    calendar_metadata IS NOT NULL AND
-    calendar_metadata ? 'provider' AND
-    calendar_metadata ? 'calendar_id' AND
-    calendar_metadata ? 'access_token' AND
-    calendar_metadata ? 'refresh_token'
-  )
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'check_calendar_metadata'
+        AND conrelid = 'media_assets'::regclass
+    ) THEN
+        ALTER TABLE media_assets
+        ADD CONSTRAINT check_calendar_metadata
+        CHECK (
+          media_type::text != 'calendar' OR (
+            calendar_metadata IS NOT NULL AND
+            calendar_metadata ? 'provider' AND
+            calendar_metadata ? 'calendar_id' AND
+            calendar_metadata ? 'access_token' AND
+            calendar_metadata ? 'refresh_token'
+          )
+        );
+        RAISE NOTICE 'Added check_calendar_metadata constraint';
+    ELSE
+        RAISE NOTICE 'check_calendar_metadata constraint already exists';
+    END IF;
+END $$;
 
--- Step 5: Update existing calendar media type to be nullable
+-- Step 5: Update existing columns to be nullable
 -- (Calendar media doesn't have traditional file_url, file_path, etc.)
-ALTER TABLE media_assets
-ALTER COLUMN file_name DROP NOT NULL,
-ALTER COLUMN file_path DROP NOT NULL,
-ALTER COLUMN file_url DROP NOT NULL,
-ALTER COLUMN mime_type DROP NOT NULL;
+DO $$
+BEGIN
+    -- Make file_name nullable if it isn't already
+    ALTER TABLE media_assets ALTER COLUMN file_name DROP NOT NULL;
+    RAISE NOTICE 'file_name is now nullable';
+EXCEPTION
+    WHEN others THEN
+        RAISE NOTICE 'file_name was already nullable or does not exist';
+END $$;
+
+DO $$
+BEGIN
+    ALTER TABLE media_assets ALTER COLUMN file_path DROP NOT NULL;
+    RAISE NOTICE 'file_path is now nullable';
+EXCEPTION
+    WHEN others THEN
+        RAISE NOTICE 'file_path was already nullable or does not exist';
+END $$;
+
+DO $$
+BEGIN
+    ALTER TABLE media_assets ALTER COLUMN file_url DROP NOT NULL;
+    RAISE NOTICE 'file_url is now nullable';
+EXCEPTION
+    WHEN others THEN
+        RAISE NOTICE 'file_url was already nullable or does not exist';
+END $$;
+
+DO $$
+BEGIN
+    ALTER TABLE media_assets ALTER COLUMN mime_type DROP NOT NULL;
+    RAISE NOTICE 'mime_type is now nullable';
+EXCEPTION
+    WHEN others THEN
+        RAISE NOTICE 'mime_type was already nullable or does not exist';
+END $$;
 
 -- Step 6: Add comments for documentation
 COMMENT ON COLUMN media_assets.calendar_metadata IS 'JSON metadata for calendar media type. Contains provider, calendar_id, access_token, refresh_token, timezone, business_hours, and display settings.';
