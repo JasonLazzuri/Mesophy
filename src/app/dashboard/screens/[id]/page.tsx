@@ -56,6 +56,7 @@ export default function ScreenDetailPage() {
   const [recentLogs, setRecentLogs] = useState<DeviceLog[]>([])
   const [error, setError] = useState('')
   const [showCalendarModal, setShowCalendarModal] = useState(false)
+  const [calendarConnection, setCalendarConnection] = useState<any>(null)
 
   useEffect(() => {
     if (screenId) {
@@ -64,11 +65,16 @@ export default function ScreenDetailPage() {
       // Check if we just returned from Microsoft OAuth callback
       const params = new URLSearchParams(window.location.search)
       if (params.get('calendar_connected') === 'true') {
-        // Open the calendar modal to continue setup
-        setShowCalendarModal(true)
+        // Fetch calendar connection and open modal
+        fetchCalendarConnection().then(() => {
+          setShowCalendarModal(true)
+        })
+      } else if (screen?.screen_type === 'room_calendar') {
+        // Fetch calendar connection for room calendar screens
+        fetchCalendarConnection()
       }
     }
-  }, [screenId])
+  }, [screenId, screen?.screen_type])
 
   const fetchScreenDetails = async (showRefreshIndicator = false) => {
     try {
@@ -91,6 +97,22 @@ export default function ScreenDetailPage() {
     } finally {
       setLoading(false)
       setRefreshing(false)
+    }
+  }
+
+  const fetchCalendarConnection = async () => {
+    try {
+      const response = await fetch(`/api/calendar/connections/${screenId}`)
+      const result = await response.json()
+
+      if (response.ok && result.connected && result.connection) {
+        setCalendarConnection(result.connection)
+      } else {
+        setCalendarConnection(null)
+      }
+    } catch (err) {
+      console.error('Error fetching calendar connection:', err)
+      setCalendarConnection(null)
     }
   }
 
@@ -508,7 +530,11 @@ export default function ScreenDetailPage() {
             isOpen={showCalendarModal}
             onClose={() => setShowCalendarModal(false)}
             screenId={screen.id}
-            onSuccess={() => fetchScreenDetails()}
+            existingConnection={calendarConnection}
+            onSuccess={() => {
+              fetchScreenDetails()
+              fetchCalendarConnection()
+            }}
           />
         </>
       )}
