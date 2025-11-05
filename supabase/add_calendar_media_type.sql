@@ -36,7 +36,20 @@ CREATE INDEX IF NOT EXISTS idx_media_assets_calendar_metadata
 ON media_assets USING GIN (calendar_metadata)
 WHERE media_type = 'calendar';
 
--- Step 4: Update existing media_asset_source_check constraint to allow calendar type
+-- Step 4: Drop any existing media_type check constraint (recreated by enum)
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'media_assets_media_type_check'
+        AND conrelid = 'media_assets'::regclass
+    ) THEN
+        ALTER TABLE media_assets DROP CONSTRAINT media_assets_media_type_check;
+        RAISE NOTICE 'Dropped media_assets_media_type_check constraint (will be recreated by enum)';
+    END IF;
+END $$;
+
+-- Step 5: Update existing media_asset_source_check constraint to allow calendar type
 -- The existing constraint requires file_url OR youtube_url, but calendars have neither
 DO $$
 BEGIN
