@@ -96,6 +96,12 @@ class MediaDownloadManager(private val context: Context) {
      * Queue media asset for download
      */
     fun queueDownload(mediaAsset: MediaAsset, deviceToken: String, priority: Int = 0) {
+        // Skip calendar media (no URL to download)
+        if (mediaAsset.url == null) {
+            Timber.d("Skipping download for calendar media: ${mediaAsset.name}")
+            return
+        }
+
         // Track total items for completion detection
         totalItemsToDownload++
 
@@ -242,11 +248,18 @@ class MediaDownloadManager(private val context: Context) {
     private suspend fun downloadMediaAsset(task: MediaDownloadTask) {
         val mediaAsset = task.mediaAsset
         val deviceToken = task.deviceToken
-        
+
+        // Safety check - should never happen as queueDownload filters these out
+        if (mediaAsset.url == null) {
+            Timber.e("❌ Cannot download media without URL: ${mediaAsset.name}")
+            notifyDownloadFailed(mediaAsset.id, "No URL available")
+            return
+        }
+
         try {
             Timber.i("📥 Starting download: ${mediaAsset.name}")
             notifyDownloadStarted(mediaAsset.id, mediaAsset.name)
-            
+
             // Update progress to downloading
             downloadProgress[mediaAsset.id] = downloadProgress[mediaAsset.id]?.copy(
                 status = DownloadStatus.DOWNLOADING
@@ -258,7 +271,7 @@ class MediaDownloadManager(private val context: Context) {
                 status = DownloadStatus.DOWNLOADING
             )
             notifyDownloadProgress(downloadProgress[mediaAsset.id]!!)
-            
+
             // Create request with authentication
             val request = Request.Builder()
                 .url(mediaAsset.url)
@@ -358,7 +371,7 @@ class MediaDownloadManager(private val context: Context) {
      */
     private fun getCachedFile(mediaAsset: MediaAsset): File {
         val extension = getFileExtension(mediaAsset.mimeType) ?:
-                       getFileExtension(mediaAsset.url.substringAfterLast('.'))
+                       mediaAsset.url?.let { getFileExtension(it.substringAfterLast('.')) }
         val fileName = "${mediaAsset.id}${if (!extension.isNullOrEmpty()) ".$extension" else ""}"
         Timber.d("🔍 getCachedFile: mediaAsset.id=${mediaAsset.id}, extension=$extension, fileName=$fileName")
         return File(cacheDir, fileName)
@@ -463,6 +476,12 @@ class MediaDownloadManager(private val context: Context) {
      * Get cached file path if available
      */
     fun getCachedFilePath(mediaAsset: MediaAsset): String? {
+        // Calendar media doesn't have local files
+        if (mediaAsset.url == null) {
+            Timber.d("🔍 getCachedFilePath: Skipping calendar media ${mediaAsset.name}")
+            return null
+        }
+
         val cachedFile = getCachedFile(mediaAsset)
         Timber.d("🔍 getCachedFilePath for ${mediaAsset.name}:")
         Timber.d("   - mediaAsset.id: ${mediaAsset.id}")

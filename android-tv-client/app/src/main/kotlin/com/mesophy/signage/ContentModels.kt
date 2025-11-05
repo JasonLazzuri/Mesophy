@@ -66,14 +66,16 @@ data class PlaylistItem(
 data class MediaAsset(
     val id: String,
     val name: String,
-    val url: String,
+    val url: String?,  // Nullable - calendar media doesn't have URLs
     @Json(name = "thumbnail_url") val thumbnailUrl: String?,
     @Json(name = "mime_type") val mimeType: String,
     @Json(name = "file_size") val fileSize: Long?,
     val duration: Int?,
     val width: Int?,
     val height: Int?,
-    @Json(name = "youtube_url") val youtubeUrl: String? = null
+    @Json(name = "youtube_url") val youtubeUrl: String? = null,
+    @Json(name = "media_type") val mediaType: String? = null,  // Type of media (image, video, youtube, calendar)
+    @Json(name = "calendar_metadata") val calendarMetadata: Map<String, Any>? = null  // Calendar-specific configuration
 )
 
 @JsonClass(generateAdapter = true)
