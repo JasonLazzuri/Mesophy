@@ -60,6 +60,13 @@ export default function ScreenDetailPage() {
   useEffect(() => {
     if (screenId) {
       fetchScreenDetails()
+
+      // Check if we just returned from Microsoft OAuth callback
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('calendar_connected') === 'true') {
+        // Open the calendar modal to continue setup
+        setShowCalendarModal(true)
+      }
     }
   }, [screenId])
 
