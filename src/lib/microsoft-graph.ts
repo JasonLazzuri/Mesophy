@@ -43,6 +43,7 @@ export interface CalendarEvent {
   bodyPreview?: string
   categories?: string[]
   sensitivity?: string // 'normal' | 'personal' | 'private' | 'confidential'
+  showAs?: string // 'free' | 'tentative' | 'busy' | 'oof' | 'workingElsewhere' | 'unknown'
 }
 
 export interface CalendarInfo {
@@ -114,7 +115,7 @@ export class MicrosoftGraphClient {
       const response = await client
         .api(`/me/calendars/${calendarId}/events`)
         .filter(`start/dateTime ge '${startDateTime}' and end/dateTime le '${endDateTime}'`)
-        .select('id,subject,start,end,organizer,attendees,location,isAllDay,isCancelled,bodyPreview,categories,sensitivity')
+        .select('id,subject,start,end,organizer,attendees,location,isAllDay,isCancelled,bodyPreview,categories,sensitivity,showAs')
         .orderby('start/dateTime')
         .top(100) // Limit to 100 events
         .get()
@@ -366,4 +367,45 @@ export async function getMicrosoftUserProfile(accessToken: string): Promise<{
   })
 
   return profile
+}
+
+/**
+ * Refresh Microsoft access token using refresh token
+ */
+export async function refreshMicrosoftToken(refreshToken: string): Promise<{
+  accessToken: string
+  refreshToken?: string
+  expiresIn: number
+}> {
+  const clientId = process.env.NEXT_PUBLIC_MICROSOFT_CLIENT_ID
+  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Microsoft client credentials not configured')
+  }
+
+  const tokenData = await refreshAccessToken(refreshToken, clientId, clientSecret)
+
+  return {
+    accessToken: tokenData.access_token,
+    refreshToken: tokenData.refresh_token,
+    expiresIn: tokenData.expires_in
+  }
+}
+
+/**
+ * Get calendar events from Microsoft Graph
+ */
+export async function getMicrosoftCalendarEvents(
+  accessToken: string,
+  calendarId: string,
+  startDate: Date,
+  endDate: Date
+): Promise<CalendarEvent[]> {
+  const client = new MicrosoftGraphClient(accessToken)
+  return client.getCalendarEvents(
+    calendarId,
+    startDate.toISOString(),
+    endDate.toISOString()
+  )
 }
