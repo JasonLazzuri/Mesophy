@@ -477,21 +477,14 @@ export default function ScreensPage() {
                             </div>
 
                             <div className="flex flex-col items-center space-y-2 ml-2">
-                              {/* Primary Action - Pair or View */}
-                              {!isPaired ? (
-                                <div className="text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded text-center">
-                                  Not Paired<br/>
-                                  <span className="text-green-600">Use "Enter Pairing Code" above</span>
-                                </div>
-                              ) : (
-                                <Link
-                                  href={`/dashboard/screens/${screen.id}`}
-                                  className="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-colors"
-                                >
-                                  <Monitor className="h-3 w-3 mr-1" />
-                                  View
-                                </Link>
-                              )}
+                              {/* Primary Action - View Button */}
+                              <Link
+                                href={`/dashboard/screens/${screen.id}`}
+                                className="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-colors"
+                              >
+                                <Monitor className="h-3 w-3 mr-1" />
+                                View
+                              </Link>
                               
                               {/* Secondary Actions */}
                               <div className="flex space-x-1">
