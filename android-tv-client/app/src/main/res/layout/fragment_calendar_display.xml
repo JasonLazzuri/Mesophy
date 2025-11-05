@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FFFFFF">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="48dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="32dp"
+                android:gravity="center_vertical">
+
+                <!-- Calendar Icon/Logo -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📅"
+                    android:textSize="48sp"
+                    android:layout_marginEnd="16dp" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <!-- Calendar Name -->
+                    <TextView
+                        android:id="@+id/calendarName"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Room Calendar"
+                        android:textSize="42sp"
+                        android:textStyle="bold"
+                        android:textColor="#000000" />
+
+                    <!-- Current Date/Time -->
+                    <TextView
+                        android:id="@+id/currentDateTime"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Loading..."
+                        android:textSize="24sp"
+                        android:textColor="#666666"
+                        android:layout_marginTop="4dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Current Event Section -->
+            <LinearLayout
+                android:id="@+id/currentEventSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="32dp"
+                android:background="#4CAF50"
+                android:layout_marginBottom="24dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="NOW"
+                    android:textSize="20sp"
+                    android:textColor="#FFFFFF"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="12dp" />
+
+                <TextView
+                    android:id="@+id/currentEventTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Meeting Title"
+                    android:textSize="36sp"
+                    android:textColor="#FFFFFF"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/currentEventTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="10:00 AM - 11:00 AM"
+                    android:textSize="24sp"
+                    android:textColor="#FFFFFF"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/currentEventOrganizer"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Organizer: John Doe"
+                    android:textSize="20sp"
+                    android:textColor="#FFFFFF"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- No Current Event Message -->
+            <TextView
+                android:id="@+id/noCurrentEventText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="✓ Room Available"
+                android:textSize="32sp"
+                android:textColor="#4CAF50"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:padding="32dp"
+                android:background="#E8F5E9"
+                android:layout_marginBottom="24dp"
+                android:visibility="visible" />
+
+            <!-- Upcoming Events Title -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Upcoming Events"
+                android:textSize="28sp"
+                android:textStyle="bold"
+                android:textColor="#000000"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Upcoming Events List -->
+            <LinearLayout
+                android:id="@+id/upcomingEventsList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <!-- No Upcoming Events Message -->
+            <TextView
+                android:id="@+id/noUpcomingEventsText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="No upcoming events today"
+                android:textSize="20sp"
+                android:textColor="#999999"
+                android:gravity="center"
+                android:padding="32dp"
+                android:visibility="gone" />
+
+            <!-- Loading Indicator -->
+            <TextView
+                android:id="@+id/loadingText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Loading calendar..."
+                android:textSize="24sp"
+                android:textColor="#666666"
+                android:gravity="center"
+                android:padding="48dp"
+                android:visibility="gone" />
+
+            <!-- Error Message -->
+            <TextView
+                android:id="@+id/errorText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Error loading calendar"
+                android:textSize="20sp"
+                android:textColor="#F44336"
+                android:gravity="center"
+                android:padding="32dp"
+                android:visibility="gone" />
+        </LinearLayout>
+    </ScrollView>
+</FrameLayout>
