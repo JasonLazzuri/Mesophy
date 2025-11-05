@@ -89,8 +89,6 @@ CREATE INDEX IF NOT EXISTS idx_calendar_connections_screen_id ON calendar_connec
 CREATE INDEX IF NOT EXISTS idx_calendar_connections_active ON calendar_connections(is_active) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_calendar_events_cache_connection_id ON calendar_events_cache(calendar_connection_id);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_cache_time_range ON calendar_events_cache(start_time, end_time);
-CREATE INDEX IF NOT EXISTS idx_calendar_events_cache_today ON calendar_events_cache(calendar_connection_id, start_time)
-  WHERE start_time >= CURRENT_DATE AND start_time < CURRENT_DATE + INTERVAL '1 day';
 
 -- Function: Update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_calendar_connection_updated_at()
