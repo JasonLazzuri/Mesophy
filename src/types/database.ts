@@ -11,7 +11,7 @@ export type ScreenType = 'promo_board' | 'menu_board' | 'employee_board' | 'room
 export type DeviceStatus = 'online' | 'offline' | 'error' | 'maintenance'
 export type Orientation = 'landscape' | 'portrait'
 export type LogLevel = 'info' | 'warning' | 'error' | 'debug'
-export type MediaType = 'image' | 'video' | 'youtube'
+export type MediaType = 'image' | 'video' | 'youtube' | 'calendar'
 export type LoopMode = 'loop' | 'once' | 'shuffle'
 export type TransitionType = 'fade' | 'slide' | 'cut' | 'dissolve'
 
