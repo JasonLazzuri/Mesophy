@@ -231,6 +231,17 @@ export async function exchangeCodeForToken(
   clientSecret: string,
   redirectUri: string
 ): Promise<TokenResponse> {
+  console.log('🔵 [TOKEN_EXCHANGE] Starting token exchange...')
+  console.log('🔵 [TOKEN_EXCHANGE] Parameters:', {
+    hasCode: !!code,
+    codeLength: code?.length,
+    codePrefix: code?.substring(0, 10) + '...',
+    clientId,
+    hasClientSecret: !!clientSecret,
+    clientSecretLength: clientSecret?.length,
+    redirectUri
+  })
+
   const params = new URLSearchParams({
     client_id: clientId,
     client_secret: clientSecret,
@@ -239,7 +250,10 @@ export async function exchangeCodeForToken(
     grant_type: 'authorization_code'
   })
 
-  const response = await fetch(`${OAUTH_AUTHORITY}/oauth2/v2.0/token`, {
+  const tokenUrl = `${OAUTH_AUTHORITY}/oauth2/v2.0/token`
+  console.log('🔵 [TOKEN_EXCHANGE] Token URL:', tokenUrl)
+
+  const response = await fetch(tokenUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded'
@@ -247,13 +261,27 @@ export async function exchangeCodeForToken(
     body: params.toString()
   })
 
+  console.log('🔵 [TOKEN_EXCHANGE] Response status:', response.status, response.statusText)
+
   if (!response.ok) {
-    const error = await response.text()
-    console.error('Token exchange failed:', error)
-    throw new Error('Failed to exchange code for access token')
+    const errorText = await response.text()
+    console.error('❌ [TOKEN_EXCHANGE] Failed with status:', response.status)
+    console.error('❌ [TOKEN_EXCHANGE] Error response:', errorText)
+
+    // Try to parse error as JSON for better logging
+    try {
+      const errorJson = JSON.parse(errorText)
+      console.error('❌ [TOKEN_EXCHANGE] Parsed error:', JSON.stringify(errorJson, null, 2))
+    } catch {
+      // Not JSON, already logged as text
+    }
+
+    throw new Error(`Failed to exchange code for access token: ${errorText}`)
   }
 
-  return response.json()
+  const tokenData = await response.json()
+  console.log('✅ [TOKEN_EXCHANGE] Token exchange successful')
+  return tokenData
 }
 
 /**
