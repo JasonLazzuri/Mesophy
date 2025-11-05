@@ -418,9 +418,9 @@ export default function EditScreenPage() {
                 required
               >
                 <option value="menu_board">🍽️ Menu Board</option>
-                <option value="promotional">📢 Promotional Display</option>
-                <option value="queue_display">👥 Queue Display</option>
-                <option value="outdoor_sign">🏪 Outdoor Sign</option>
+                <option value="promo_board">📢 Promo Board</option>
+                <option value="employee_board">👥 Employee Board</option>
+                <option value="room_calendar">📅 Room Calendar</option>
               </select>
               {validationErrors.screen_type && (
                 <p className="mt-1 text-sm text-red-600">{validationErrors.screen_type}</p>
