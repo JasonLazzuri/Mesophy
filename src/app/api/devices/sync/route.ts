@@ -176,7 +176,7 @@ export async function GET(request: NextRequest) {
               // Get media assets for each item
               const enrichedItems = []
               for (const item of items) {
-                const { data: mediaAsset, error: mediaError } = await adminSupabase
+                const { data: mediaAsset, error: mediaError} = await adminSupabase
                   .from('media_assets')
                   .select(`
                     id,
@@ -186,11 +186,13 @@ export async function GET(request: NextRequest) {
                     preview_url,
                     optimized_url,
                     mime_type,
+                    media_type,
                     file_size,
                     duration,
                     width,
                     height,
                     youtube_url,
+                    calendar_metadata,
                     updated_at
                   `)
                   .eq('id', item.media_asset_id)
@@ -303,13 +305,14 @@ export async function GET(request: NextRequest) {
             .map((item, index) => {
               // Determine default duration based on media type
               // YouTube videos get longer default (600s = 10 min) since we can't auto-detect duration
-              // Users can manually override this in the playlist editor if needed
+              // Calendar media doesn't have duration (always-on display)
               // Regular videos should play to completion (use actual duration or 10s for images)
               const isYouTube = item.media_assets?.mime_type === 'video/youtube' || item.media_assets?.youtube_url
-              const defaultDuration = isYouTube ? 600 : 10
+              const isCalendar = item.media_assets?.media_type === 'calendar'
+              const defaultDuration = isCalendar ? null : (isYouTube ? 600 : 10)
 
               // Debug logging for playlist order
-              console.log(`📋 Playlist item ${index}: order_index=${item.order_index}, name=${item.media_assets?.name}, type=${item.media_assets?.mime_type}`)
+              console.log(`📋 Playlist item ${index}: order_index=${item.order_index}, name=${item.media_assets?.name}, type=${item.media_assets?.media_type || item.media_assets?.mime_type}`)
 
               return {
                 id: item.id,
@@ -318,18 +321,23 @@ export async function GET(request: NextRequest) {
                 media: item.media_assets ? {
                   id: item.media_assets.id,
                   name: item.media_assets.name,
-                  // Use optimized URLs in order of preference (unless it's a YouTube video)
-                  url: item.media_assets.youtube_url ||
-                       item.media_assets.optimized_url ||
-                       item.media_assets.preview_url ||
-                       item.media_assets.file_url,
+                  media_type: item.media_assets.media_type,
+                  // Use optimized URLs in order of preference (unless it's a YouTube video or calendar)
+                  url: isCalendar ? null : (
+                    item.media_assets.youtube_url ||
+                    item.media_assets.optimized_url ||
+                    item.media_assets.preview_url ||
+                    item.media_assets.file_url
+                  ),
                   thumbnail_url: item.media_assets.thumbnail_url,
                   mime_type: item.media_assets.mime_type,
                   file_size: item.media_assets.file_size,
                   duration: item.media_assets.duration,
                   width: item.media_assets.width,
                   height: item.media_assets.height,
-                  youtube_url: item.media_assets.youtube_url
+                  youtube_url: item.media_assets.youtube_url,
+                  // Include calendar metadata for calendar media type
+                  calendar_metadata: isCalendar ? item.media_assets.calendar_metadata : null
                 } : null
               }
             })
