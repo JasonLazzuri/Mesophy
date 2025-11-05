@@ -171,16 +171,21 @@ class MediaPlayerFragment : Fragment() {
      * Start playing a playlist of playlist items
      */
     fun startPlaylist(playlist: List<PlaylistItem>) {
-        Timber.i("🎬 Starting playlist with ${playlist.size} playlist items")
-        
-        currentPlaylist = playlist
+        // Filter out calendar items until calendar UI is implemented
+        val filteredPlaylist = playlist.filter { item ->
+            item.media?.mimeType != "application/calendar"
+        }
+
+        Timber.i("🎬 Starting playlist with ${filteredPlaylist.size} playlist items (filtered from ${playlist.size} total)")
+
+        currentPlaylist = filteredPlaylist
         currentIndex = 0
         isPlaying = true
-        
-        if (playlist.isNotEmpty()) {
+
+        if (filteredPlaylist.isNotEmpty()) {
             playCurrentMedia()
         } else {
-            Timber.w("⚠️ Empty playlist provided")
+            Timber.w("⚠️ Empty playlist after filtering calendar items")
             listener?.onPlaylistCompleted()
         }
     }
@@ -190,16 +195,22 @@ class MediaPlayerFragment : Fragment() {
      */
     fun updatePlaylist(content: CurrentContentResponse) {
         // Sort playlist items by displayOrder to ensure correct sequence
-        val newPlaylist = (content.playlist?.items ?: emptyList())
+        // Filter out calendar items until calendar UI is implemented
+        val allItems = (content.playlist?.items ?: emptyList())
             .sortedBy { it.displayOrder }
 
-        Timber.i("🔄 Updating playlist with ${newPlaylist.size} playlist items")
+        val newPlaylist = allItems.filter { item ->
+            item.media?.mimeType != "application/calendar"
+        }
+
+        Timber.i("🔄 Updating playlist with ${newPlaylist.size} playlist items (filtered from ${allItems.size} total)")
 
         // Debug logging for playlist order
-        newPlaylist.forEachIndexed { index, item ->
-            Timber.d("  $index: displayOrder=${item.displayOrder}, name=${item.media?.name}, type=${item.media?.mimeType}")
+        allItems.forEachIndexed { index, item ->
+            val status = if (item.media?.mimeType == "application/calendar") "FILTERED" else "INCLUDED"
+            Timber.d("  $index: displayOrder=${item.displayOrder}, name=${item.media?.name}, type=${item.media?.mimeType} [$status]")
         }
-        
+
         // Check if playlist actually changed to avoid unnecessary updates
         if (playlistsAreEqual(currentPlaylist, newPlaylist)) {
             Timber.d("Playlist unchanged, skipping update")
