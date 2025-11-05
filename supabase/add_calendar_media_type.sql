@@ -36,7 +36,32 @@ CREATE INDEX IF NOT EXISTS idx_media_assets_calendar_metadata
 ON media_assets USING GIN (calendar_metadata)
 WHERE media_type = 'calendar';
 
--- Step 4: Add check constraint to ensure calendar media has required metadata
+-- Step 4: Update existing media_asset_source_check constraint to allow calendar type
+-- The existing constraint requires file_url OR youtube_url, but calendars have neither
+DO $$
+BEGIN
+    -- Drop the old constraint if it exists
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'media_asset_source_check'
+        AND conrelid = 'media_assets'::regclass
+    ) THEN
+        ALTER TABLE media_assets DROP CONSTRAINT media_asset_source_check;
+        RAISE NOTICE 'Dropped old media_asset_source_check constraint';
+    END IF;
+
+    -- Add new constraint that allows calendar type
+    ALTER TABLE media_assets
+    ADD CONSTRAINT media_asset_source_check
+    CHECK (
+        (media_type::text = 'calendar' AND calendar_metadata IS NOT NULL) OR
+        (file_url IS NOT NULL AND youtube_url IS NULL) OR
+        (file_url IS NULL AND youtube_url IS NOT NULL)
+    );
+    RAISE NOTICE 'Added updated media_asset_source_check constraint with calendar support';
+END $$;
+
+-- Step 5: Add check constraint to ensure calendar media has required metadata
 DO $$
 BEGIN
     IF NOT EXISTS (
