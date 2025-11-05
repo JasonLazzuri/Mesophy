@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization")
+    kotlin("kapt")
 }
 
 // Load keystore properties
@@ -83,6 +84,7 @@ dependencies {
     // JSON serialization
     implementation("com.squareup.moshi:moshi:1.15.0")
     implementation("com.squareup.moshi:moshi-kotlin:1.15.0")
+    kapt("com.squareup.moshi:moshi-kotlin-codegen:1.15.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
     
     // Coroutines for async operations

@@ -41,8 +41,10 @@ class MediaPlayerFragment : Fragment() {
     private lateinit var imageView: ImageView
     private lateinit var videoView: VideoView
     private lateinit var youtubeWebView: WebView
+    private lateinit var calendarContainer: android.widget.FrameLayout
 
     private var currentPlaylist: List<PlaylistItem> = emptyList()
+    private var currentCalendarFragment: CalendarDisplayFragment? = null
     private var currentIndex = 0
     private var isPlaying = false
     private var retryAttempted = false
@@ -74,6 +76,7 @@ class MediaPlayerFragment : Fragment() {
         imageView = view.findViewById(R.id.imageView)
         videoView = view.findViewById(R.id.videoView)
         youtubeWebView = view.findViewById(R.id.youtubeWebView)
+        calendarContainer = view.findViewById(R.id.calendarContainer)
 
         // Configure video view
         videoView.setOnPreparedListener { mediaPlayer ->
@@ -171,21 +174,16 @@ class MediaPlayerFragment : Fragment() {
      * Start playing a playlist of playlist items
      */
     fun startPlaylist(playlist: List<PlaylistItem>) {
-        // Filter out calendar items until calendar UI is implemented
-        val filteredPlaylist = playlist.filter { item ->
-            item.media?.mimeType != "application/calendar"
-        }
+        Timber.i("🎬 Starting playlist with ${playlist.size} playlist items")
 
-        Timber.i("🎬 Starting playlist with ${filteredPlaylist.size} playlist items (filtered from ${playlist.size} total)")
-
-        currentPlaylist = filteredPlaylist
+        currentPlaylist = playlist
         currentIndex = 0
         isPlaying = true
 
-        if (filteredPlaylist.isNotEmpty()) {
+        if (playlist.isNotEmpty()) {
             playCurrentMedia()
         } else {
-            Timber.w("⚠️ Empty playlist after filtering calendar items")
+            Timber.w("⚠️ Empty playlist")
             listener?.onPlaylistCompleted()
         }
     }
@@ -195,20 +193,14 @@ class MediaPlayerFragment : Fragment() {
      */
     fun updatePlaylist(content: CurrentContentResponse) {
         // Sort playlist items by displayOrder to ensure correct sequence
-        // Filter out calendar items until calendar UI is implemented
-        val allItems = (content.playlist?.items ?: emptyList())
+        val newPlaylist = (content.playlist?.items ?: emptyList())
             .sortedBy { it.displayOrder }
 
-        val newPlaylist = allItems.filter { item ->
-            item.media?.mimeType != "application/calendar"
-        }
-
-        Timber.i("🔄 Updating playlist with ${newPlaylist.size} playlist items (filtered from ${allItems.size} total)")
+        Timber.i("🔄 Updating playlist with ${newPlaylist.size} playlist items")
 
         // Debug logging for playlist order
-        allItems.forEachIndexed { index, item ->
-            val status = if (item.media?.mimeType == "application/calendar") "FILTERED" else "INCLUDED"
-            Timber.d("  $index: displayOrder=${item.displayOrder}, name=${item.media?.name}, type=${item.media?.mimeType} [$status]")
+        newPlaylist.forEachIndexed { index, item ->
+            Timber.d("  $index: displayOrder=${item.displayOrder}, name=${item.media?.name}, type=${item.media?.mimeType}")
         }
 
         // Check if playlist actually changed to avoid unnecessary updates
@@ -216,10 +208,10 @@ class MediaPlayerFragment : Fragment() {
             Timber.d("Playlist unchanged, skipping update")
             return
         }
-        
+
         val wasPlaying = isPlaying
         currentPlaylist = newPlaylist
-        
+
         if (wasPlaying && newPlaylist.isNotEmpty()) {
             // If we're currently playing and have new content, continue smoothly
             // Reset to beginning of new playlist after current media finishes
@@ -267,10 +259,19 @@ class MediaPlayerFragment : Fragment() {
         // Stop WebView playback
         youtubeWebView.loadUrl("about:blank")
 
+        // Remove calendar fragment if present
+        currentCalendarFragment?.let {
+            childFragmentManager.beginTransaction()
+                .remove(it)
+                .commitNow()
+            currentCalendarFragment = null
+        }
+
         // Hide all views
         imageView.visibility = View.GONE
         videoView.visibility = View.GONE
         youtubeWebView.visibility = View.GONE
+        calendarContainer.visibility = View.GONE
 
         // Clear image cache
         Glide.with(this).clear(imageView)
@@ -303,11 +304,9 @@ class MediaPlayerFragment : Fragment() {
 
         listener?.onMediaStarted(playlistItem)
 
-        // Check if this is a calendar media type (skip for now, not yet implemented)
+        // Check if this is a calendar media type
         if (asset.mimeType == "application/calendar") {
-            Timber.w("⚠️ Calendar media type not yet supported, skipping: ${asset.name}")
-            listener?.onMediaCompleted(playlistItem)
-            playNextMedia()
+            playCalendar(playlistItem)
             return
         }
 
@@ -415,6 +414,72 @@ class MediaPlayerFragment : Fragment() {
         }
     }
     
+    /**
+     * Display a calendar
+     */
+    private fun playCalendar(playlistItem: PlaylistItem) {
+        val asset = playlistItem.media ?: return
+        Timber.d("📅 Displaying calendar: ${asset.name}")
+
+        // Hide other views and show calendar container
+        imageView.visibility = View.GONE
+        videoView.visibility = View.GONE
+        youtubeWebView.visibility = View.GONE
+        calendarContainer.visibility = View.VISIBLE
+
+        try {
+            // Get device token and base URL from MainActivity
+            val mainActivity = activity as? MainActivity
+            val deviceToken = mainActivity?.getDeviceToken()
+            val baseUrl = mainActivity?.getBaseUrl()
+
+            if (deviceToken == null || baseUrl == null) {
+                Timber.e("❌ Cannot display calendar: device token or base URL not available")
+                listener?.onMediaError(playlistItem, "Device token or base URL not available")
+                playNextMedia()
+                return
+            }
+
+            // Get calendar metadata from the media asset
+            val calendarMetadata = asset.calendarMetadata
+            if (calendarMetadata == null) {
+                Timber.e("❌ Calendar metadata is null for: ${asset.name}")
+                listener?.onMediaError(playlistItem, "Calendar metadata missing")
+                playNextMedia()
+                return
+            }
+
+            // Remove existing calendar fragment if present
+            currentCalendarFragment?.let {
+                childFragmentManager.beginTransaction()
+                    .remove(it)
+                    .commitNow()
+            }
+
+            // Create and show new calendar fragment
+            val calendarFragment = CalendarDisplayFragment()
+            childFragmentManager.beginTransaction()
+                .replace(R.id.calendarContainer, calendarFragment)
+                .commitNow()
+
+            currentCalendarFragment = calendarFragment
+
+            // Set calendar data after fragment is attached
+            calendarFragment.setCalendarData(calendarMetadata, deviceToken, baseUrl)
+
+            Timber.d("✅ Calendar display started: ${asset.name}")
+
+            // Calendar displays indefinitely (until next media or playlist update)
+            // Use display duration to schedule next media
+            scheduleNextMedia(playlistItem)
+
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Failed to display calendar: ${asset.name}")
+            listener?.onMediaError(playlistItem, "Failed to display calendar: ${e.message}")
+            playNextMedia()
+        }
+    }
+
     /**
      * Schedule the next media item based on duration
      */

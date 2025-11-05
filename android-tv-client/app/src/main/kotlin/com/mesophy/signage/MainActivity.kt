@@ -904,13 +904,18 @@ class MainActivity : FragmentActivity() {
             })
             
             // Add fragment to container
-            // Use commitAllowingStateLoss to avoid IllegalStateException during state changes
             supportFragmentManager.beginTransaction()
                 .replace(android.R.id.content, mediaPlayerFragment!!)
-                .commitAllowingStateLoss()
-            
+                .commit()
+
+            // Wait for fragment to be fully initialized before starting playlist
+            // Post to message queue to ensure onViewCreated has been called
+            supportFragmentManager.executePendingTransactions()
+
             // Start playing the playlist items
-            mediaPlayerFragment?.startPlaylist(playlistItems)
+            mediaPlayerFragment?.view?.post {
+                mediaPlayerFragment?.startPlaylist(playlistItems)
+            }
             
             // Mark media as playing
             isMediaPlaying = true
@@ -936,6 +941,22 @@ class MainActivity : FragmentActivity() {
      */
     fun getMediaDownloadManager(): MediaDownloadManager? {
         return mediaDownloadManager
+    }
+
+    /**
+     * Get device token for API authentication
+     */
+    fun getDeviceToken(): String? {
+        val sharedPrefs = getSharedPreferences("mesophy_config", MODE_PRIVATE)
+        return sharedPrefs.getString("device_token", null)
+    }
+
+    /**
+     * Get API base URL
+     */
+    fun getBaseUrl(): String? {
+        val sharedPrefs = getSharedPreferences("mesophy_config", MODE_PRIVATE)
+        return sharedPrefs.getString("api_base", null)
     }
     
     /**
