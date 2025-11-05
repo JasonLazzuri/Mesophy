@@ -60,6 +60,10 @@ export default function CalendarConnectionModal({
         // Editing existing connection - go straight to configuration
         setStep('configuring')
         fetchCalendars() // Still fetch calendars for dropdown
+      } else if (existingConnection && !existingConnection.calendar_id) {
+        // OAuth completed but no calendar selected yet
+        setStep('selecting_calendar')
+        fetchCalendars()
       } else {
         // New connection - check if we just returned from OAuth
         const params = new URLSearchParams(window.location.search)
