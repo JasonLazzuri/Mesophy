@@ -181,10 +181,10 @@ export async function PUT(
     }
 
     if (screen_type !== undefined) {
-      const validScreenTypes: ScreenType[] = ['promo_board', 'menu_board', 'employee_board']
+      const validScreenTypes: ScreenType[] = ['promo_board', 'menu_board', 'employee_board', 'room_calendar']
       if (!validScreenTypes.includes(screen_type)) {
-        return NextResponse.json({ 
-          error: 'Invalid screen type' 
+        return NextResponse.json({
+          error: 'Invalid screen type'
         }, { status: 400 })
       }
       updateData.screen_type = screen_type
