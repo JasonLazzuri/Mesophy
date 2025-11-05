@@ -12,16 +12,27 @@ import {
 export async function GET(request: NextRequest) {
   try {
     console.log('🔵 [CALLBACK] Route hit - starting OAuth callback processing')
+    console.log('🔵 [CALLBACK] Full URL:', request.url)
 
     const searchParams = request.nextUrl.searchParams
     const code = searchParams.get('code')
     const state = searchParams.get('state') // Contains screen_id
     const error = searchParams.get('error')
+    const errorDescription = searchParams.get('error_description')
 
-    console.log('🔵 [CALLBACK] Query params:', {
+    // Log ALL query parameters for debugging
+    const allParams: Record<string, string> = {}
+    searchParams.forEach((value, key) => {
+      allParams[key] = value
+    })
+    console.log('🔵 [CALLBACK] All query params:', allParams)
+
+    console.log('🔵 [CALLBACK] Parsed params:', {
       hasCode: !!code,
+      codeLength: code?.length,
       state,
-      error
+      error,
+      errorDescription
     })
 
     if (error) {
