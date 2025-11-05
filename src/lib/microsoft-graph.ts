@@ -203,6 +203,7 @@ export function getMicrosoftAuthUrl(
     'profile',
     'email',
     'offline_access',
+    'User.Read',
     'Calendars.Read',
     'Calendars.Read.Shared'
   ]
