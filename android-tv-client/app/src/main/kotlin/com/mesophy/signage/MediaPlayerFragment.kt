@@ -287,10 +287,18 @@ class MediaPlayerFragment : Fragment() {
             playNextMedia()
             return
         }
-        
+
         Timber.i("🎵 Playing media: ${asset.name} (${currentIndex + 1}/${currentPlaylist.size})")
 
         listener?.onMediaStarted(playlistItem)
+
+        // Check if this is a calendar media type (skip for now, not yet implemented)
+        if (asset.mimeType == "application/calendar") {
+            Timber.w("⚠️ Calendar media type not yet supported, skipping: ${asset.name}")
+            listener?.onMediaCompleted(playlistItem)
+            playNextMedia()
+            return
+        }
 
         // Check if this is a YouTube video (doesn't need local file)
         if (asset.mimeType == "video/youtube" || asset.youtubeUrl != null) {
