@@ -257,30 +257,32 @@ export async function GET(
           media: {
             id: asset.id,
             name: asset.name,
-            // Use YouTube URL for YouTube videos, otherwise fall back to optimized/preview/file URLs
-            url: asset.youtube_url || asset.optimized_url || asset.preview_url || asset.file_url,
+            // Use YouTube URL for YouTube videos, null for calendar media, otherwise fall back to optimized/preview/file URLs
+            url: asset.media_type === 'calendar' ? null : (asset.youtube_url || asset.optimized_url || asset.preview_url || asset.file_url),
             thumbnail_url: asset.thumbnail_url,
             mime_type: asset.mime_type,
             file_size: asset.file_size,
             duration: asset.duration,
             width: asset.width,
             height: asset.height,
-            youtube_url: asset.youtube_url
+            youtube_url: asset.youtube_url,
+            calendar_metadata: asset.media_type === 'calendar' ? asset.calendar_metadata : undefined
           }
         }))
       } : null,
       media_assets: mediaAssets.map(asset => ({
         id: asset.id,
         name: asset.name,
-        // Use YouTube URL for YouTube videos, otherwise fall back to optimized/preview/file URLs
-        url: asset.youtube_url || asset.optimized_url || asset.preview_url || asset.file_url,
+        // Use YouTube URL for YouTube videos, null for calendar media, otherwise fall back to optimized/preview/file URLs
+        url: asset.media_type === 'calendar' ? null : (asset.youtube_url || asset.optimized_url || asset.preview_url || asset.file_url),
         thumbnail_url: asset.thumbnail_url,
         mime_type: asset.mime_type,
         file_size: asset.file_size,
         duration: asset.duration,
         width: asset.width,
         height: asset.height,
-        youtube_url: asset.youtube_url
+        youtube_url: asset.youtube_url,
+        calendar_metadata: asset.media_type === 'calendar' ? asset.calendar_metadata : undefined
       })),
       current_time: currentTime,
       current_day: currentDay,
