@@ -325,15 +325,44 @@ export async function getMicrosoftUserProfile(accessToken: string): Promise<{
   mail: string
   userPrincipalName: string
 }> {
-  const response = await fetch(`${GRAPH_API_ENDPOINT}/me`, {
+  console.log('🔵 [USER_PROFILE] Fetching user profile from Microsoft Graph...')
+  console.log('🔵 [USER_PROFILE] Access token length:', accessToken?.length)
+  console.log('🔵 [USER_PROFILE] Token prefix:', accessToken?.substring(0, 20) + '...')
+
+  const url = `${GRAPH_API_ENDPOINT}/me`
+  console.log('🔵 [USER_PROFILE] Request URL:', url)
+
+  const response = await fetch(url, {
     headers: {
       Authorization: `Bearer ${accessToken}`
     }
   })
 
+  console.log('🔵 [USER_PROFILE] Response status:', response.status, response.statusText)
+
   if (!response.ok) {
-    throw new Error('Failed to fetch user profile')
+    const errorText = await response.text()
+    console.error('❌ [USER_PROFILE] Failed with status:', response.status)
+    console.error('❌ [USER_PROFILE] Error response:', errorText)
+
+    // Try to parse error as JSON for better logging
+    try {
+      const errorJson = JSON.parse(errorText)
+      console.error('❌ [USER_PROFILE] Parsed error:', JSON.stringify(errorJson, null, 2))
+    } catch {
+      // Not JSON, already logged as text
+    }
+
+    throw new Error(`Failed to fetch user profile: ${errorText}`)
   }
 
-  return response.json()
+  const profile = await response.json()
+  console.log('✅ [USER_PROFILE] Profile fetched successfully:', {
+    id: profile.id,
+    displayName: profile.displayName,
+    mail: profile.mail,
+    userPrincipalName: profile.userPrincipalName
+  })
+
+  return profile
 }
