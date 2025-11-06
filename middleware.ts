@@ -6,6 +6,7 @@ export async function middleware(request: NextRequest) {
   const pathname = url.pathname
 
   try {
+    // Device APIs bypass authentication (updated 2025-11-06)
     // Skip middleware for static files, API routes that don't need auth, and public assets
     if (
       pathname.startsWith('/_next/') ||
