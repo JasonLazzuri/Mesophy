@@ -8,10 +8,11 @@ import { NextRequest, NextResponse } from 'next/server'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log('GET /api/screens/[id]/current-content - Starting request for ID:', params.id)
+    const { id } = await params
+    console.log('GET /api/screens/[id]/current-content - Starting request for ID:', id)
     
     // Get environment variables (exact same pattern as working endpoint)
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -25,7 +26,7 @@ export async function GET(
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
     }
 
-    const screen_id = params.id
+    const screen_id = id
     console.log(`🔍 Checking content for screen: ${screen_id}`)
 
     // 1. Verify the screen exists and get its location
