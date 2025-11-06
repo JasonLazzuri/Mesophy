@@ -155,14 +155,18 @@ class CalendarDisplayFragment : Fragment() {
                     mapOf("calendar_metadata" to calendarMetadata)
                 )
 
+                val apiUrl = "$baseUrl/api/devices/calendar-data"
+                Timber.d("📡 Fetching from: $apiUrl")
+
                 val request = Request.Builder()
-                    .url("$baseUrl/api/devices/calendar-data")
+                    .url(apiUrl)
                     .addHeader("Content-Type", "application/json")
                     .post(requestBody.toRequestBody("application/json".toMediaType()))
                     .build()
 
                 val response = client.newCall(request).execute()
 
+                Timber.d("📡 Response code: ${response.code}")
                 if (response.isSuccessful) {
                     val responseBody = response.body?.string()
                     if (responseBody != null) {
