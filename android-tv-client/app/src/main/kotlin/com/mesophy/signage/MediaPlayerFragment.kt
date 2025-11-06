@@ -428,14 +428,13 @@ class MediaPlayerFragment : Fragment() {
         calendarContainer.visibility = View.VISIBLE
 
         try {
-            // Get device token and base URL from MainActivity
+            // Get base URL from MainActivity
             val mainActivity = activity as? MainActivity
-            val deviceToken = mainActivity?.getDeviceToken()
             val baseUrl = mainActivity?.getBaseUrl()
 
-            if (deviceToken == null || baseUrl == null) {
-                Timber.e("❌ Cannot display calendar: device token or base URL not available")
-                listener?.onMediaError(playlistItem, "Device token or base URL not available")
+            if (baseUrl == null) {
+                Timber.e("❌ Cannot display calendar: base URL not available")
+                listener?.onMediaError(playlistItem, "Base URL not available")
                 playNextMedia()
                 return
             }
@@ -465,7 +464,7 @@ class MediaPlayerFragment : Fragment() {
             currentCalendarFragment = calendarFragment
 
             // Set calendar data after fragment is attached
-            calendarFragment.setCalendarData(calendarMetadata, deviceToken, baseUrl)
+            calendarFragment.setCalendarData(calendarMetadata, baseUrl)
 
             Timber.d("✅ Calendar display started: ${asset.name}")
 

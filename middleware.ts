@@ -21,7 +21,8 @@ export async function middleware(request: NextRequest) {
       pathname === '/signup' ||
       pathname === '/auth/callback' ||
       pathname.startsWith('/api/test-') || // Allow test endpoints for now
-      pathname.startsWith('/api/debug/') // Debug endpoints have their own security
+      pathname.startsWith('/api/debug/') || // Debug endpoints have their own security
+      pathname.startsWith('/api/devices/') // Device-facing APIs have their own authentication
     ) {
       return NextResponse.next()
     }
