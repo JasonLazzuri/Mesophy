@@ -9,14 +9,6 @@ import { refreshMicrosoftToken, getMicrosoftCalendarEvents } from '@/lib/microso
  */
 export async function POST(request: NextRequest) {
   try {
-    const deviceToken = request.headers.get('Authorization')?.replace('Bearer ', '')
-
-    if (!deviceToken) {
-      return NextResponse.json({
-        error: 'Device token required'
-      }, { status: 401 })
-    }
-
     // Parse request body with calendar metadata
     const body = await request.json()
     const { calendar_metadata } = body

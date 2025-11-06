@@ -56,7 +56,6 @@ class CalendarDisplayFragment : Fragment() {
     private lateinit var errorText: TextView
 
     private var calendarMetadata: Map<String, Any>? = null
-    private var deviceToken: String? = null
     private var baseUrl: String? = null
 
     private var refreshRunnable: Runnable? = null
@@ -95,9 +94,8 @@ class CalendarDisplayFragment : Fragment() {
     /**
      * Set calendar metadata and start fetching events
      */
-    fun setCalendarData(metadata: Map<String, Any>, token: String, url: String) {
+    fun setCalendarData(metadata: Map<String, Any>, url: String) {
         this.calendarMetadata = metadata
-        this.deviceToken = token
         this.baseUrl = url
 
         // Set calendar name
@@ -143,7 +141,7 @@ class CalendarDisplayFragment : Fragment() {
      * Fetch calendar events from API
      */
     private fun fetchCalendarEvents() {
-        if (calendarMetadata == null || deviceToken == null || baseUrl == null) {
+        if (calendarMetadata == null || baseUrl == null) {
             Timber.w("⚠️ Calendar data not set, skipping fetch")
             return
         }
@@ -159,7 +157,6 @@ class CalendarDisplayFragment : Fragment() {
 
                 val request = Request.Builder()
                     .url("$baseUrl/api/devices/calendar-data")
-                    .addHeader("Authorization", "Bearer $deviceToken")
                     .addHeader("Content-Type", "application/json")
                     .post(requestBody.toRequestBody("application/json".toMediaType()))
                     .build()
