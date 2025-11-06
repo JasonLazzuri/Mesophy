@@ -24,7 +24,8 @@ import {
   FolderMinus,
   Move,
   X,
-  Youtube
+  Youtube,
+  Calendar
 } from 'lucide-react'
 import { Database } from '@/types/database'
 import MediaUpload from '@/components/MediaUpload'
@@ -56,7 +57,7 @@ export default function MediaPage() {
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [searchQuery, setSearchQuery] = useState('')
-  const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'image' | 'video' | 'youtube'>('all')
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'image' | 'video' | 'youtube' | 'calendar'>('all')
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [folderPath, setFolderPath] = useState<MediaFolder[]>([])
   const [pagination, setPagination] = useState<Pagination>({
@@ -535,6 +536,7 @@ export default function MediaPage() {
               <option value="image">Images</option>
               <option value="video">Videos</option>
               <option value="youtube">YouTube Videos</option>
+              <option value="calendar">Room Calendars</option>
             </select>
           </div>
 
@@ -882,6 +884,10 @@ export default function MediaPage() {
                                 </div>
                               )}
                             </div>
+                          ) : asset.media_type === 'calendar' ? (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Calendar className="h-12 w-12 text-green-600" />
+                            </div>
                           ) : (
                             <div className="text-center">
                               {asset.thumbnail_url ? (
@@ -1026,6 +1032,8 @@ export default function MediaPage() {
                             <Image className="h-6 w-6 text-blue-600" />
                           ) : asset.media_type === 'youtube' ? (
                             <Youtube className="h-6 w-6 text-red-600" />
+                          ) : asset.media_type === 'calendar' ? (
+                            <Calendar className="h-6 w-6 text-green-600" />
                           ) : (
                             <Video className="h-6 w-6 text-purple-600" />
                           )}
