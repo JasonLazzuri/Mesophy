@@ -42,9 +42,14 @@ export async function POST(request: NextRequest) {
         // For now, we'll just use the new token for this request
       } catch (error) {
         console.error('❌ Failed to refresh token:', error)
+
+        // Return 401 with a specific error code so Android TV can display appropriate message
+        // Portal users will need to re-authenticate the calendar connection
         return NextResponse.json({
-          error: 'Failed to refresh calendar access token',
-          details: error instanceof Error ? error.message : 'Unknown error'
+          error: 'Calendar authentication expired',
+          error_code: 'OAUTH_TOKEN_EXPIRED',
+          details: 'Please re-authenticate this calendar in the portal',
+          message: 'The calendar connection has expired and needs to be re-authorized. Please visit the portal to reconnect.'
         }, { status: 401 })
       }
     }
