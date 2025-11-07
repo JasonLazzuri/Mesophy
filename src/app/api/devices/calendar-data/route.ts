@@ -57,7 +57,14 @@ export async function POST(request: NextRequest) {
           error_code: 'OAUTH_TOKEN_EXPIRED',
           details: 'Please re-authenticate this calendar in the portal',
           message: 'The calendar connection has expired and needs to be re-authorized. Please visit the portal to reconnect.'
-        }, { status: 401 })
+        }, {
+          status: 401,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          }
+        })
       }
     } else {
       console.log('✅ Token still valid, using existing access token')
@@ -112,6 +119,12 @@ export async function POST(request: NextRequest) {
       token_refreshed: needsRefresh,
       new_access_token: needsRefresh ? accessToken : undefined,
       new_refresh_token: needsRefresh && newRefreshToken !== calendar_metadata.refresh_token ? newRefreshToken : undefined
+    }, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      }
     })
 
   } catch (error) {
@@ -119,7 +132,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       error: 'Failed to fetch calendar data',
       details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 })
+    }, {
+      status: 500,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      }
+    })
   }
 }
 
