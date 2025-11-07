@@ -20,10 +20,15 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('📅 Calendar data request for calendar:', calendar_metadata.calendar_name || calendar_metadata.calendar_id)
+    console.log('📅 Token expires at:', calendar_metadata.token_expires_at)
+    console.log('📅 Current time:', new Date().toISOString())
 
     // Check if access token needs refresh
     const tokenExpiresAt = new Date(calendar_metadata.token_expires_at)
     const now = new Date()
+    console.log('📅 Token expires at (parsed):', tokenExpiresAt.toISOString())
+    console.log('📅 Token expired?', tokenExpiresAt <= now)
+
     const needsRefresh = tokenExpiresAt <= now
 
     let accessToken = calendar_metadata.access_token
@@ -31,6 +36,7 @@ export async function POST(request: NextRequest) {
 
     if (needsRefresh) {
       console.log('🔄 Access token expired, refreshing...')
+      console.log('🔄 Refresh token:', calendar_metadata.refresh_token?.substring(0, 50) + '...')
       try {
         const tokens = await refreshMicrosoftToken(calendar_metadata.refresh_token)
         accessToken = tokens.accessToken
@@ -42,6 +48,7 @@ export async function POST(request: NextRequest) {
         // For now, we'll just use the new token for this request
       } catch (error) {
         console.error('❌ Failed to refresh token:', error)
+        console.error('❌ Error details:', error instanceof Error ? error.message : JSON.stringify(error))
 
         // Return 401 with a specific error code so Android TV can display appropriate message
         // Portal users will need to re-authenticate the calendar connection
@@ -52,6 +59,8 @@ export async function POST(request: NextRequest) {
           message: 'The calendar connection has expired and needs to be re-authorized. Please visit the portal to reconnect.'
         }, { status: 401 })
       }
+    } else {
+      console.log('✅ Token still valid, using existing access token')
     }
 
     // Fetch calendar events
