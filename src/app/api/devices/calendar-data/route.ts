@@ -44,8 +44,52 @@ export async function POST(request: NextRequest) {
 
         console.log('✅ Token refreshed successfully')
 
-        // TODO: Update the token in database for next sync
-        // For now, we'll just use the new token for this request
+        // Update tokens in database immediately to prevent future expirations
+        const newExpiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString() // 60 minutes from now
+        console.log('💾 Saving refreshed tokens to database...')
+        console.log('💾 New token expires at:', newExpiresAt)
+
+        try {
+          // Get Supabase service client to update the database
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+          const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                                     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY ||
+                                     process.env.SUPABASE_SERVICE_KEY
+
+          if (supabaseUrl && supabaseServiceKey) {
+            // Update media_assets table with new tokens
+            const updateResponse = await fetch(`${supabaseUrl}/rest/v1/media_assets?calendar_metadata->>calendar_id=eq.${calendar_metadata.calendar_id}`, {
+              method: 'PATCH',
+              headers: {
+                'apikey': supabaseServiceKey,
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+              },
+              body: JSON.stringify({
+                calendar_metadata: {
+                  ...calendar_metadata,
+                  access_token: accessToken,
+                  refresh_token: newRefreshToken,
+                  token_expires_at: newExpiresAt,
+                  last_token_refresh: new Date().toISOString()
+                }
+              })
+            })
+
+            if (updateResponse.ok) {
+              console.log('✅ Successfully saved refreshed tokens to database')
+            } else {
+              const errorText = await updateResponse.text()
+              console.error('❌ Failed to save tokens to database:', updateResponse.status, errorText)
+            }
+          } else {
+            console.warn('⚠️ Missing Supabase credentials, cannot save tokens to database')
+          }
+        } catch (dbError) {
+          console.error('❌ Database update error:', dbError)
+          // Continue anyway - we can still use the refreshed token for this request
+        }
       } catch (error) {
         console.error('❌ Failed to refresh token:', error)
         console.error('❌ Error details:', error instanceof Error ? error.message : JSON.stringify(error))
