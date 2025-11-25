@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS power_schedule_profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     profile_name TEXT NOT NULL,
-    device_type TEXT NOT NULL CHECK (device_type IN ('menu_board', 'drive_thru', 'lobby_display', 'kitchen_display', 'promotional')),
+    device_type TEXT NOT NULL CHECK (device_type IN ('menu_board', 'promo_board', 'employee_board', 'room_calendar')),
     
     -- Power schedule settings
     power_on_time TIME NOT NULL DEFAULT '06:00:00',
@@ -27,9 +27,9 @@ CREATE TABLE IF NOT EXISTS power_schedule_profiles (
     
     -- Audit fields
     created_at TIMESTAMP DEFAULT NOW(),
-    created_by UUID REFERENCES auth.users(id),
+    created_by UUID REFERENCES user_profiles(id),
     updated_at TIMESTAMP DEFAULT NOW(),
-    updated_by UUID REFERENCES auth.users(id),
+    updated_by UUID REFERENCES user_profiles(id),
     
     UNIQUE(organization_id, profile_name)
 );
@@ -40,7 +40,7 @@ ALTER TABLE power_schedule_profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view power schedule profiles for their organization" ON power_schedule_profiles
     FOR SELECT USING (
         auth.uid() IN (
-            SELECT user_id FROM user_profiles 
+            SELECT id FROM user_profiles
             WHERE (role = 'super_admin' OR organization_id = power_schedule_profiles.organization_id)
         )
     );
@@ -48,8 +48,8 @@ CREATE POLICY "Users can view power schedule profiles for their organization" ON
 CREATE POLICY "Users can manage power schedule profiles for their organization" ON power_schedule_profiles
     FOR ALL USING (
         auth.uid() IN (
-            SELECT user_id FROM user_profiles 
-            WHERE role IN ('super_admin', 'district_manager') 
+            SELECT id FROM user_profiles
+            WHERE role IN ('super_admin', 'district_manager')
             AND (role = 'super_admin' OR organization_id = power_schedule_profiles.organization_id)
         )
     );
@@ -61,9 +61,9 @@ DECLARE
     admin_user_id UUID;
 BEGIN
     -- Get the first super admin user for created_by field
-    SELECT user_id INTO admin_user_id 
-    FROM user_profiles 
-    WHERE role = 'super_admin' 
+    SELECT id INTO admin_user_id
+    FROM user_profiles
+    WHERE role = 'super_admin'
     LIMIT 1;
 
     -- Create default profiles for each organization
@@ -80,52 +80,40 @@ BEGIN
             true, 5, admin_user_id, admin_user_id
         ) ON CONFLICT (organization_id, profile_name) DO NOTHING;
 
-        -- Drive Thru (Extended hours)
+        -- Promo Board (Peak hours)
         INSERT INTO power_schedule_profiles (
             organization_id, profile_name, device_type,
             power_on_time, power_off_time, power_timezone,
             power_energy_saving, power_warning_minutes,
             created_by, updated_by
         ) VALUES (
-            org_record.id, 'Drive Thru Extended Hours', 'drive_thru',
-            '05:30:00', '23:30:00', 'America/Los_Angeles',
-            true, 10, admin_user_id, admin_user_id
-        ) ON CONFLICT (organization_id, profile_name) DO NOTHING;
-
-        -- Lobby Display (Business hours)
-        INSERT INTO power_schedule_profiles (
-            organization_id, profile_name, device_type,
-            power_on_time, power_off_time, power_timezone,
-            power_energy_saving, power_warning_minutes,
-            created_by, updated_by
-        ) VALUES (
-            org_record.id, 'Lobby Business Hours', 'lobby_display',
-            '07:00:00', '22:00:00', 'America/Los_Angeles',
-            true, 5, admin_user_id, admin_user_id
-        ) ON CONFLICT (organization_id, profile_name) DO NOTHING;
-
-        -- Kitchen Display (Always on during service)
-        INSERT INTO power_schedule_profiles (
-            organization_id, profile_name, device_type,
-            power_on_time, power_off_time, power_timezone,
-            power_energy_saving, power_warning_minutes,
-            created_by, updated_by
-        ) VALUES (
-            org_record.id, 'Kitchen Service Hours', 'kitchen_display',
-            '05:00:00', '23:59:00', 'America/Los_Angeles',
-            false, 15, admin_user_id, admin_user_id
-        ) ON CONFLICT (organization_id, profile_name) DO NOTHING;
-
-        -- Promotional Display (Peak hours)
-        INSERT INTO power_schedule_profiles (
-            organization_id, profile_name, device_type,
-            power_on_time, power_off_time, power_timezone,
-            power_energy_saving, power_warning_minutes,
-            created_by, updated_by
-        ) VALUES (
-            org_record.id, 'Promotional Peak Hours', 'promotional',
+            org_record.id, 'Promo Board Peak Hours', 'promo_board',
             '11:00:00', '21:00:00', 'America/Los_Angeles',
             true, 3, admin_user_id, admin_user_id
+        ) ON CONFLICT (organization_id, profile_name) DO NOTHING;
+
+        -- Employee Board (Extended hours)
+        INSERT INTO power_schedule_profiles (
+            organization_id, profile_name, device_type,
+            power_on_time, power_off_time, power_timezone,
+            power_energy_saving, power_warning_minutes,
+            created_by, updated_by
+        ) VALUES (
+            org_record.id, 'Employee Board Hours', 'employee_board',
+            '05:00:00', '23:59:00', 'America/Los_Angeles',
+            true, 15, admin_user_id, admin_user_id
+        ) ON CONFLICT (organization_id, profile_name) DO NOTHING;
+
+        -- Room Calendar (Business hours)
+        INSERT INTO power_schedule_profiles (
+            organization_id, profile_name, device_type,
+            power_on_time, power_off_time, power_timezone,
+            power_energy_saving, power_warning_minutes,
+            created_by, updated_by
+        ) VALUES (
+            org_record.id, 'Room Calendar Business Hours', 'room_calendar',
+            '07:00:00', '19:00:00', 'America/Los_Angeles',
+            true, 10, admin_user_id, admin_user_id
         ) ON CONFLICT (organization_id, profile_name) DO NOTHING;
     END LOOP;
 END $$;
@@ -168,9 +156,9 @@ BEGIN
             power_energy_saving = profile_record.power_energy_saving,
             power_warning_minutes = profile_record.power_warning_minutes,
             power_last_updated = NOW()
-        WHERE 
+        WHERE
             -- Filter by device type if specified
-            (target_device_type IS NULL OR screen_type = target_device_type)
+            (target_device_type IS NULL OR screen_type::text = target_device_type)
             -- Filter by location IDs if specified
             AND (target_location_ids IS NULL OR location_id = ANY(target_location_ids))
             -- Only update screens the user has access to

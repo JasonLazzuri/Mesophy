@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { apiResponse } from '@/lib/api-responses'
+import { API_ERRORS, API_SUCCESS } from '@/lib/api-responses'
 
 export async function GET(
   request: NextRequest,
@@ -11,7 +11,7 @@ export async function GET(
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
-      return apiResponse.unauthorized('Authentication required')
+      return API_ERRORS.UNAUTHORIZED('Authentication required')
     }
 
     const { data: profile, error } = await supabase
@@ -26,14 +26,14 @@ export async function GET(
       .single()
 
     if (error || !profile) {
-      return apiResponse.notFound('Power schedule profile not found')
+      return API_ERRORS.NOT_FOUND('Power schedule profile')
     }
 
-    return apiResponse.success({ profile })
+    return API_SUCCESS.RETRIEVED({ profile })
 
   } catch (error) {
     console.error('Power schedule GET error:', error)
-    return apiResponse.serverError('Internal server error')
+    return API_ERRORS.INTERNAL_SERVER_ERROR('Internal server error')
   }
 }
 
@@ -46,7 +46,7 @@ export async function PUT(
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
-      return apiResponse.unauthorized('Authentication required')
+      return API_ERRORS.UNAUTHORIZED('Authentication required')
     }
 
     const body = await request.json()
@@ -57,35 +57,36 @@ export async function PUT(
       power_off_time,
       power_timezone = 'America/Los_Angeles',
       power_energy_saving = true,
-      power_warning_minutes = 5
+      power_warning_minutes = 5,
+      days_of_week
     } = body
 
     // Validation
     if (device_type) {
-      const validDeviceTypes = ['menu_board', 'drive_thru', 'lobby_display', 'kitchen_display', 'promotional']
+      const validDeviceTypes = ['menu_board', 'promo_board', 'employee_board', 'room_calendar']
       if (!validDeviceTypes.includes(device_type)) {
-        return apiResponse.badRequest(`Invalid device_type. Must be one of: ${validDeviceTypes.join(', ')}`)
+        return API_ERRORS.BAD_REQUEST(`Invalid device_type. Must be one of: ${validDeviceTypes.join(', ')}`)
       }
     }
 
     if (power_warning_minutes !== undefined && (power_warning_minutes < 0 || power_warning_minutes > 30)) {
-      return apiResponse.badRequest('power_warning_minutes must be between 0 and 30')
+      return API_ERRORS.BAD_REQUEST('power_warning_minutes must be between 0 and 30')
     }
 
     // Get user profile to check permissions
     const { data: userProfile } = await supabase
       .from('user_profiles')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('id', user.id)
       .single()
 
     if (!userProfile) {
-      return apiResponse.unauthorized('User profile not found')
+      return API_ERRORS.PROFILE_NOT_FOUND()
     }
 
     // Check permissions
     if (userProfile.role !== 'super_admin' && userProfile.role !== 'district_manager') {
-      return apiResponse.forbidden('Insufficient permissions to update power schedule profiles')
+      return API_ERRORS.FORBIDDEN('Insufficient permissions to update power schedule profiles')
     }
 
     // Update power schedule profile
@@ -97,6 +98,7 @@ export async function PUT(
       ...(power_timezone && { power_timezone }),
       ...(power_energy_saving !== undefined && { power_energy_saving }),
       ...(power_warning_minutes !== undefined && { power_warning_minutes }),
+      ...(days_of_week && { days_of_week }),
       updated_by: user.id,
       updated_at: new Date().toISOString()
     }
@@ -113,21 +115,21 @@ export async function PUT(
 
     if (error) {
       if (error.code === '23505') { // Unique constraint violation
-        return apiResponse.badRequest('A power schedule profile with this name already exists')
+        return API_ERRORS.CONFLICT('A power schedule profile with this name already exists')
       }
       console.error('Error updating power schedule profile:', error)
-      return apiResponse.serverError('Failed to update power schedule profile')
+      return API_ERRORS.DATABASE_ERROR('Failed to update power schedule profile')
     }
 
     if (!profile) {
-      return apiResponse.notFound('Power schedule profile not found')
+      return API_ERRORS.NOT_FOUND('Power schedule profile')
     }
 
-    return apiResponse.success({ profile })
+    return API_SUCCESS.RETRIEVED({ profile })
 
   } catch (error) {
     console.error('Power schedule PUT error:', error)
-    return apiResponse.serverError('Internal server error')
+    return API_ERRORS.INTERNAL_SERVER_ERROR('Internal server error')
   }
 }
 
@@ -140,23 +142,23 @@ export async function DELETE(
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
-      return apiResponse.unauthorized('Authentication required')
+      return API_ERRORS.UNAUTHORIZED('Authentication required')
     }
 
     // Get user profile to check permissions
     const { data: userProfile } = await supabase
       .from('user_profiles')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('id', user.id)
       .single()
 
     if (!userProfile) {
-      return apiResponse.unauthorized('User profile not found')
+      return API_ERRORS.PROFILE_NOT_FOUND()
     }
 
     // Check permissions
     if (userProfile.role !== 'super_admin' && userProfile.role !== 'district_manager') {
-      return apiResponse.forbidden('Insufficient permissions to delete power schedule profiles')
+      return API_ERRORS.FORBIDDEN('Insufficient permissions to delete power schedule profiles')
     }
 
     // Delete power schedule profile
@@ -167,13 +169,13 @@ export async function DELETE(
 
     if (error) {
       console.error('Error deleting power schedule profile:', error)
-      return apiResponse.serverError('Failed to delete power schedule profile')
+      return API_ERRORS.DATABASE_ERROR('Failed to delete power schedule profile')
     }
 
-    return apiResponse.success({ message: 'Power schedule profile deleted successfully' })
+    return API_SUCCESS.DELETED('Power schedule profile deleted successfully')
 
   } catch (error) {
     console.error('Power schedule DELETE error:', error)
-    return apiResponse.serverError('Internal server error')
+    return API_ERRORS.INTERNAL_SERVER_ERROR('Internal server error')
   }
 }

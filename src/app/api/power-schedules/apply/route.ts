@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { apiResponse } from '@/lib/api-responses'
+import { API_ERRORS, API_SUCCESS } from '@/lib/api-responses'
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
-      return apiResponse.unauthorized('Authentication required')
+      return API_ERRORS.UNAUTHORIZED('Authentication required')
     }
 
     const body = await request.json()
@@ -21,23 +21,23 @@ export async function POST(request: NextRequest) {
 
     // Validation
     if (!profile_id) {
-      return apiResponse.badRequest('profile_id is required')
+      return API_ERRORS.BAD_REQUEST('profile_id is required')
     }
 
     // Get user profile to check permissions
     const { data: userProfile } = await supabase
       .from('user_profiles')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('id', user.id)
       .single()
 
     if (!userProfile) {
-      return apiResponse.unauthorized('User profile not found')
+      return API_ERRORS.PROFILE_NOT_FOUND()
     }
 
     // Check permissions
     if (userProfile.role !== 'super_admin' && userProfile.role !== 'district_manager') {
-      return apiResponse.forbidden('Insufficient permissions to apply power schedule profiles')
+      return API_ERRORS.FORBIDDEN('Insufficient permissions to apply power schedule profiles')
     }
 
     // Verify profile exists and user has access to it
@@ -48,12 +48,12 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (profileError || !profile) {
-      return apiResponse.notFound('Power schedule profile not found')
+      return API_ERRORS.NOT_FOUND('Power schedule profile')
     }
 
     // Super admins can apply to any organization, others only their own
     if (userProfile.role !== 'super_admin' && profile.organization_id !== userProfile.organization_id) {
-      return apiResponse.forbidden('Access denied to this power schedule profile')
+      return API_ERRORS.FORBIDDEN('Access denied to this power schedule profile')
     }
 
     try {
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error('Error applying power schedule profile:', error)
-        return apiResponse.serverError('Failed to apply power schedule profile')
+        return API_ERRORS.DATABASE_ERROR('Failed to apply power schedule profile')
       }
 
       const result = data?.[0] || { updated_count: 0, screen_ids: [] }
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      return apiResponse.success({
+      return API_SUCCESS.RETRIEVED({
         message: `Power schedule profile applied successfully to ${result.updated_count} screens`,
         profile: {
           id: profile.id,
@@ -132,6 +132,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Apply power schedule error:', error)
-    return apiResponse.serverError('Internal server error')
+    return API_ERRORS.INTERNAL_SERVER_ERROR('Internal server error')
   }
 }

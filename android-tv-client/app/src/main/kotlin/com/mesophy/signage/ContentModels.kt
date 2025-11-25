@@ -63,6 +63,28 @@ data class PlaylistItem(
 )
 
 @JsonClass(generateAdapter = true)
+data class CalendarMetadata(
+    val provider: String,
+    val timezone: String,
+    @Json(name = "calendar_id") val calendarId: String,
+    @Json(name = "calendar_name") val calendarName: String,
+    @Json(name = "sync_status") val syncStatus: String,
+    @Json(name = "access_token") val accessToken: String,
+    @Json(name = "refresh_token") val refreshToken: String,
+    @Json(name = "token_expires_at") val tokenExpiresAt: String,
+    @Json(name = "last_token_refresh") val lastTokenRefresh: String? = null,
+    @Json(name = "microsoft_user_id") val microsoftUserId: String? = null,
+    @Json(name = "microsoft_email") val microsoftEmail: String? = null,
+    @Json(name = "show_organizer") val showOrganizer: Boolean? = null,
+    @Json(name = "show_attendees") val showAttendees: Boolean? = null,
+    @Json(name = "show_private_details") val showPrivateDetails: Boolean? = null,
+    @Json(name = "business_hours_start") val businessHoursStart: String? = null,
+    @Json(name = "business_hours_end") val businessHoursEnd: String? = null,
+    @Json(name = "migration_date") val migrationDate: String? = null,
+    @Json(name = "migrated_from_screen_id") val migratedFromScreenId: String? = null
+)
+
+@JsonClass(generateAdapter = true)
 data class MediaAsset(
     val id: String,
     val name: String,
@@ -75,7 +97,7 @@ data class MediaAsset(
     val height: Int?,
     @Json(name = "youtube_url") val youtubeUrl: String? = null,
     @Json(name = "media_type") val mediaType: String? = null,  // Type of media (image, video, youtube, calendar)
-    @Json(name = "calendar_metadata") val calendarMetadata: Map<String, Any>? = null  // Calendar-specific configuration
+    @Json(name = "calendar_metadata") val calendarMetadata: CalendarMetadata? = null  // Calendar-specific configuration
 )
 
 @JsonClass(generateAdapter = true)

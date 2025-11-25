@@ -114,45 +114,53 @@ export async function POST(request: NextRequest) {
       console.log('✅ Token still valid, using existing access token')
     }
 
-    // Fetch calendar events
+    // Fetch calendar events with timezone preference
     const startDate = new Date()
     const endDate = new Date()
     endDate.setDate(endDate.getDate() + 1) // Next 24 hours
 
     console.log(`📅 Fetching events from ${startDate.toISOString()} to ${endDate.toISOString()}`)
+    console.log(`📅 Calendar timezone: ${calendar_metadata.timezone}`)
 
+    // Pass timezone to get events in the calendar's local time
     const events = await getMicrosoftCalendarEvents(
       accessToken,
       calendar_metadata.calendar_id,
       startDate,
-      endDate
+      endDate,
+      calendar_metadata.timezone // This tells Microsoft Graph to return times in PST
     )
 
     console.log(`✅ Retrieved ${events.length} calendar events`)
 
     // Format events for Android client
-    const formattedEvents = events.map(event => ({
-      id: event.id,
-      subject: event.subject,
-      start: event.start.dateTime,
-      end: event.end.dateTime,
-      timezone: event.start.timeZone || calendar_metadata.timezone,
-      organizer: calendar_metadata.show_organizer ? {
-        name: event.organizer?.emailAddress?.name,
-        email: event.organizer?.emailAddress?.address
-      } : null,
-      attendees: calendar_metadata.show_attendees ? event.attendees?.map(attendee => ({
-        name: attendee.emailAddress?.name,
-        email: attendee.emailAddress?.address,
-        status: attendee.status?.response
-      })) : null,
-      location: event.location?.displayName,
-      body: event.bodyPreview,
-      is_all_day: event.isAllDay,
-      is_private: event.sensitivity === 'private',
-      show_as: event.showAs, // free, busy, tentative, etc.
-      is_cancelled: event.isCancelled
-    }))
+    // Microsoft Graph will now return times in the calendar's timezone (PST)
+    const formattedEvents = events.map(event => {
+      console.log(`📅 Event "${event.subject}": ${event.start.dateTime} (${event.start.timeZone})`)
+
+      return {
+        id: event.id,
+        subject: event.subject,
+        start: event.start.dateTime, // Already in calendar's timezone thanks to Prefer header
+        end: event.end.dateTime,     // Already in calendar's timezone thanks to Prefer header
+        timezone: calendar_metadata.timezone,
+        organizer: calendar_metadata.show_organizer ? {
+          name: event.organizer?.emailAddress?.name,
+          email: event.organizer?.emailAddress?.address
+        } : null,
+        attendees: calendar_metadata.show_attendees ? event.attendees?.map(attendee => ({
+          name: attendee.emailAddress?.name,
+          email: attendee.emailAddress?.address,
+          status: attendee.status?.response
+        })) : null,
+        location: event.location?.displayName,
+        body: event.bodyPreview,
+        is_all_day: event.isAllDay,
+        is_private: event.sensitivity === 'private',
+        show_as: event.showAs, // free, busy, tentative, etc.
+        is_cancelled: event.isCancelled
+      }
+    })
 
     return NextResponse.json({
       calendar_id: calendar_metadata.calendar_id,

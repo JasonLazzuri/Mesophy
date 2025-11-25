@@ -225,6 +225,15 @@ export async function GET(
               }).filter(Boolean)
               
               console.log(`✅ Successfully mapped ${mediaAssets.length} playlist media assets`)
+
+              // Debug: Log calendar metadata for calendar media types
+              mediaAssets.forEach(asset => {
+                if (asset.media_type === 'calendar') {
+                  console.log(`📅 [DEBUG] Calendar asset "${asset.name}":`)
+                  console.log(`   - calendar_metadata exists: ${!!asset.calendar_metadata}`)
+                  console.log(`   - calendar_metadata value:`, JSON.stringify(asset.calendar_metadata, null, 2))
+                }
+              })
             } else {
               console.error(`❌ Failed to fetch media assets: ${mediaAssetsResponse.status}`)
               mediaAssets = []

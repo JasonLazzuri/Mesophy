@@ -48,6 +48,8 @@ class MediaPlayerFragment : Fragment() {
     private var currentIndex = 0
     private var isPlaying = false
     private var retryAttempted = false
+    private var screenName: String? = null
+    private var locationName: String? = null
 
     private val handler = Handler(Looper.getMainLooper())
     private var nextMediaRunnable: Runnable? = null
@@ -174,11 +176,24 @@ class MediaPlayerFragment : Fragment() {
      * Start playing a playlist of playlist items
      */
     fun startPlaylist(playlist: List<PlaylistItem>) {
+        // Prevent duplicate starts of the same playlist
+        // Check BEFORE modifying any state
+        if (playlistsAreEqual(currentPlaylist, playlist) && isPlaying) {
+            Timber.d("⏭️ Already playing this playlist, ignoring duplicate start call")
+            return
+        }
+
+        // Set flag immediately to prevent race conditions
+        isPlaying = true
+
         Timber.i("🎬 Starting playlist with ${playlist.size} playlist items")
+
+        // Cancel any pending timers to prevent duplicate completions
+        nextMediaRunnable?.let { handler.removeCallbacks(it) }
+        nextMediaRunnable = null
 
         currentPlaylist = playlist
         currentIndex = 0
-        isPlaying = true
 
         if (playlist.isNotEmpty()) {
             playCurrentMedia()
@@ -192,6 +207,10 @@ class MediaPlayerFragment : Fragment() {
      * Update the playlist with new content while playing
      */
     fun updatePlaylist(content: CurrentContentResponse) {
+        // Store screen name and location name for calendar display
+        this.screenName = content.screenName
+        // Note: CurrentContentResponse doesn't have location, will need to get from SyncResponse if needed
+
         // Sort playlist items by displayOrder to ensure correct sequence
         val newPlaylist = (content.playlist?.items ?: emptyList())
             .sortedBy { it.displayOrder }
@@ -371,6 +390,7 @@ class MediaPlayerFragment : Fragment() {
         // Hide other views and show image view
         youtubeWebView.visibility = View.GONE
         videoView.visibility = View.GONE
+        calendarContainer.visibility = View.GONE
         imageView.visibility = View.VISIBLE
         
         // Load image with Glide (simplified)
@@ -399,6 +419,7 @@ class MediaPlayerFragment : Fragment() {
         // Hide other views and show video view
         youtubeWebView.visibility = View.GONE
         imageView.visibility = View.GONE
+        calendarContainer.visibility = View.GONE
         videoView.visibility = View.VISIBLE
         
         try {
@@ -432,7 +453,7 @@ class MediaPlayerFragment : Fragment() {
             val mainActivity = activity as? MainActivity
             val baseUrl = mainActivity?.getBaseUrl()
 
-            if (baseUrl == null) {
+            if (baseUrl == null || baseUrl.isEmpty()) {
                 Timber.e("❌ Cannot display calendar: base URL not available")
                 listener?.onMediaError(playlistItem, "Base URL not available")
                 playNextMedia()
@@ -463,10 +484,12 @@ class MediaPlayerFragment : Fragment() {
 
             currentCalendarFragment = calendarFragment
 
-            // Set calendar data after fragment is attached
-            calendarFragment.setCalendarData(calendarMetadata, baseUrl)
-
-            Timber.d("✅ Calendar display started: ${asset.name}")
+            // Set calendar data after views are created
+            // Post to handler to ensure fragment views are initialized
+            handler.post {
+                calendarFragment.setCalendarData(calendarMetadata, baseUrl, screenName, locationName)
+                Timber.d("✅ Calendar display started: ${asset.name}")
+            }
 
             // Calendar displays indefinitely (until next media or playlist update)
             // Use display duration to schedule next media
@@ -560,6 +583,7 @@ class MediaPlayerFragment : Fragment() {
         // Hide other views and show WebView
         imageView.visibility = View.GONE
         videoView.visibility = View.GONE
+        calendarContainer.visibility = View.GONE
         youtubeWebView.visibility = View.VISIBLE
 
         Timber.d("📺 View visibility: imageView=${imageView.visibility}, videoView=${videoView.visibility}, youtubeWebView=${youtubeWebView.visibility}")

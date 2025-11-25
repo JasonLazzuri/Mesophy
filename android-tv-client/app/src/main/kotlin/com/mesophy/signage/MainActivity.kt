@@ -1,14 +1,17 @@
 package com.mesophy.signage
 
+import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
 import android.os.PowerManager
+import android.provider.Settings
 import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
+import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.delay
@@ -560,7 +563,10 @@ class MainActivity : FragmentActivity() {
             // Create MediaDownloadManager
             mediaDownloadManager = MediaDownloadManager(this)
             
-            // Create and start DeviceHealthMonitor
+            // TEMPORARILY DISABLED: Create and start DeviceHealthMonitor
+            // Health monitoring disabled for local development due to missing database table
+            // TODO: Re-enable after creating device_health_metrics table in Supabase
+            /*
             deviceHealthMonitor = DeviceHealthMonitor(this)
             deviceHealthMonitor!!.addListener(object : DeviceHealthMonitor.HealthMonitorListener {
                 override fun onHealthMetricsUpdated(metrics: DeviceHealthMonitor.DeviceHealthMetrics) {
@@ -569,7 +575,7 @@ class MainActivity : FragmentActivity() {
                         Timber.w("🏥 Health: ${metrics.healthStatus.overall} - RAM: ${String.format("%.1f", metrics.memoryInfo.freeRAMPercentage * 100)}%")
                     }
                 }
-                
+
                 override fun onHealthAlert(level: DeviceHealthMonitor.HealthLevel, message: String) {
                     runOnUiThread {
                         when (level) {
@@ -587,7 +593,7 @@ class MainActivity : FragmentActivity() {
                         }
                     }
                 }
-                
+
                 override fun onHealthReportSent(success: Boolean) {
                     if (!success) {
                         Timber.w("📊 Failed to send health report to backend")
@@ -595,7 +601,8 @@ class MainActivity : FragmentActivity() {
                 }
             })
             deviceHealthMonitor!!.start()
-            Timber.i("🏥 Device Health Monitor started")
+            */
+            Timber.i("⚠️ Device Health Monitor DISABLED for local development")
             
             // Create and start PowerScheduleManager
             powerScheduleManager = PowerScheduleManager(this)
@@ -619,8 +626,20 @@ class MainActivity : FragmentActivity() {
                 
                 override fun onPreShutdownWarning(minutesRemaining: Int) {
                     runOnUiThread {
-                        updateConnectionStatus("⏰ Display will turn off in $minutesRemaining minutes")
+                        val warningMessage = "⏰ Display will turn off in $minutesRemaining minute${if (minutesRemaining != 1) "s" else ""}"
+
+                        // Update status text
+                        updateConnectionStatus(warningMessage)
+
+                        // Show prominent Toast notification
+                        Toast.makeText(
+                            this@MainActivity,
+                            warningMessage,
+                            Toast.LENGTH_LONG
+                        ).show()
+
                         Timber.w("⏰ Pre-shutdown warning: $minutesRemaining minutes remaining")
+                        Timber.w("🔔 Toast notification displayed: $warningMessage")
                     }
                 }
                 
@@ -634,6 +653,10 @@ class MainActivity : FragmentActivity() {
                     }
                 }
             })
+
+            // Check for WRITE_SETTINGS permission before starting PowerScheduleManager
+            checkPowerManagementPermissions()
+
             powerScheduleManager!!.start()
             Timber.i("🔌 Power Schedule Manager started")
             
@@ -954,9 +977,14 @@ class MainActivity : FragmentActivity() {
     /**
      * Get API base URL
      */
-    fun getBaseUrl(): String? {
-        val sharedPrefs = getSharedPreferences("mesophy_config", MODE_PRIVATE)
-        return sharedPrefs.getString("api_base", null)
+    fun getBaseUrl(): String {
+        // For local development, return the hardcoded local URL
+        // For production, uncomment the lines below
+        return "http://192.168.29.216:3000"
+
+        // Production code:
+        // val sharedPrefs = getSharedPreferences("mesophy_config", MODE_PRIVATE)
+        // return sharedPrefs.getString("api_base", "https://mesophy.vercel.app") ?: "https://mesophy.vercel.app"
     }
     
     /**
@@ -971,7 +999,69 @@ class MainActivity : FragmentActivity() {
         // Return the code as-is from backend (should already be 6 characters)
         return cleanCode
     }
-    
+
+    /**
+     * Check for power management permissions and request if needed
+     */
+    private fun checkPowerManagementPermissions() {
+        try {
+            // Check if WRITE_SETTINGS permission is granted
+            if (!Settings.System.canWrite(this)) {
+                Timber.w("🔐 WRITE_SETTINGS permission not granted")
+
+                // Show dialog explaining why we need this permission
+                AlertDialog.Builder(this)
+                    .setTitle("Power Schedule Permission")
+                    .setMessage(
+                        "To automatically turn the display on/off at scheduled times, " +
+                        "this app needs permission to modify system settings.\n\n" +
+                        "This allows the app to:\n" +
+                        "• Control screen brightness for tablets\n" +
+                        "• Manage power schedules for energy efficiency\n\n" +
+                        "Would you like to grant this permission now?"
+                    )
+                    .setPositiveButton("Grant Permission") { _, _ ->
+                        try {
+                            val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
+                                data = android.net.Uri.parse("package:$packageName")
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            startActivity(intent)
+                            Timber.i("🔐 Opened WRITE_SETTINGS permission screen")
+
+                            Toast.makeText(
+                                this,
+                                "Please enable 'Modify system settings' and return to the app",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } catch (e: Exception) {
+                            Timber.e(e, "Failed to open WRITE_SETTINGS permission screen")
+                            Toast.makeText(
+                                this,
+                                "Failed to open settings. Power schedules may not work properly.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                    .setNegativeButton("Skip") { dialog, _ ->
+                        Timber.w("🔐 User skipped WRITE_SETTINGS permission")
+                        Toast.makeText(
+                            this,
+                            "Power schedules will use limited functionality (HDMI-CEC only)",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        dialog.dismiss()
+                    }
+                    .setCancelable(false)
+                    .show()
+            } else {
+                Timber.i("✅ WRITE_SETTINGS permission already granted")
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to check power management permissions")
+        }
+    }
+
     /**
      * Handle power schedule update command
      */

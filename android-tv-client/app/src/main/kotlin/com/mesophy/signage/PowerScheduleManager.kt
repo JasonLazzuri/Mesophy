@@ -6,8 +6,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
+import androidx.annotation.RequiresApi
 import android.os.PowerManager
 import android.provider.Settings
+import android.view.WindowManager
 import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
 import timber.log.Timber
@@ -52,7 +54,7 @@ class PowerScheduleManager(
         val thursday: Boolean = true,
         val friday: Boolean = true,
         val saturday: Boolean = true,
-        val sunday: Boolean = false
+        val sunday: Boolean = true  // Enable Sunday for testing
     )
     
     enum class PowerState {
@@ -192,17 +194,41 @@ class PowerScheduleManager(
      */
     fun getCurrentPowerState(): PowerState {
         return try {
-            val isScreenOn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
-                powerManager.isInteractive
-            } else {
-                @Suppress("DEPRECATION")
-                powerManager.isScreenOn
-            }
-            
-            if (isScreenOn) PowerState.ON else PowerState.OFF
+            // Check actual brightness level to determine state
+            // If brightness is 0, screen is dimmed (OFF state)
+            // This is more accurate than isInteractive which returns true even when dimmed
+            val currentBrightness = Settings.System.getInt(
+                context.contentResolver,
+                Settings.System.SCREEN_BRIGHTNESS,
+                -1
+            )
+
+            Timber.d("🔍 getCurrentPowerState: brightness=$currentBrightness")
+
+            // Consider brightness 0-5 as OFF, anything higher as ON
+            if (currentBrightness in 0..5) PowerState.OFF else PowerState.ON
         } catch (e: Exception) {
-            Timber.w("Failed to get power state: ${e.message}")
-            PowerState.UNKNOWN
+            Timber.w("Failed to get power state from brightness: ${e.message}")
+
+            // Fallback to tracked state
+            if (lastPowerState != PowerState.UNKNOWN) {
+                return lastPowerState
+            }
+
+            // Last resort: use isInteractive
+            try {
+                val isScreenOn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+                    powerManager.isInteractive
+                } else {
+                    @Suppress("DEPRECATION")
+                    powerManager.isScreenOn
+                }
+
+                if (isScreenOn) PowerState.ON else PowerState.OFF
+            } catch (e: Exception) {
+                Timber.w("Failed to get power state from isInteractive: ${e.message}")
+                PowerState.UNKNOWN
+            }
         }
     }
     
@@ -264,7 +290,9 @@ class PowerScheduleManager(
         
         val onTime = LocalTime.parse(currentSchedule.onTime, DateTimeFormatter.ofPattern("HH:mm"))
         val offTime = LocalTime.parse(currentSchedule.offTime, DateTimeFormatter.ofPattern("HH:mm"))
-        
+
+        Timber.d("🔍 Power state check: currentTime=$currentTime, onTime=$onTime, offTime=$offTime")
+
         val shouldBeOn = if (offTime.isAfter(onTime)) {
             // Normal schedule (e.g., 6:00 AM to 10:00 PM)
             currentTime.isAfter(onTime) && currentTime.isBefore(offTime)
@@ -272,18 +300,27 @@ class PowerScheduleManager(
             // Overnight schedule (e.g., 6:00 PM to 6:00 AM)
             currentTime.isAfter(onTime) || currentTime.isBefore(offTime)
         }
-        
+
+        Timber.d("🔍 shouldBeOn=$shouldBeOn (offTime.isAfter(onTime)=${offTime.isAfter(onTime)}, currentTime.isAfter(onTime)=${currentTime.isAfter(onTime)}, currentTime.isBefore(offTime)=${currentTime.isBefore(offTime)})")
+
         val currentPowerState = getCurrentPowerState()
+        Timber.d("🔍 currentPowerState=$currentPowerState")
+
         val shouldChangeState = (shouldBeOn && currentPowerState == PowerState.OFF) ||
                               (!shouldBeOn && currentPowerState == PowerState.ON)
+
+        Timber.d("🔍 shouldChangeState=$shouldChangeState (shouldBeOn && currentPowerState==OFF: ${shouldBeOn && currentPowerState == PowerState.OFF}, !shouldBeOn && currentPowerState==ON: ${!shouldBeOn && currentPowerState == PowerState.ON})")
         
         // Pre-shutdown warning
-        if (!shouldBeOn && currentPowerState == PowerState.ON && !preShutdownWarningShown) {
+        // Check if we're approaching shutdown time (while device should still be on)
+        if (shouldBeOn && currentPowerState == PowerState.ON && !preShutdownWarningShown) {
             val minutesToShutdown = getMinutesToShutdown(currentTime, offTime)
+            Timber.d("⏰ Warning check: minutesToShutdown=$minutesToShutdown, warningMinutes=${currentSchedule.preShutdownWarningMinutes}, currentTime=${currentTime.format(DateTimeFormatter.ofPattern("HH:mm"))}, offTime=${offTime.format(DateTimeFormatter.ofPattern("HH:mm"))}")
+
             if (minutesToShutdown <= currentSchedule.preShutdownWarningMinutes && minutesToShutdown > 0) {
                 preShutdownWarningShown = true
                 notifyPreShutdownWarning(minutesToShutdown)
-                Timber.i("⚠️ Pre-shutdown warning: $minutesToShutdown minutes remaining")
+                Timber.i("⚠️ Pre-shutdown warning triggered: $minutesToShutdown minutes remaining")
             }
         }
         
@@ -301,38 +338,197 @@ class PowerScheduleManager(
     }
     
     /**
+     * Check if HDMI-CEC is available on this device (using reflection)
+     */
+    private fun isHdmiCecAvailable(): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                @Suppress("WrongConstant")
+                val hdmiControlManager = context.getSystemService("hdmi_control")
+                val isAvailable = hdmiControlManager != null
+                Timber.d("🔌 HDMI-CEC availability check: $isAvailable")
+                isAvailable
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            Timber.w("🔌 HDMI-CEC check failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Send HDMI-CEC standby command (powers off TV) using reflection
+     */
+    private fun sendHdmiCecStandby(): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                @Suppress("WrongConstant")
+                val hdmiControlManager = context.getSystemService("hdmi_control") ?: return false
+
+                // Use reflection to call getPlaybackClient() and sendStandby()
+                val getPlaybackClientMethod = hdmiControlManager.javaClass.getMethod("getPlaybackClient")
+                val playbackClient = getPlaybackClientMethod.invoke(hdmiControlManager)
+
+                if (playbackClient != null) {
+                    val sendStandbyMethod = playbackClient.javaClass.getMethod("sendStandby")
+                    sendStandbyMethod.invoke(playbackClient)
+                    Timber.i("📺 HDMI-CEC standby command sent (TV should power off)")
+                    return true
+                } else {
+                    Timber.w("📺 Cannot send HDMI-CEC standby: playback client unavailable")
+                    return false
+                }
+            } else {
+                return false
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Failed to send HDMI-CEC standby command")
+            false
+        }
+    }
+
+    /**
+     * Send HDMI-CEC wake command (powers on TV) using reflection
+     */
+    private fun sendHdmiCecWake(): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                @Suppress("WrongConstant")
+                val hdmiControlManager = context.getSystemService("hdmi_control") ?: return false
+
+                // Use reflection to call getPlaybackClient() and oneTouchPlay()
+                val getPlaybackClientMethod = hdmiControlManager.javaClass.getMethod("getPlaybackClient")
+                val playbackClient = getPlaybackClientMethod.invoke(hdmiControlManager)
+
+                if (playbackClient != null) {
+                    // Try oneTouchPlay with callback parameter
+                    try {
+                        val callbackClass = Class.forName("android.hardware.hdmi.IHdmiControlCallback")
+                        val oneTouchPlayMethod = playbackClient.javaClass.getMethod("oneTouchPlay", callbackClass)
+                        oneTouchPlayMethod.invoke(playbackClient, null as Any?)
+                        Timber.i("📺 HDMI-CEC wake command sent (TV should power on)")
+                        return true
+                    } catch (e: ClassNotFoundException) {
+                        // Fallback to no-parameter version (will be caught below)
+                        throw NoSuchMethodException("Callback class not found, trying no-param version")
+                    }
+                } else {
+                    Timber.w("📺 Cannot send HDMI-CEC wake: playback client unavailable")
+                    return false
+                }
+            } else {
+                return false
+            }
+        } catch (e: NoSuchMethodException) {
+            // Try the callback version
+            try {
+                @Suppress("WrongConstant")
+                val hdmiControlManager = context.getSystemService("hdmi_control") ?: return false
+                val getPlaybackClientMethod = hdmiControlManager.javaClass.getMethod("getPlaybackClient")
+                val playbackClient = getPlaybackClientMethod.invoke(hdmiControlManager)
+
+                if (playbackClient != null) {
+                    // Try without callback parameter
+                    val oneTouchPlayMethod = playbackClient.javaClass.getMethod("oneTouchPlay")
+                    oneTouchPlayMethod.invoke(playbackClient)
+                    Timber.i("📺 HDMI-CEC wake command sent (TV should power on)")
+                    return true
+                }
+                false
+            } catch (e2: Exception) {
+                Timber.e(e2, "❌ Failed to send HDMI-CEC wake command (fallback)")
+                false
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Failed to send HDMI-CEC wake command")
+            false
+        }
+    }
+
+    /**
+     * Set screen brightness using WindowManager (requires WRITE_SETTINGS permission)
+     */
+    private fun setBrightnessViaWindowManager(brightness: Int): Boolean {
+        return try {
+            // Check if we have WRITE_SETTINGS permission
+            if (!Settings.System.canWrite(context)) {
+                Timber.w("🔆 Cannot set brightness: WRITE_SETTINGS permission not granted")
+                return false
+            }
+
+            // Update system brightness setting
+            Settings.System.putInt(
+                context.contentResolver,
+                Settings.System.SCREEN_BRIGHTNESS,
+                brightness.coerceIn(0, 255)
+            )
+
+            Timber.i("🔆 System brightness set to $brightness (via WRITE_SETTINGS)")
+            return true
+        } catch (e: SecurityException) {
+            Timber.w("🔆 SecurityException setting brightness: ${e.message}")
+            false
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Failed to set brightness via WindowManager")
+            false
+        }
+    }
+
+    /**
      * Turn display on
      */
     private fun turnDisplayOn() {
         try {
-            // Different approaches based on Android version and available permissions
-            when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.P -> {
-                    // Modern approach using Settings
-                    try {
-                        Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 255)
-                        Timber.d("🔌 Display brightness set to maximum")
-                    } catch (e: Exception) {
-                        Timber.w("Failed to set brightness: ${e.message}")
+            Timber.i("🔌 Attempting to turn display ON...")
+            var success = false
+
+            // Strategy 1: Try HDMI-CEC wake command (for Android TV boxes connected to TVs)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                if (isHdmiCecAvailable()) {
+                    Timber.d("📺 Attempting HDMI-CEC wake command...")
+                    if (sendHdmiCecWake()) {
+                        Timber.i("✅ HDMI-CEC wake command sent successfully")
+                        success = true
+                    } else {
+                        Timber.w("⚠️ HDMI-CEC wake command failed, trying fallback methods")
                     }
+                } else {
+                    Timber.d("📺 HDMI-CEC not available, skipping to fallback methods")
                 }
-                else -> {
-                    // Legacy approach
-                    @Suppress("DEPRECATION")
-                    Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 255)
-                }
+            } else {
+                Timber.d("📺 HDMI-CEC requires API 21+, skipping")
             }
-            
-            // Wake up the device using PowerManager WakeLock
-            val wakeLock = powerManager.newWakeLock(
-                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                "$TAG:PowerScheduleWakeLock"
-            )
-            wakeLock.acquire(5000) // Hold for 5 seconds
-            wakeLock.release()
-            
-            Timber.d("🔌 Display wake sequence completed")
-            
+
+            // Strategy 2: Set brightness to maximum (for tablets or as fallback)
+            val brightnessSet = setBrightnessViaWindowManager(255)
+            if (brightnessSet) {
+                Timber.i("✅ Brightness set to maximum (WRITE_SETTINGS)")
+                success = true
+            } else {
+                Timber.w("⚠️ Could not set brightness via WRITE_SETTINGS (permission may be missing)")
+            }
+
+            // Strategy 3: Always use WakeLock to ensure device wakes up
+            try {
+                val wakeLock = powerManager.newWakeLock(
+                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                    "$TAG:PowerScheduleWakeLock"
+                )
+                wakeLock.acquire(5000) // Hold for 5 seconds
+                wakeLock.release()
+                Timber.i("✅ WakeLock acquired and released")
+                success = true
+            } catch (e: Exception) {
+                Timber.w("⚠️ WakeLock failed: ${e.message}")
+            }
+
+            if (success) {
+                Timber.i("🔌 Display ON sequence completed successfully")
+            } else {
+                Timber.w("⚠️ Display ON sequence completed with limited success")
+            }
+
         } catch (e: Exception) {
             Timber.e(e, "❌ Failed to turn display on")
             throw e
@@ -344,23 +540,47 @@ class PowerScheduleManager(
      */
     private fun turnDisplayOff() {
         try {
-            // Note: On most Android TV devices, apps cannot directly turn off the display
-            // This would typically require system-level permissions or device admin
-            
-            if (currentSchedule.energySavingMode) {
-                // Lower brightness as much as possible
-                try {
-                    Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 1)
-                    Timber.d("🔋 Display brightness minimized for energy saving")
-                } catch (e: Exception) {
-                    Timber.w("Failed to minimize brightness: ${e.message}")
+            Timber.i("🔌 Attempting to turn display OFF...")
+            var success = false
+
+            // Strategy 1: Try HDMI-CEC standby command (for Android TV boxes - actually powers off TV)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                if (isHdmiCecAvailable()) {
+                    Timber.d("📺 Attempting HDMI-CEC standby command...")
+                    if (sendHdmiCecStandby()) {
+                        Timber.i("✅ HDMI-CEC standby command sent successfully (TV should power off)")
+                        success = true
+                    } else {
+                        Timber.w("⚠️ HDMI-CEC standby command failed, trying fallback methods")
+                    }
+                } else {
+                    Timber.d("📺 HDMI-CEC not available, skipping to fallback methods")
                 }
+            } else {
+                Timber.d("📺 HDMI-CEC requires API 21+, skipping")
             }
-            
-            // On Android TV, we may need to request the device to go into standby
-            // This is a placeholder for device-specific implementations
-            Timber.d("🔌 Display shutdown sequence completed (brightness minimized)")
-            
+
+            // Strategy 2: Set brightness to minimum (for tablets or as fallback)
+            if (currentSchedule.energySavingMode) {
+                val brightnessSet = setBrightnessViaWindowManager(0)
+                if (brightnessSet) {
+                    Timber.i("✅ Brightness set to minimum (WRITE_SETTINGS)")
+                    success = true
+                } else {
+                    Timber.w("⚠️ Could not set brightness via WRITE_SETTINGS (permission may be missing)")
+                }
+            } else {
+                Timber.d("🔋 Energy saving mode disabled, skipping brightness reduction")
+            }
+
+            if (success) {
+                Timber.i("🔌 Display OFF sequence completed successfully")
+            } else {
+                Timber.w("⚠️ Display OFF sequence failed - no power control methods available")
+                Timber.w("💡 Recommendation: Enable WRITE_SETTINGS permission for brightness control on tablets")
+                Timber.w("💡 Recommendation: Ensure HDMI-CEC is enabled in TV settings for Android TV boxes")
+            }
+
         } catch (e: Exception) {
             Timber.e(e, "❌ Failed to turn display off")
             throw e
@@ -414,7 +634,7 @@ class PowerScheduleManager(
                     thursday = sharedPrefs.getBoolean("thursday", true),
                     friday = sharedPrefs.getBoolean("friday", true),
                     saturday = sharedPrefs.getBoolean("saturday", true),
-                    sunday = sharedPrefs.getBoolean("sunday", false)
+                    sunday = sharedPrefs.getBoolean("sunday", true)
                 ),
                 energySavingMode = sharedPrefs.getBoolean("energy_saving", true),
                 gracefulShutdown = sharedPrefs.getBoolean("graceful_shutdown", true),

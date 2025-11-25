@@ -103,22 +103,34 @@ export class MicrosoftGraphClient {
 
   /**
    * Get calendar events for a specific date range
+   * Uses calendarView to automatically expand recurring events
    */
   async getCalendarEvents(
     calendarId: string,
     startDateTime: string,
-    endDateTime: string
+    endDateTime: string,
+    timezone?: string
   ): Promise<CalendarEvent[]> {
     try {
       const client = this.getClient()
 
-      const response = await client
-        .api(`/me/calendars/${calendarId}/events`)
-        .filter(`start/dateTime ge '${startDateTime}' and end/dateTime le '${endDateTime}'`)
+      // Use calendarView instead of events to expand recurring series
+      let query = client
+        .api(`/me/calendars/${calendarId}/calendarView`)
+        .query({
+          startDateTime: startDateTime,
+          endDateTime: endDateTime
+        })
         .select('id,subject,start,end,organizer,attendees,location,isAllDay,isCancelled,bodyPreview,categories,sensitivity,showAs')
         .orderby('start/dateTime')
         .top(100) // Limit to 100 events
-        .get()
+
+      // If timezone is provided, request times in that timezone
+      if (timezone) {
+        query = query.header('Prefer', `outlook.timezone="${timezone}"`)
+      }
+
+      const response = await query.get()
 
       return response.value || []
     } catch (error) {

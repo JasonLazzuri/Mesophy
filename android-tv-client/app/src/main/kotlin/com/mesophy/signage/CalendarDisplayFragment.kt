@@ -55,8 +55,8 @@ class CalendarDisplayFragment : Fragment() {
     private lateinit var loadingText: TextView
     private lateinit var errorText: TextView
 
-    private var calendarMetadata: Map<String, Any>? = null
-    private var baseUrl: String? = null
+    private var calendarMetadata: CalendarMetadata? = null
+    private var baseUrl: String = ""
 
     private var refreshRunnable: Runnable? = null
     private var timeUpdateRunnable: Runnable? = null
@@ -94,13 +94,17 @@ class CalendarDisplayFragment : Fragment() {
     /**
      * Set calendar metadata and start fetching events
      */
-    fun setCalendarData(metadata: Map<String, Any>, url: String) {
+    fun setCalendarData(metadata: CalendarMetadata, url: String, screenName: String? = null, locationName: String? = null) {
         this.calendarMetadata = metadata
         this.baseUrl = url
 
-        // Set calendar name
-        val calendarName = metadata["calendar_name"] as? String ?: "Room Calendar"
-        calendarNameText.text = calendarName
+        // Set calendar name - prefer screenName if provided, otherwise use metadata
+        val displayName = when {
+            !screenName.isNullOrEmpty() && !locationName.isNullOrEmpty() -> "$locationName - $screenName"
+            !screenName.isNullOrEmpty() -> screenName
+            else -> metadata.calendarName
+        }
+        calendarNameText.text = displayName
 
         // Start fetching calendar data
         fetchCalendarEvents()
@@ -141,7 +145,7 @@ class CalendarDisplayFragment : Fragment() {
      * Fetch calendar events from API
      */
     private fun fetchCalendarEvents() {
-        if (calendarMetadata == null || baseUrl == null) {
+        if (calendarMetadata == null || baseUrl.isEmpty()) {
             Timber.w("⚠️ Calendar data not set, skipping fetch")
             return
         }
@@ -149,11 +153,19 @@ class CalendarDisplayFragment : Fragment() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 Timber.i("📅 Fetching calendar events...")
-                showLoading(true)
+                withContext(Dispatchers.Main) {
+                    showLoading(true)
+                }
 
-                val requestBody = moshi.adapter(Map::class.java).toJson(
-                    mapOf("calendar_metadata" to calendarMetadata)
-                )
+                // Create request body with calendar metadata
+                val requestMap = mapOf("calendar_metadata" to calendarMetadata)
+                val requestBodyJson = moshi.adapter<Map<String, CalendarMetadata?>>(
+                    com.squareup.moshi.Types.newParameterizedType(
+                        Map::class.java,
+                        String::class.java,
+                        CalendarMetadata::class.java
+                    )
+                ).toJson(requestMap)
 
                 val apiUrl = "$baseUrl/api/devices/calendar-data"
                 Timber.d("📡 Fetching from: $apiUrl")
@@ -161,7 +173,7 @@ class CalendarDisplayFragment : Fragment() {
                 val request = Request.Builder()
                     .url(apiUrl)
                     .addHeader("Content-Type", "application/json")
-                    .post(requestBody.toRequestBody("application/json".toMediaType()))
+                    .post(requestBodyJson.toRequestBody("application/json".toMediaType()))
                     .build()
 
                 val response = client.newCall(request).execute()
@@ -350,10 +362,13 @@ class CalendarDisplayFragment : Fragment() {
 
     /**
      * Parse ISO 8601 datetime string
+     * The API returns times in UTC, so we need to parse them as UTC
+     * and they will automatically display in the device's local timezone
      */
     private fun parseIsoDateTime(dateTimeStr: String): Date? {
         return try {
             val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+            sdf.timeZone = TimeZone.getTimeZone("UTC")  // Parse as UTC
             sdf.parse(dateTimeStr)
         } catch (e: Exception) {
             Timber.e(e, "Failed to parse datetime: $dateTimeStr")

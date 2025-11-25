@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { apiResponse } from '@/lib/api-responses'
+import { API_ERRORS, API_SUCCESS } from '@/lib/api-responses'
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
-      return apiResponse.unauthorized('Authentication required')
+      return API_ERRORS.UNAUTHORIZED('Authentication required')
     }
 
     const { searchParams } = new URL(request.url)
@@ -18,11 +18,11 @@ export async function GET(request: NextRequest) {
     const { data: userProfile } = await supabase
       .from('user_profiles')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('id', user.id)
       .single()
 
     if (!userProfile) {
-      return apiResponse.unauthorized('User profile not found')
+      return API_ERRORS.PROFILE_NOT_FOUND()
     }
 
     // Build query based on user role
@@ -47,14 +47,14 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Error fetching power schedule profiles:', error)
-      return apiResponse.serverError('Failed to fetch power schedule profiles')
+      return API_ERRORS.DATABASE_ERROR('Failed to fetch power schedule profiles')
     }
 
-    return apiResponse.success({ profiles: profiles || [] })
+    return API_SUCCESS.RETRIEVED({ profiles: profiles || [] })
 
   } catch (error) {
     console.error('Power schedules GET error:', error)
-    return apiResponse.serverError('Internal server error')
+    return API_ERRORS.INTERNAL_SERVER_ERROR('Internal server error')
   }
 }
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
-      return apiResponse.unauthorized('Authentication required')
+      return API_ERRORS.UNAUTHORIZED('Authentication required')
     }
 
     const body = await request.json()
@@ -76,37 +76,38 @@ export async function POST(request: NextRequest) {
       power_timezone = 'America/Los_Angeles',
       power_energy_saving = true,
       power_warning_minutes = 5,
+      days_of_week = [0, 1, 2, 3, 4, 5, 6],
       organization_id
     } = body
 
     // Validation
     if (!profile_name || !device_type || !power_on_time || !power_off_time) {
-      return apiResponse.badRequest('Missing required fields: profile_name, device_type, power_on_time, power_off_time')
+      return API_ERRORS.BAD_REQUEST('Missing required fields: profile_name, device_type, power_on_time, power_off_time')
     }
 
-    const validDeviceTypes = ['menu_board', 'drive_thru', 'lobby_display', 'kitchen_display', 'promotional']
+    const validDeviceTypes = ['menu_board', 'promo_board', 'employee_board', 'room_calendar']
     if (!validDeviceTypes.includes(device_type)) {
-      return apiResponse.badRequest(`Invalid device_type. Must be one of: ${validDeviceTypes.join(', ')}`)
+      return API_ERRORS.BAD_REQUEST(`Invalid device_type. Must be one of: ${validDeviceTypes.join(', ')}`)
     }
 
     if (power_warning_minutes < 0 || power_warning_minutes > 30) {
-      return apiResponse.badRequest('power_warning_minutes must be between 0 and 30')
+      return API_ERRORS.BAD_REQUEST('power_warning_minutes must be between 0 and 30')
     }
 
     // Get user profile to check permissions
     const { data: userProfile } = await supabase
       .from('user_profiles')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('id', user.id)
       .single()
 
     if (!userProfile) {
-      return apiResponse.unauthorized('User profile not found')
+      return API_ERRORS.PROFILE_NOT_FOUND()
     }
 
     // Check permissions
     if (userProfile.role !== 'super_admin' && userProfile.role !== 'district_manager') {
-      return apiResponse.forbidden('Insufficient permissions to create power schedule profiles')
+      return API_ERRORS.FORBIDDEN('Insufficient permissions to create power schedule profiles')
     }
 
     // Determine organization ID
@@ -126,6 +127,7 @@ export async function POST(request: NextRequest) {
         power_timezone,
         power_energy_saving,
         power_warning_minutes,
+        days_of_week,
         created_by: user.id,
         updated_by: user.id
       })
@@ -137,16 +139,16 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       if (error.code === '23505') { // Unique constraint violation
-        return apiResponse.badRequest('A power schedule profile with this name already exists')
+        return API_ERRORS.CONFLICT('A power schedule profile with this name already exists')
       }
       console.error('Error creating power schedule profile:', error)
-      return apiResponse.serverError('Failed to create power schedule profile')
+      return API_ERRORS.DATABASE_ERROR('Failed to create power schedule profile')
     }
 
-    return apiResponse.created({ profile })
+    return API_SUCCESS.CREATED({ profile })
 
   } catch (error) {
     console.error('Power schedules POST error:', error)
-    return apiResponse.serverError('Internal server error')
+    return API_ERRORS.INTERNAL_SERVER_ERROR('Internal server error')
   }
 }
