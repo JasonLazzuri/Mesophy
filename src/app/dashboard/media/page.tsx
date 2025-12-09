@@ -30,6 +30,7 @@ import {
 import { Database } from '@/types/database'
 import MediaUpload from '@/components/MediaUpload'
 import YouTubeAddModal from '@/components/YouTubeAddModal'
+import CalendarConnectModal from '@/components/CalendarConnectModal'
 import MediaDetailModal from '@/components/MediaDetailModal'
 import MediaEditModal from '@/components/MediaEditModal'
 import FolderModal from '@/components/FolderModal'
@@ -69,6 +70,7 @@ export default function MediaPage() {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
   const [showUpload, setShowUpload] = useState(false)
   const [showYouTubeAdd, setShowYouTubeAdd] = useState(false)
+  const [showCalendarConnect, setShowCalendarConnect] = useState(false)
   const [showFolderModal, setShowFolderModal] = useState(false)
   const [editingFolder, setEditingFolder] = useState<MediaFolder | null>(null)
   const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null)
@@ -461,6 +463,13 @@ export default function MediaPage() {
           >
             <Youtube className="h-4 w-4 mr-2" />
             Add YouTube Video
+          </button>
+          <button
+            onClick={() => setShowCalendarConnect(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center"
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            Connect Calendar
           </button>
           <button
             onClick={() => setShowFolderModal(true)}
@@ -1164,6 +1173,16 @@ export default function MediaPage() {
         onClose={() => setShowYouTubeAdd(false)}
         currentFolderId={currentFolderId}
         onAddComplete={handleYouTubeAddComplete}
+      />
+
+      <CalendarConnectModal
+        isOpen={showCalendarConnect}
+        onClose={() => setShowCalendarConnect(false)}
+        currentFolderId={currentFolderId}
+        onConnectComplete={() => {
+          setShowCalendarConnect(false)
+          fetchMediaAssets()
+        }}
       />
 
       <FolderModal
