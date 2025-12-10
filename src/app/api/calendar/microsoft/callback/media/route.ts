@@ -102,10 +102,17 @@ export async function GET(request: NextRequest) {
     const tokenExpiresAt = new Date(Date.now() + tokenResponse.expiresIn * 1000)
 
     // Store OAuth session data temporarily
-    // We'll create a calendar_oauth_sessions table for this
+    // Use service role to bypass RLS in case user session was lost during OAuth redirect
     console.log('🔵 [MEDIA_CALLBACK] Storing OAuth session...')
 
-    const { error: sessionError } = await supabase
+    // Create service role client for OAuth session storage
+    const { createClient: createServiceClient } = await import('@supabase/supabase-js')
+    const supabaseAdmin = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const { error: sessionError } = await supabaseAdmin
       .from('calendar_oauth_sessions')
       .upsert({
         session_id: sessionId,
