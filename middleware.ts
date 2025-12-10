@@ -6,7 +6,7 @@ export async function middleware(request: NextRequest) {
   const pathname = url.pathname
 
   try {
-    // Device APIs bypass authentication (updated 2025-11-06)
+    // Device APIs bypass authentication (updated 2025-12-09)
     // Skip middleware for static files, API routes that don't need auth, and public assets
     if (
       pathname.startsWith('/_next/') ||
@@ -23,7 +23,8 @@ export async function middleware(request: NextRequest) {
       pathname === '/auth/callback' ||
       pathname.startsWith('/api/test-') || // Allow test endpoints for now
       pathname.startsWith('/api/debug/') || // Debug endpoints have their own security
-      pathname.startsWith('/api/devices/') // Device-facing APIs have their own authentication
+      pathname.startsWith('/api/devices/') || // Device-facing APIs have their own authentication
+      pathname.startsWith('/api/calendar/') // Calendar OAuth and data endpoints (for both portal and devices)
     ) {
       return NextResponse.next()
     }
@@ -124,7 +125,8 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public folder
      * - api/devices (device-facing APIs)
+     * - api/calendar (calendar OAuth and calendar-data endpoints)
      */
-    '/((?!_next/static|_next/image|favicon.ico|public/|api/devices/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|public/|api/devices/|api/calendar/).*)',
   ],
 }
