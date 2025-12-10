@@ -148,8 +148,13 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ [MEDIA_CALLBACK] Microsoft callback error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Failed to connect calendar'
+    console.error('❌ [MEDIA_CALLBACK] Error details:', errorMessage)
+    if (error instanceof Error && error.stack) {
+      console.error('❌ [MEDIA_CALLBACK] Stack trace:', error.stack)
+    }
     return NextResponse.redirect(
-      new URL(`/dashboard/media?calendar_error=${encodeURIComponent('Failed to connect calendar')}`, request.url)
+      new URL(`/dashboard/media?calendar_error=${encodeURIComponent(errorMessage)}`, request.url)
     )
   }
 }
