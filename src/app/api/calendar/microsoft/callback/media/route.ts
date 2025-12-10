@@ -84,14 +84,14 @@ export async function GET(request: NextRequest) {
     )
 
     console.log('✅ [MEDIA_CALLBACK] Token obtained:', {
-      hasAccessToken: !!tokenResponse.accessToken,
-      hasRefreshToken: !!tokenResponse.refreshToken,
-      expiresIn: tokenResponse.expiresIn
+      hasAccessToken: !!tokenResponse.access_token,
+      hasRefreshToken: !!tokenResponse.refresh_token,
+      expiresIn: tokenResponse.expires_in
     })
 
     // Get Microsoft user profile
     console.log('🔵 [MEDIA_CALLBACK] Fetching Microsoft user profile...')
-    const userProfile = await getMicrosoftUserProfile(tokenResponse.accessToken)
+    const userProfile = await getMicrosoftUserProfile(tokenResponse.access_token)
 
     console.log('✅ [MEDIA_CALLBACK] User profile obtained:', {
       email: userProfile.mail || userProfile.userPrincipalName,
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Calculate token expiration
-    const tokenExpiresAt = new Date(Date.now() + tokenResponse.expiresIn * 1000)
+    const tokenExpiresAt = new Date(Date.now() + tokenResponse.expires_in * 1000)
 
     // Store OAuth session data temporarily
     // Use service role to bypass RLS in case user session was lost during OAuth redirect
@@ -117,8 +117,8 @@ export async function GET(request: NextRequest) {
       .upsert({
         session_id: sessionId,
         user_id: user.id,
-        access_token: tokenResponse.accessToken,
-        refresh_token: tokenResponse.refreshToken,
+        access_token: tokenResponse.access_token,
+        refresh_token: tokenResponse.refresh_token,
         token_expires_at: tokenExpiresAt.toISOString(),
         microsoft_user_id: userProfile.id,
         microsoft_email: userProfile.mail || userProfile.userPrincipalName,
