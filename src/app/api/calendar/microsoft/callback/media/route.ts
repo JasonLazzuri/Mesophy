@@ -107,12 +107,20 @@ export async function GET(request: NextRequest) {
 
     // Create service role client for OAuth session storage
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    // Try different possible env var names for the service key
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY ||
+                       process.env.SUPABASE_SERVICE_KEY
 
     if (!supabaseUrl || !serviceKey) {
       console.error('❌ [MEDIA_CALLBACK] Missing Supabase credentials:', {
         hasUrl: !!supabaseUrl,
-        hasServiceKey: !!serviceKey
+        hasServiceKey: !!serviceKey,
+        checkedVars: {
+          SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+          NEXT_PUBLIC_SUPABASE_SERVICE_KEY: !!process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY,
+          SUPABASE_SERVICE_KEY: !!process.env.SUPABASE_SERVICE_KEY
+        }
       })
       return NextResponse.json({
         error: 'Server configuration error',
