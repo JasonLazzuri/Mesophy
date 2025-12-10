@@ -9,6 +9,7 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import timber.log.Timber
 import java.io.IOException
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 
 /**
@@ -76,7 +77,7 @@ class ContentPollingManager(private val context: Context) {
     private var currentPollInterval = DEFAULT_POLL_INTERVAL_MS
     private var errorCount = 0
     private var lastSuccessfulPoll: Long = 0
-    private var listeners = mutableListOf<NotificationListener>()
+    private var listeners = CopyOnWriteArrayList<NotificationListener>()
     
     /**
      * Interface for notification callbacks

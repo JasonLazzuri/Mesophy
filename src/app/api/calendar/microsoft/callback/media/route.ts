@@ -156,10 +156,10 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ [MEDIA_CALLBACK] OAuth session stored successfully')
 
-    // Redirect back to media page with session_id
+    // Redirect back to media page (session will be queried from DB)
     const redirectUrl = new URL(returnUrl || '/dashboard/media', request.url)
     redirectUrl.searchParams.set('calendar_connected', 'true')
-    redirectUrl.searchParams.set('calendar_session_id', sessionId)
+    // Security: Session ID not exposed in URL - will be fetched from DB by authenticated user
 
     console.log('✅ [MEDIA_CALLBACK] Redirecting to:', redirectUrl.toString())
 

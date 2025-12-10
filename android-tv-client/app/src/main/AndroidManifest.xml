@@ -37,6 +37,9 @@
 
     <!-- Foreground service permission for boot auto-start (Android 9+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    
+    <!-- Foreground service data sync permission (Android 14+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <!-- Notification permission for foreground service (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -75,9 +78,17 @@
             android:name=".BootReceiver"
             android:enabled="true"
             android:exported="true">
+            <!-- Boot and power events -->
             <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.USER_PRESENT" />
+                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+            <!-- Package replacement events (separate filter required for data element) -->
+            <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.PACKAGE_REPLACED" />
                 <data android:scheme="package" />
             </intent-filter>

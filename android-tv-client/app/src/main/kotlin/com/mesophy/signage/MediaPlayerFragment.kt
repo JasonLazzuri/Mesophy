@@ -392,20 +392,110 @@ class MediaPlayerFragment : Fragment() {
         videoView.visibility = View.GONE
         calendarContainer.visibility = View.GONE
         imageView.visibility = View.VISIBLE
-        
-        // Load image with Glide (simplified)
+
+        // Load image with Glide with proper error handling
         try {
             Glide.with(this)
                 .load(File(localPath))
+                .listener(object : RequestListener<android.graphics.drawable.Drawable> {
+                    override fun onLoadFailed(
+                        e: GlideException?,
+                        model: Any?,
+                        target: Target<android.graphics.drawable.Drawable>,
+                        isFirstResource: Boolean
+                    ): Boolean {
+                        // Check if it's an OutOfMemory error
+                        val isOutOfMemory = e?.causes?.any { cause ->
+                            cause is OutOfMemoryError ||
+                            cause.message?.contains("OutOfMemory", ignoreCase = true) == true ||
+                            cause.message?.contains("Failed to allocate", ignoreCase = true) == true
+                        } ?: false
+
+                        if (isOutOfMemory) {
+                            val fileSize = asset.fileSize ?: 0L
+                            Timber.e("💥 OutOfMemory: Image too large - ${asset.name} ($fileSize bytes)")
+                            showMediaError(
+                                "Image File Too Large",
+                                "Unable to display ${asset.name}\nFile size: ${formatFileSize(fileSize)}\n\nThis file exceeds available memory.\nPlease use a smaller image.",
+                                playlistItem
+                            )
+                        } else {
+                            Timber.e(e, "❌ Failed to load image: ${asset.name}")
+                            showMediaError(
+                                "Image Load Failed",
+                                "Unable to display ${asset.name}\n\nError: ${e?.message ?: "Unknown error"}",
+                                playlistItem
+                            )
+                        }
+
+                        listener?.onMediaError(playlistItem, "Failed to load image: ${e?.message}")
+                        return true // Error handled, don't try default error handling
+                    }
+
+                    override fun onResourceReady(
+                        resource: android.graphics.drawable.Drawable,
+                        model: Any,
+                        target: Target<android.graphics.drawable.Drawable>?,
+                        dataSource: DataSource,
+                        isFirstResource: Boolean
+                    ): Boolean {
+                        Timber.d("✅ Image loaded successfully: ${asset.name}")
+                        scheduleNextMedia(playlistItem)
+                        return false // Let Glide handle the resource
+                    }
+                })
                 .into(imageView)
-                
-            Timber.d("✅ Image loaded successfully: ${asset.name}")
-            scheduleNextMedia(playlistItem)
-            
+
+        } catch (e: OutOfMemoryError) {
+            // Catch OutOfMemory at the catch level too
+            val fileSize = asset.fileSize ?: 0L
+            Timber.e(e, "💥 OutOfMemory caught: ${asset.name}")
+            showMediaError(
+                "Image File Too Large",
+                "Unable to display ${asset.name}\nFile size: ${formatFileSize(fileSize)}\n\nThis file exceeds available memory.\nPlease use a smaller image.",
+                playlistItem
+            )
+            listener?.onMediaError(playlistItem, "OutOfMemory: File too large")
         } catch (e: Exception) {
             Timber.e(e, "❌ Failed to load image: ${asset.name}")
+            showMediaError(
+                "Image Load Failed",
+                "Unable to display ${asset.name}\n\nError: ${e.message}",
+                playlistItem
+            )
             listener?.onMediaError(playlistItem, "Failed to load image: ${e.message}")
-            playNextMedia()
+        }
+    }
+
+    /**
+     * Show an error message on screen instead of the media
+     */
+    private fun showMediaError(title: String, message: String, playlistItem: PlaylistItem) {
+        activity?.runOnUiThread {
+            // Clear image view
+            imageView.setImageDrawable(null)
+
+            // Create error overlay (we'll use the imageView background for now)
+            imageView.setBackgroundColor(android.graphics.Color.parseColor("#1a1a1a"))
+
+            // TODO: Add a TextView overlay to show the error message
+            // For now, just log it prominently
+            Timber.e("🚫 MEDIA ERROR DISPLAYED: $title - $message")
+
+            // Schedule next media after showing error for display duration
+            scheduleNextMedia(playlistItem)
+        }
+    }
+
+    /**
+     * Format file size for display
+     */
+    private fun formatFileSize(bytes: Long): String {
+        return when {
+            bytes < 1024 -> "$bytes B"
+            bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+            bytes < 1024 * 1024 * 1024 -> "${bytes / (1024 * 1024)} MB"
+            else -> "${bytes / (1024 * 1024 * 1024)} GB"
         }
     }
     
@@ -460,6 +550,16 @@ class MediaPlayerFragment : Fragment() {
                 return
             }
 
+            // Get device token from MainActivity
+            val deviceToken = mainActivity?.getDeviceToken()
+
+            if (deviceToken == null || deviceToken.isEmpty()) {
+                Timber.e("❌ Cannot display calendar: device token not available")
+                listener?.onMediaError(playlistItem, "Device token not available")
+                playNextMedia()
+                return
+            }
+
             // Get calendar metadata from the media asset
             val calendarMetadata = asset.calendarMetadata
             if (calendarMetadata == null) {
@@ -487,7 +587,7 @@ class MediaPlayerFragment : Fragment() {
             // Set calendar data after views are created
             // Post to handler to ensure fragment views are initialized
             handler.post {
-                calendarFragment.setCalendarData(calendarMetadata, baseUrl, screenName, locationName)
+                calendarFragment.setCalendarData(calendarMetadata, baseUrl, deviceToken, screenName, locationName)
                 Timber.d("✅ Calendar display started: ${asset.name}")
             }
 

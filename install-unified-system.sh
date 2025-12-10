@@ -84,9 +84,16 @@ sudo ln -sf /opt/mesophy/mesophy-signage /usr/local/bin/pi-signage  # Backward c
 # Install systemd service
 log_message "Installing systemd service..."
 if [[ -f "./mesophy-signage.service" ]]; then
+    # We copy it but DO NOT enable it by default
+    # The .bashrc method is preferred for fbi/console access
     sudo cp ./mesophy-signage.service /etc/systemd/system/
     sudo systemctl daemon-reload
-    sudo systemctl enable mesophy-signage.service
+    
+    # Ensure it's disabled to avoid conflict with .bashrc
+    if systemctl is-enabled mesophy-signage.service &>/dev/null; then
+        log_message "Disabling systemd service (using .bashrc method instead)..."
+        sudo systemctl disable mesophy-signage.service
+    fi
 else
     warning_message "Service file not found, skipping systemd installation"
 fi

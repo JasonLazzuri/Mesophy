@@ -2,11 +2,13 @@ package com.mesophy.signage
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
+import kotlinx.serialization.Serializable
 
 /**
  * Data models for content synchronization and management
  */
 
+@Serializable
 @JsonClass(generateAdapter = true)
 data class SyncResponse(
     @Json(name = "device_id") val deviceId: String?, // Nullable - may not be set in some screens
@@ -23,6 +25,7 @@ data class SyncResponse(
     @Json(name = "next_sync_recommended") val nextSyncRecommended: Int // seconds
 )
 
+@Serializable
 @JsonClass(generateAdapter = true)
 data class Schedule(
     val id: String,
@@ -36,6 +39,7 @@ data class Schedule(
     val playlist: Playlist?
 )
 
+@Serializable
 @JsonClass(generateAdapter = true)
 data class PowerSchedule(
     val enabled: Boolean,
@@ -47,6 +51,7 @@ data class PowerSchedule(
     @Json(name = "last_updated") val lastUpdated: String?
 )
 
+@Serializable
 @JsonClass(generateAdapter = true)
 data class Playlist(
     val id: String,
@@ -54,6 +59,7 @@ data class Playlist(
     val items: List<PlaylistItem>
 )
 
+@Serializable
 @JsonClass(generateAdapter = true)
 data class PlaylistItem(
     val id: String,
@@ -62,6 +68,7 @@ data class PlaylistItem(
     val media: MediaAsset?
 )
 
+@Serializable
 @JsonClass(generateAdapter = true)
 data class CalendarMetadata(
     val provider: String,
@@ -84,6 +91,7 @@ data class CalendarMetadata(
     @Json(name = "migrated_from_screen_id") val migratedFromScreenId: String? = null
 )
 
+@Serializable
 @JsonClass(generateAdapter = true)
 data class MediaAsset(
     val id: String,
@@ -100,6 +108,7 @@ data class MediaAsset(
     @Json(name = "calendar_metadata") val calendarMetadata: CalendarMetadata? = null  // Calendar-specific configuration
 )
 
+@Serializable
 @JsonClass(generateAdapter = true)
 data class CurrentContentResponse(
     @Json(name = "schedule_id") val scheduleId: String?,

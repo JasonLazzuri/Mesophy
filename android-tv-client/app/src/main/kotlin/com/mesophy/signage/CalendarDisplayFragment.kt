@@ -57,6 +57,7 @@ class CalendarDisplayFragment : Fragment() {
 
     private var calendarMetadata: CalendarMetadata? = null
     private var baseUrl: String = ""
+    private var deviceToken: String = ""
 
     private var refreshRunnable: Runnable? = null
     private var timeUpdateRunnable: Runnable? = null
@@ -94,9 +95,10 @@ class CalendarDisplayFragment : Fragment() {
     /**
      * Set calendar metadata and start fetching events
      */
-    fun setCalendarData(metadata: CalendarMetadata, url: String, screenName: String? = null, locationName: String? = null) {
+    fun setCalendarData(metadata: CalendarMetadata, url: String, token: String, screenName: String? = null, locationName: String? = null) {
         this.calendarMetadata = metadata
         this.baseUrl = url
+        this.deviceToken = token
 
         // Set calendar name - prefer screenName if provided, otherwise use metadata
         val displayName = when {
@@ -169,9 +171,11 @@ class CalendarDisplayFragment : Fragment() {
 
                 val apiUrl = "$baseUrl/api/devices/calendar-data"
                 Timber.d("📡 Fetching from: $apiUrl")
+                Timber.d("🔑 Device token: ${if (deviceToken.isNotEmpty()) deviceToken.take(20) + "..." else "EMPTY"}")
 
                 val request = Request.Builder()
                     .url(apiUrl)
+                    .addHeader("Authorization", "Bearer $deviceToken")
                     .addHeader("Content-Type", "application/json")
                     .post(requestBodyJson.toRequestBody("application/json".toMediaType()))
                     .build()

@@ -51,14 +51,12 @@ export default function CalendarConnectModal({
     if (isOpen) {
       // Check if we just returned from OAuth
       const params = new URLSearchParams(window.location.search)
-      const sessionId = params.get('calendar_session_id')
       const connected = params.get('calendar_connected')
 
-      if (connected === 'true' && sessionId) {
-        // Just returned from OAuth - fetch calendars
-        setOauthSessionId(sessionId)
+      if (connected === 'true') {
+        // Just returned from OAuth - fetch session from DB
         setStep('selecting_calendar')
-        fetchCalendars(sessionId)
+        fetchLatestSession()
         // Clean up URL
         window.history.replaceState({}, '', window.location.pathname)
       } else {
@@ -75,6 +73,33 @@ export default function CalendarConnectModal({
     // Use a unique session ID to identify this connection attempt
     const sessionId = `media_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     window.location.href = `/api/calendar/microsoft/auth/media?session_id=${sessionId}&return_url=${encodeURIComponent(window.location.pathname)}`
+  }
+
+  const fetchLatestSession = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      // Fetch latest OAuth session from database (secure - no URL parameters)
+      const response = await fetch('/api/calendar/oauth-session/latest')
+      const result = await response.json()
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('OAuth session expired. Please try connecting again.')
+        }
+        throw new Error(result.error || 'Failed to fetch OAuth session')
+      }
+
+      // Store session ID and fetch calendars
+      setOauthSessionId(result.session_id)
+      await fetchCalendars(result.session_id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch OAuth session')
+      setStep('error')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const fetchCalendars = async (sessionId: string) => {

@@ -620,6 +620,19 @@ start_content_display() {
     # Set up signal handlers for cleanup
     trap cleanup_content_display EXIT INT TERM
     
+    # Check if already running
+    if [[ -f "$PID_FILE" ]]; then
+        local pid=$(cat "$PID_FILE")
+        if kill -0 "$pid" 2>/dev/null; then
+            error_message "mesophy-signage is already running (PID: $pid)"
+            exit 1
+        else
+            # Stale PID file
+            log_message "Removing stale PID file"
+            rm -f "$PID_FILE"
+        fi
+    fi
+    
     success_message "Content display started"
     success_message "API: $API_URL"
     success_message "Cache: $CACHE_DIR"
@@ -1168,6 +1181,21 @@ main() {
             ;;
         "status")
             show_status
+            ;;
+        "stop")
+            if [[ -f "$PID_FILE" ]]; then
+                local pid=$(cat "$PID_FILE")
+                if kill -0 "$pid" 2>/dev/null; then
+                    log_message "Stopping mesophy-signage (PID: $pid)..."
+                    kill "$pid"
+                    success_message "Stopped"
+                else
+                    log_message "Process not running (stale PID file)"
+                    rm -f "$PID_FILE"
+                fi
+            else
+                log_message "Not running"
+            fi
             ;;
         "install")
             auto_install_system

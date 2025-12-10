@@ -4,6 +4,7 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import kotlinx.serialization.Serializable
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -381,6 +382,7 @@ data class DeviceConfig(
     @Json(name = "api_endpoints") val apiEndpoints: ApiEndpoints
 )
 
+@Serializable
 @JsonClass(generateAdapter = true)
 data class Location(
     val id: String,

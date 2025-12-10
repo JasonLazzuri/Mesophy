@@ -30,7 +30,7 @@ class BootStarterService : Service() {
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "boot_channel"
         private const val CHANNEL_NAME = "Boot Notifications"
-        private const val SERVICE_STOP_DELAY_MS = 3000L // Stop service after 3 seconds
+        private const val SERVICE_STOP_DELAY_MS = 2000L // Stop service after 2 seconds
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -43,20 +43,34 @@ class BootStarterService : Service() {
             Timber.plant(Timber.DebugTree())
         }
 
-        Timber.i("🚀 BootStarterService created")
+        Timber.i("🚀 BootStarterService created (API ${android.os.Build.VERSION.SDK_INT})")
 
-        // Create notification channel for Android 8.0+
-        createNotificationChannel()
+        // CRITICAL: Create notification channel BEFORE calling startForeground
+        // This must be synchronous to avoid race conditions
+        val channelCreated = createNotificationChannel()
+        
+        if (!channelCreated) {
+            Timber.e("❌ Failed to create notification channel - service may crash")
+        }
 
         // Start as foreground service (required on Android 8.0+)
-        val notification = createNotification()
-        startForeground(NOTIFICATION_ID, notification)
-
-        Timber.i("📢 Foreground service started with notification")
+        try {
+            val notification = createNotification()
+            startForeground(NOTIFICATION_ID, notification)
+            Timber.i("📢 Foreground service started with notification")
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Failed to start foreground service")
+            // Try to stop gracefully
+            stopSelf()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val bootReason = intent?.getStringExtra("boot_reason") ?: "unknown"
+        val bootTime = intent?.getLongExtra("boot_time", 0L) ?: 0L
+        
         Timber.i("🎬 BootStarterService onStartCommand - launching MainActivity")
+        Timber.i("📊 Boot reason: $bootReason, Boot time: $bootTime")
 
         try {
             // Launch MainActivity
@@ -68,17 +82,20 @@ class BootStarterService : Service() {
 
                 // Add extra to indicate this is an auto-start
                 putExtra("auto_start", true)
-                putExtra("start_reason", "boot_service")
+                putExtra("start_reason", bootReason)
+                putExtra("boot_time", bootTime)
             }
 
             startActivity(launchIntent)
             Timber.i("✅ MainActivity launched successfully from service")
 
+        } catch (e: SecurityException) {
+            Timber.e(e, "❌ Security exception launching MainActivity - missing permissions")
         } catch (e: Exception) {
-            Timber.e(e, "❌ Failed to launch MainActivity from service")
+            Timber.e(e, "❌ Failed to launch MainActivity from service: ${e.javaClass.simpleName}")
         }
 
-        // Schedule service to stop itself after a short delay
+        // Schedule service to stop itself after a short delay (reduced from 3s to 2s)
         handler.postDelayed({
             Timber.i("⏹️ Stopping BootStarterService after delay")
             stopSelf()
@@ -101,23 +118,33 @@ class BootStarterService : Service() {
 
     /**
      * Create notification channel for Android 8.0+
+     * Returns true if channel was created successfully or not needed (API < 26)
      */
-    private fun createNotificationChannel() {
+    private fun createNotificationChannel(): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_LOW // Low importance = minimal UI
-            ).apply {
-                description = "Notifications shown when app starts on boot"
-                setShowBadge(false)
+            try {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    CHANNEL_NAME,
+                    NotificationManager.IMPORTANCE_LOW // Low importance = minimal UI
+                ).apply {
+                    description = "Notifications shown when app starts on boot"
+                    setShowBadge(false)
+                }
+
+                val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                notificationManager.createNotificationChannel(channel)
+
+                Timber.d("📺 Notification channel created: $CHANNEL_ID")
+                return true
+            } catch (e: Exception) {
+                Timber.e(e, "❌ Failed to create notification channel")
+                return false
             }
-
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
-
-            Timber.d("📺 Notification channel created: $CHANNEL_ID")
         }
+        
+        // Channel not needed for API < 26
+        return true
     }
 
     /**

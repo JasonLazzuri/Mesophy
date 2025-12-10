@@ -142,8 +142,43 @@ class MainActivity : FragmentActivity() {
             registerReceiver(powerCommandReceiver, powerCommandFilter)
         }
         
+        // Check for SYSTEM_ALERT_WINDOW permission (required for background starts on Android 10+)
+        checkSystemAlertWindowPermission()
+        
         // Check if device is already paired
         checkPairingStatusAndProceed()
+    }
+
+    /**
+     * Check and request "Display over other apps" permission
+     * This is CRITICAL for the app to start automatically from the background on boot
+     */
+    private fun checkSystemAlertWindowPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                Timber.w("⚠️ SYSTEM_ALERT_WINDOW permission missing - requesting user grant")
+                
+                AlertDialog.Builder(this)
+                    .setTitle("Permission Required")
+                    .setMessage("For the app to start automatically after a power outage, you must grant the 'Display over other apps' permission.\n\nPlease enable this in the next screen.")
+                    .setPositiveButton("Grant Permission") { _, _ ->
+                        try {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                android.net.Uri.parse("package:$packageName")
+                            )
+                            startActivityForResult(intent, 1001)
+                        } catch (e: Exception) {
+                            Timber.e(e, "Failed to open overlay permission settings")
+                            Toast.makeText(this, "Please enable 'Display over other apps' in Settings", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    .setCancelable(false)
+                    .show()
+            } else {
+                Timber.i("✅ SYSTEM_ALERT_WINDOW permission already granted")
+            }
+        }
     }
     
     override fun onResume() {
@@ -978,13 +1013,12 @@ class MainActivity : FragmentActivity() {
      * Get API base URL
      */
     fun getBaseUrl(): String {
-        // For local development, return the hardcoded local URL
-        // For production, uncomment the lines below
-        return "http://192.168.29.216:3000"
-
         // Production code:
-        // val sharedPrefs = getSharedPreferences("mesophy_config", MODE_PRIVATE)
-        // return sharedPrefs.getString("api_base", "https://mesophy.vercel.app") ?: "https://mesophy.vercel.app"
+        val sharedPrefs = getSharedPreferences("mesophy_config", MODE_PRIVATE)
+        return sharedPrefs.getString("api_base", "https://mesophy.vercel.app") ?: "https://mesophy.vercel.app"
+
+        // For local development, uncomment the line below:
+        // return "http://192.168.29.216:3000"
     }
     
     /**
@@ -1009,56 +1043,89 @@ class MainActivity : FragmentActivity() {
             if (!Settings.System.canWrite(this)) {
                 Timber.w("🔐 WRITE_SETTINGS permission not granted")
 
-                // Show dialog explaining why we need this permission
-                AlertDialog.Builder(this)
-                    .setTitle("Power Schedule Permission")
-                    .setMessage(
-                        "To automatically turn the display on/off at scheduled times, " +
-                        "this app needs permission to modify system settings.\n\n" +
-                        "This allows the app to:\n" +
-                        "• Control screen brightness for tablets\n" +
-                        "• Manage power schedules for energy efficiency\n\n" +
-                        "Would you like to grant this permission now?"
-                    )
-                    .setPositiveButton("Grant Permission") { _, _ ->
-                        try {
-                            val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
-                                data = android.net.Uri.parse("package:$packageName")
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            startActivity(intent)
-                            Timber.i("🔐 Opened WRITE_SETTINGS permission screen")
+                // Check if device recently booted (within last 5 minutes)
+                // During boot, we can't reliably launch Settings screen due to Android restrictions
+                val bootTime = System.currentTimeMillis() - android.os.SystemClock.elapsedRealtime()
+                val timeSinceBoot = System.currentTimeMillis() - bootTime
+                val isRecentBoot = timeSinceBoot < 300000 // 5 minutes
 
-                            Toast.makeText(
-                                this,
-                                "Please enable 'Modify system settings' and return to the app",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        } catch (e: Exception) {
-                            Timber.e(e, "Failed to open WRITE_SETTINGS permission screen")
-                            Toast.makeText(
-                                this,
-                                "Failed to open settings. Power schedules may not work properly.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
-                    .setNegativeButton("Skip") { dialog, _ ->
-                        Timber.w("🔐 User skipped WRITE_SETTINGS permission")
-                        Toast.makeText(
-                            this,
-                            "Power schedules will use limited functionality (HDMI-CEC only)",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        dialog.dismiss()
-                    }
-                    .setCancelable(false)
-                    .show()
+                // If recently booted, skip permission request entirely
+                // Power schedules will work with HDMI-CEC fallback
+                // User can grant permission later when they manually interact with the app
+                if (isRecentBoot) {
+                    Timber.i("🔐 Skipping permission request during boot - power schedules will use HDMI-CEC fallback")
+                    Timber.i("💡 User can grant WRITE_SETTINGS permission later for full functionality")
+                    return
+                }
+
+                // Show dialog only if NOT during recent boot
+                showPermissionDialog()
             } else {
                 Timber.i("✅ WRITE_SETTINGS permission already granted")
             }
         } catch (e: Exception) {
             Timber.e(e, "Failed to check power management permissions")
+        }
+    }
+
+    /**
+     * Show the permission request dialog
+     */
+    private fun showPermissionDialog() {
+        try {
+            // Check again if permission is still needed
+            if (Settings.System.canWrite(this)) {
+                Timber.i("✅ WRITE_SETTINGS permission already granted")
+                return
+            }
+
+            // Show dialog explaining why we need this permission
+            AlertDialog.Builder(this)
+                .setTitle("Power Schedule Permission")
+                .setMessage(
+                    "To automatically turn the display on/off at scheduled times, " +
+                    "this app needs permission to modify system settings.\n\n" +
+                    "This allows the app to:\n" +
+                    "• Control screen brightness for tablets\n" +
+                    "• Manage power schedules for energy efficiency\n\n" +
+                    "Would you like to grant this permission now?"
+                )
+                .setPositiveButton("Grant Permission") { _, _ ->
+                    try {
+                        val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
+                            data = android.net.Uri.parse("package:$packageName")
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        startActivity(intent)
+                        Timber.i("🔐 Opened WRITE_SETTINGS permission screen")
+
+                        Toast.makeText(
+                            this,
+                            "Please enable 'Modify system settings' and return to the app",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } catch (e: Exception) {
+                        Timber.e(e, "Failed to open WRITE_SETTINGS permission screen")
+                        Toast.makeText(
+                            this,
+                            "Failed to open settings. Power schedules may not work properly.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+                .setNegativeButton("Skip") { dialog, _ ->
+                    Timber.w("🔐 User skipped WRITE_SETTINGS permission")
+                    Toast.makeText(
+                        this,
+                        "Power schedules will use limited functionality (HDMI-CEC only)",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    dialog.dismiss()
+                }
+                .setCancelable(false)
+                .show()
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to show permission dialog")
         }
     }
 

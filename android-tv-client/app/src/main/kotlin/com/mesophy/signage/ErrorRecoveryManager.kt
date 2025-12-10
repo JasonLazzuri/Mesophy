@@ -47,8 +47,10 @@ class ErrorRecoveryManager(
     
     @Serializable
     data class ErrorStats(
-        val errorCount: Int = 0,
+        val errorCount: Int = 0,  // General error count (non-critical)
+        val criticalErrorCount: Int = 0,  // Critical errors that may trigger restart
         val lastErrorTime: Long = 0,
+        val lastCriticalErrorTime: Long = 0,
         val consecutiveCrashes: Int = 0,
         val networkErrors: Int = 0,
         val memoryErrors: Int = 0,
@@ -71,7 +73,8 @@ class ErrorRecoveryManager(
     private var networkReconnectJob: Job? = null
     private var isRunning = false
     private var currentErrorStats = loadErrorStats()
-    
+    private val startTime = System.currentTimeMillis() // Track when the manager was created
+
     // Components to monitor and restart
     private var contentSyncManager: ContentSyncManager? = null
     private var sseManager: ServerSentEventsManager? = null
@@ -104,7 +107,7 @@ class ErrorRecoveryManager(
         Thread.setDefaultUncaughtExceptionHandler(this)
         
         Timber.i("🛡️ Error Recovery Manager started")
-        Timber.i("📊 Error stats: ${currentErrorStats.errorCount} errors, ${currentErrorStats.totalRestarts} restarts")
+        Timber.i("📊 Error stats: ${currentErrorStats.criticalErrorCount} critical, ${currentErrorStats.networkErrors} network, ${currentErrorStats.totalRestarts} restarts")
         
         // Start health monitoring
         startHealthMonitoring()
@@ -153,26 +156,49 @@ class ErrorRecoveryManager(
     override fun uncaughtException(thread: Thread, exception: Throwable) {
         try {
             Timber.e(exception, "💥 UNCAUGHT EXCEPTION in thread: ${thread.name}")
-            
+
+            // Special handling for OutOfMemoryError - DON'T restart the app
+            if (exception is OutOfMemoryError) {
+                Timber.e("💥 OutOfMemoryError detected - this should have been caught at media level")
+                Timber.e("🔧 NOT restarting app - the problematic media should be skipped")
+
+                // Create crash report for monitoring
+                val crashReport = createCrashReport(exception)
+                saveCrashReport(crashReport)
+
+                // Update stats but don't schedule restart
+                updateErrorStats("component") // Transient, not critical
+
+                // Notify but don't restart
+                notifyCriticalError("OutOfMemory: Media file too large (handled)")
+
+                // DON'T call scheduleApplicationRestart for OOM
+                // The media player should have caught this and skipped the file
+                return
+            }
+
+            // For all other exceptions, proceed with normal crash handling
             // Create crash report
             val crashReport = createCrashReport(exception)
             saveCrashReport(crashReport)
-            
+
             // Update error statistics
             updateErrorStats("crash")
-            
+
             // Notify listeners
             notifyCriticalError("Application crashed: ${exception.message}")
-            
+
             // Try to restart application gracefully
             scheduleApplicationRestart("Uncaught exception: ${exception.javaClass.simpleName}")
-            
+
         } catch (e: Exception) {
             Timber.e(e, "Failed to handle uncaught exception")
         }
-        
-        // Call the default handler to ensure proper cleanup
-        defaultHandler?.uncaughtException(thread, exception)
+
+        // Call the default handler to ensure proper cleanup (except for OOM)
+        if (exception !is OutOfMemoryError) {
+            defaultHandler?.uncaughtException(thread, exception)
+        }
     }
     
     /**
@@ -193,14 +219,49 @@ class ErrorRecoveryManager(
      */
     fun handleComponentError(component: String, error: String) {
         Timber.w("⚠️ Component error in $component: $error")
-        updateErrorStats("component")
-        
-        // Send command failure alert to server
-        CoroutineScope(Dispatchers.IO).launch {
-            sendCommandFailureAlert(component, error)
+
+        // Categorize error by severity
+        val errorSeverity = categorizeError(error)
+
+        when (errorSeverity) {
+            ErrorSeverity.NETWORK -> {
+                // Network errors: track separately, NEVER trigger restart
+                updateErrorStats("network")
+                Timber.i("📡 Network error detected - will retry when connection restored")
+                // Don't send alerts for network errors - they're expected
+            }
+
+            ErrorSeverity.CRITICAL -> {
+                // Critical errors: count toward restart threshold
+                updateErrorStats("critical")
+                Timber.e("🚨 CRITICAL error detected: $error")
+
+                // Send alert to server
+                CoroutineScope(Dispatchers.IO).launch {
+                    sendCommandFailureAlert(component, error, "critical")
+                }
+
+                // Check if we should restart
+                if (shouldRestartDueToErrors()) {
+                    scheduleApplicationRestart("Critical error in $component: $error")
+                }
+            }
+
+            ErrorSeverity.TRANSIENT -> {
+                // Transient errors: track but don't count toward restart
+                updateErrorStats("component")
+                Timber.w("⚠️ Transient error - will retry")
+
+                // Only send alert if error persists
+                if (currentErrorStats.errorCount > 10) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        sendCommandFailureAlert(component, error)
+                    }
+                }
+            }
         }
-        
-        // Attempt to recover specific components
+
+        // Attempt to recover specific components (for all error types)
         when (component.lowercase()) {
             "contentsyncmanager", "sync" -> {
                 recoverContentSync()
@@ -215,6 +276,48 @@ class ErrorRecoveryManager(
                 Timber.w("Unknown component: $component, cannot auto-recover")
             }
         }
+    }
+
+    /**
+     * Error severity levels
+     */
+    private enum class ErrorSeverity {
+        NETWORK,    // Network/connection issues - never restart
+        TRANSIENT,  // Temporary issues - retry without restart
+        CRITICAL    // Serious issues - may need restart
+    }
+
+    /**
+     * Categorize error by severity based on error message
+     */
+    private fun categorizeError(error: String): ErrorSeverity {
+        val errorLower = error.lowercase()
+
+        // Network errors - NEVER restart for these
+        if (errorLower.contains("unable to resolve host") ||
+            errorLower.contains("no address associated with hostname") ||
+            errorLower.contains("network") ||
+            errorLower.contains("connection") ||
+            errorLower.contains("timeout") ||
+            errorLower.contains("connect timed out") ||
+            errorLower.contains("failed to connect") ||
+            errorLower.contains("no internet") ||
+            errorLower.contains("socket")) {
+            return ErrorSeverity.NETWORK
+        }
+
+        // Critical errors - restart may be needed
+        // NOTE: OutOfMemory is NOT critical - it's handled per-file, not app-wide
+        if (errorLower.contains("securityexception") ||
+            errorLower.contains("security exception") ||
+            errorLower.contains("fatal") ||
+            errorLower.contains("crashed") ||
+            errorLower.contains("force close")) {
+            return ErrorSeverity.CRITICAL
+        }
+
+        // Everything else is transient (including OutOfMemory - handled at media level)
+        return ErrorSeverity.TRANSIENT
     }
     
     /**
@@ -470,48 +573,70 @@ class ErrorRecoveryManager(
      */
     private fun updateErrorStats(type: String) {
         val currentTime = System.currentTimeMillis()
-        
+
         currentErrorStats = when (type) {
             "crash" -> currentErrorStats.copy(
-                errorCount = currentErrorStats.errorCount + 1,
-                lastErrorTime = currentTime,
+                criticalErrorCount = currentErrorStats.criticalErrorCount + 1,
+                lastCriticalErrorTime = currentTime,
                 consecutiveCrashes = currentErrorStats.consecutiveCrashes + 1
+            )
+            "critical" -> currentErrorStats.copy(
+                criticalErrorCount = currentErrorStats.criticalErrorCount + 1,
+                lastCriticalErrorTime = currentTime
             )
             "network" -> currentErrorStats.copy(
                 networkErrors = currentErrorStats.networkErrors + 1,
                 lastErrorTime = currentTime
+                // Note: Network errors do NOT increment criticalErrorCount
             )
             "restart" -> currentErrorStats.copy(
                 totalRestarts = currentErrorStats.totalRestarts + 1
             )
             "recovery" -> currentErrorStats.copy(
-                errorCount = maxOf(0, currentErrorStats.errorCount - 1),
+                criticalErrorCount = maxOf(0, currentErrorStats.criticalErrorCount - 1),
                 consecutiveCrashes = 0
+            )
+            "component" -> currentErrorStats.copy(
+                errorCount = currentErrorStats.errorCount + 1,
+                lastErrorTime = currentTime
+                // Note: Component errors do NOT increment criticalErrorCount
             )
             else -> currentErrorStats.copy(
                 errorCount = currentErrorStats.errorCount + 1,
                 lastErrorTime = currentTime
             )
         }
-        
+
         saveErrorStats()
     }
     
     /**
      * Check if application should restart due to too many errors
+     * ONLY considers CRITICAL errors and crashes, NOT network or transient errors
      */
     private fun shouldRestartDueToErrors(): Boolean {
-        val timeSinceLastError = System.currentTimeMillis() - currentErrorStats.lastErrorTime
-        
-        // Reset error count if enough time has passed
-        if (timeSinceLastError > ERROR_RESET_TIME_MS) {
-            currentErrorStats = currentErrorStats.copy(errorCount = 0, consecutiveCrashes = 0)
+        val timeSinceLastCriticalError = System.currentTimeMillis() - currentErrorStats.lastCriticalErrorTime
+
+        // Reset critical error count if enough time has passed (5 minutes)
+        if (timeSinceLastCriticalError > ERROR_RESET_TIME_MS) {
+            currentErrorStats = currentErrorStats.copy(
+                criticalErrorCount = 0,
+                consecutiveCrashes = 0
+            )
             saveErrorStats()
             return false
         }
-        
-        return currentErrorStats.errorCount >= MAX_ERROR_COUNT ||
-               currentErrorStats.consecutiveCrashes >= 3
+
+        // Only restart for CRITICAL errors (threshold: 5) or consecutive crashes (threshold: 3)
+        // Network errors and transient errors do NOT trigger restarts
+        val shouldRestart = currentErrorStats.criticalErrorCount >= MAX_ERROR_COUNT ||
+                            currentErrorStats.consecutiveCrashes >= 3
+
+        if (shouldRestart) {
+            Timber.e("🚨 Restart threshold reached - criticalErrors: ${currentErrorStats.criticalErrorCount}, crashes: ${currentErrorStats.consecutiveCrashes}")
+        }
+
+        return shouldRestart
     }
     
     /**
@@ -521,7 +646,9 @@ class ErrorRecoveryManager(
         return try {
             ErrorStats(
                 errorCount = sharedPrefs.getInt("error_count", 0),
+                criticalErrorCount = sharedPrefs.getInt("critical_error_count", 0),
                 lastErrorTime = sharedPrefs.getLong("last_error_time", 0),
+                lastCriticalErrorTime = sharedPrefs.getLong("last_critical_error_time", 0),
                 consecutiveCrashes = sharedPrefs.getInt("consecutive_crashes", 0),
                 networkErrors = sharedPrefs.getInt("network_errors", 0),
                 memoryErrors = sharedPrefs.getInt("memory_errors", 0),
@@ -540,7 +667,9 @@ class ErrorRecoveryManager(
         try {
             with(sharedPrefs.edit()) {
                 putInt("error_count", currentErrorStats.errorCount)
+                putInt("critical_error_count", currentErrorStats.criticalErrorCount)
                 putLong("last_error_time", currentErrorStats.lastErrorTime)
+                putLong("last_critical_error_time", currentErrorStats.lastCriticalErrorTime)
                 putInt("consecutive_crashes", currentErrorStats.consecutiveCrashes)
                 putInt("network_errors", currentErrorStats.networkErrors)
                 putInt("memory_errors", currentErrorStats.memoryErrors)
