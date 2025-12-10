@@ -312,11 +312,11 @@ export async function GET(request: NextRequest) {
             .map((item, index) => {
               // Determine default duration based on media type
               // YouTube videos get longer default (600s = 10 min) since we can't auto-detect duration
-              // Calendar media doesn't have duration (always-on display)
+              // Calendar media gets 30 seconds (typical for informational displays)
               // Regular videos should play to completion (use actual duration or 10s for images)
               const isYouTube = item.media_assets?.mime_type === 'video/youtube' || item.media_assets?.youtube_url
               const isCalendar = item.media_assets?.media_type === 'calendar'
-              const defaultDuration = isCalendar ? null : (isYouTube ? 600 : 10)
+              const defaultDuration = isCalendar ? 30 : (isYouTube ? 600 : 10)
 
               // Debug logging for playlist order
               console.log(`📋 Playlist item ${index}: order_index=${item.order_index}, name=${item.media_assets?.name}, type=${item.media_assets?.media_type || item.media_assets?.mime_type}`)
