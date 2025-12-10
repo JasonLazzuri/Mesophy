@@ -106,11 +106,22 @@ export async function GET(request: NextRequest) {
     console.log('🔵 [MEDIA_CALLBACK] Storing OAuth session...')
 
     // Create service role client for OAuth session storage
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !serviceKey) {
+      console.error('❌ [MEDIA_CALLBACK] Missing Supabase credentials:', {
+        hasUrl: !!supabaseUrl,
+        hasServiceKey: !!serviceKey
+      })
+      return NextResponse.json({
+        error: 'Server configuration error',
+        details: 'Missing Supabase service role key. Please contact support.'
+      }, { status: 500 })
+    }
+
     const { createClient: createServiceClient } = await import('@supabase/supabase-js')
-    const supabaseAdmin = createServiceClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabaseAdmin = createServiceClient(supabaseUrl, serviceKey)
 
     const { error: sessionError } = await supabaseAdmin
       .from('calendar_oauth_sessions')
