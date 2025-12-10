@@ -53,12 +53,30 @@ export async function POST(request: NextRequest) {
 
     // Parse request body with calendar metadata
     const body = await request.json()
-    const { calendar_metadata } = body
+    let { calendar_metadata } = body
 
     if (!calendar_metadata) {
       return NextResponse.json({
         error: 'Calendar metadata required'
       }, { status: 400 })
+    }
+
+    // Normalize field names - Android sends camelCase, we need snake_case
+    if (calendar_metadata.calendarId) {
+      calendar_metadata = {
+        calendar_id: calendar_metadata.calendarId,
+        calendar_name: calendar_metadata.calendarName,
+        access_token: calendar_metadata.accessToken,
+        refresh_token: calendar_metadata.refreshToken,
+        token_expires_at: calendar_metadata.tokenExpiresAt,
+        microsoft_user_id: calendar_metadata.microsoftUserId,
+        microsoft_email: calendar_metadata.microsoftEmail,
+        timezone: calendar_metadata.timezone,
+        show_organizer: calendar_metadata.showOrganizer,
+        show_attendees: calendar_metadata.showAttendees,
+        show_private_details: calendar_metadata.showPrivateDetails,
+        ...calendar_metadata // Keep any other fields
+      }
     }
 
     console.log('📅 Calendar data request for calendar:', calendar_metadata.calendar_name || calendar_metadata.calendar_id)
