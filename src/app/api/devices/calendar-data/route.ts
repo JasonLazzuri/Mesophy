@@ -9,6 +9,48 @@ import { refreshMicrosoftToken, getMicrosoftCalendarEvents } from '@/lib/microso
  */
 export async function POST(request: NextRequest) {
   try {
+    // Authenticate device with token
+    const deviceToken = request.headers.get('Authorization')?.replace('Bearer ', '')
+
+    if (!deviceToken) {
+      return NextResponse.json({
+        error: 'Device token required'
+      }, { status: 401 })
+    }
+
+    console.log('📅 Calendar data request from device:', deviceToken?.substring(0, 10) + '...')
+
+    // Use service role client for device operations (bypass RLS)
+    const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY ||
+                       process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                       process.env.SUPABASE_SERVICE_KEY
+
+    if (!serviceKey || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
+    }
+
+    const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+    const adminSupabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      serviceKey
+    )
+
+    // Verify device exists with this token
+    const { data: screen, error: screenError } = await adminSupabase
+      .from('screens')
+      .select('id, name, device_id')
+      .eq('device_token', deviceToken)
+      .single()
+
+    if (screenError || !screen) {
+      console.error('❌ Invalid device token')
+      return NextResponse.json({
+        error: 'Invalid device token'
+      }, { status: 401 })
+    }
+
+    console.log('✅ Device authenticated:', screen.name)
+
     // Parse request body with calendar metadata
     const body = await request.json()
     const { calendar_metadata } = body
@@ -50,41 +92,24 @@ export async function POST(request: NextRequest) {
         console.log('💾 New token expires at:', newExpiresAt)
 
         try {
-          // Get Supabase service client to update the database
-          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-          const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ||
-                                     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY ||
-                                     process.env.SUPABASE_SERVICE_KEY
-
-          if (supabaseUrl && supabaseServiceKey) {
-            // Update media_assets table with new tokens
-            const updateResponse = await fetch(`${supabaseUrl}/rest/v1/media_assets?calendar_metadata->>calendar_id=eq.${calendar_metadata.calendar_id}`, {
-              method: 'PATCH',
-              headers: {
-                'apikey': supabaseServiceKey,
-                'Authorization': `Bearer ${supabaseServiceKey}`,
-                'Content-Type': 'application/json',
-                'Prefer': 'return=minimal'
-              },
-              body: JSON.stringify({
-                calendar_metadata: {
-                  ...calendar_metadata,
-                  access_token: accessToken,
-                  refresh_token: newRefreshToken,
-                  token_expires_at: newExpiresAt,
-                  last_token_refresh: new Date().toISOString()
-                }
-              })
+          // Update media_assets table with new tokens using adminSupabase client
+          const { error: updateError } = await adminSupabase
+            .from('media_assets')
+            .update({
+              calendar_metadata: {
+                ...calendar_metadata,
+                access_token: accessToken,
+                refresh_token: newRefreshToken,
+                token_expires_at: newExpiresAt,
+                last_token_refresh: new Date().toISOString()
+              }
             })
+            .eq('calendar_metadata->>calendar_id', calendar_metadata.calendar_id)
 
-            if (updateResponse.ok) {
-              console.log('✅ Successfully saved refreshed tokens to database')
-            } else {
-              const errorText = await updateResponse.text()
-              console.error('❌ Failed to save tokens to database:', updateResponse.status, errorText)
-            }
+          if (updateError) {
+            console.error('❌ Failed to save tokens to database:', updateError)
           } else {
-            console.warn('⚠️ Missing Supabase credentials, cannot save tokens to database')
+            console.log('✅ Successfully saved refreshed tokens to database')
           }
         } catch (dbError) {
           console.error('❌ Database update error:', dbError)
