@@ -406,6 +406,14 @@ export async function refreshMicrosoftToken(refreshToken: string): Promise<{
 }
 
 /**
+ * Get list of calendars from Microsoft Graph
+ */
+export async function getMicrosoftCalendars(accessToken: string): Promise<CalendarInfo[]> {
+  const client = new MicrosoftGraphClient(accessToken)
+  return client.getCalendars()
+}
+
+/**
  * Get calendar events from Microsoft Graph
  */
 export async function getMicrosoftCalendarEvents(
