@@ -24,7 +24,8 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith('/api/test-') || // Allow test endpoints for now
       pathname.startsWith('/api/debug/') || // Debug endpoints have their own security
       pathname.startsWith('/api/devices/') || // Device-facing APIs have their own authentication
-      pathname.startsWith('/api/calendar/') // Calendar OAuth and data endpoints (for both portal and devices)
+      pathname.startsWith('/api/calendar/microsoft/auth/') || // OAuth initiation
+      pathname.startsWith('/api/calendar/microsoft/callback/') // OAuth callbacks
     ) {
       return NextResponse.next()
     }
@@ -125,8 +126,9 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public folder
      * - api/devices (device-facing APIs)
-     * - api/calendar (calendar OAuth and calendar-data endpoints)
+     * - api/calendar/microsoft/auth (OAuth initiation)
+     * - api/calendar/microsoft/callback (OAuth callbacks)
      */
-    '/((?!_next/static|_next/image|favicon.ico|public/|api/devices/|api/calendar/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|public/|api/devices/).*)',
   ],
 }
