@@ -128,6 +128,17 @@ export default function MediaPage() {
     fetchFolders()
   }, [fetchMediaAssets, fetchFolders])
 
+  // Auto-open calendar modal after OAuth redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const calendarConnected = params.get('calendar_connected')
+
+    if (calendarConnected === 'true') {
+      // Open the calendar modal to continue the flow
+      setShowCalendarConnect(true)
+    }
+  }, [])
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
